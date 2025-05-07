@@ -35,7 +35,7 @@ def test_genesis_adapter():
     
     # 2. Test adding primitive shapes
     # Add a ground plane
-    ground = adapter.add_primitive("plane", size=(20.0, 20.0))
+    ground = adapter.add_primitive("plane")
     print(f"Added ground plane: {ground['id']}")
     
     # Add a box

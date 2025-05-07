@@ -76,23 +76,25 @@ class GenesisAdapter:
 
         
         # Determine the type of file and load accordingly
-        if file.suffix.lower() == '.xml':
+        file_path = Path(file)
+
+        if file_path.suffix.lower() == '.xml':
             # Load MJCF file
             entity = self.scene.add_entity(
-                gs.morphs.MJCF(file=str(file))
+                gs.morphs.MJCF(file=str(file_path))
             )
-        elif file.suffix.lower() == '.obj':
+        elif file_path.suffix.lower() == '.obj':
             # Load OBJ mesh file
             entity = self.scene.add_entity(
-                gs.morphs.Mesh(file=str(file))
+                gs.morphs.Mesh(file=str(file_path))
             )
-        elif file.suffix.lower() == '.stl':
+        elif file_path.suffix.lower() == '.stl':
             # Load STL mesh file
             entity = self.scene.add_entity(
-                gs.morphs.Mesh(file=str(file))
+                gs.morphs.Mesh(file=str(file_path))
             )
         else:
-            raise ValueError(f"Unsupported file format: {file.suffix}")
+            raise ValueError(f"Unsupported file format: {file_path.suffix}")
             
         # Store entity with an ID
         entity_id = str(len(self.entities))
