@@ -8,20 +8,20 @@ from typing import Optional, Dict, Any
 class GeometryBackend(Enum):
     """Available geometry backend options."""
     GENESIS_AI = auto()
-    ROBOTICS_TOOLBOX = auto()
+    ROBOTICS_TOOLBOX = auto() # TODO: Implement robotics toolbox backend
 
 
 class BoundingBoxType(Enum):
     """Available bounding box computation strategies."""
     AABB = auto()  # Axis-Aligned Bounding Box
-    PCA_OBB = auto()  # Principal Component Analysis Oriented Bounding Box
+    PCA_OBB = auto()  # TODO: Implement Principal Component Analysis Oriented Bounding Box
 
 
 class PlannerType(Enum):
     """Available planner strategy types."""
-    PCA = auto()  # Principal Component Analysis based planning
-    CONVEX_HULL = auto()  # Convex hull based planning
-    SCREW_MOTION = auto()  # New: Screw motion based planning
+    PCA = auto()  # TODO: Implement PCA based planning
+    CONVEX_HULL = auto()  # TODO: Implement convex hull based planning
+    SCREW_MOTION = auto()  # Screw motion based planning
 
 
 class SimulationConfig:
@@ -30,7 +30,7 @@ class SimulationConfig:
     def __init__(
         self,
         geometry_backend: GeometryBackend = GeometryBackend.GENESIS_AI,
-        bbox_type: BoundingBoxType = BoundingBoxType.PCA_OBB,
+        bbox_type: BoundingBoxType = BoundingBoxType.AABB,
         planner_type: PlannerType = PlannerType.SCREW_MOTION,
         geometry_config: Optional[Dict[str, Any]] = None,
         bbox_config: Optional[Dict[str, Any]] = None,
