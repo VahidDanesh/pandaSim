@@ -7,6 +7,13 @@ from typing import Any, Optional, Dict, Tuple, Union
 import numpy as np
 import genesis as gs
 from pathlib import Path
+from pytransform3d import (
+    transformations as pt,
+    rotations as pr,
+    batch_rotations as pb,
+    trajectories as ptr,
+    plot_utils as ppu
+)
 
 class GenesisAdapter:
     """
@@ -63,6 +70,11 @@ class GenesisAdapter:
         # Store loaded entities
         self.entities = {}
     
+    @property
+    def get_scene(self):
+        """Get the underlying Genesis scene for direct access"""
+        return self.scene
+    
     def load(self, file: str) -> Any:
         """
         Load data from file using Genesis AI.
@@ -112,31 +124,43 @@ class GenesisAdapter:
         
         Args:
             primitive_type: Type of primitive shape ("box", "cylinder", "sphere", "plane")
-            **params: Shape-specific parameters (will use Genesis defaults if not provided)
+            **params: Shape-specific parameters including surface properties
+                - pos, quat, euler: For shape position and orientation
+                - size, lower, upper: For box shape
+                - radius, height: For cylinder shape
+                - radius: For sphere shape
+                - surface: For material/color properties (e.g., gs.surfaces.Default(color=(r,g,b)))
         
         Returns:
             Dictionary containing the entity information
         """
         primitive_type = primitive_type.lower()
         
+        # Extract surface parameter separately, don't pass it to the morph constructor
+        surface = params.pop('surface', None)
+        
         if primitive_type == "box":
             entity = self.scene.add_entity(
-                gs.morphs.Box(**params)
+                gs.morphs.Box(**params),
+                surface=surface
             )
             
         elif primitive_type == "cylinder":
             entity = self.scene.add_entity(
-                gs.morphs.Cylinder(**params)
+                gs.morphs.Cylinder(**params),
+                surface=surface
             )
             
         elif primitive_type == "sphere":
             entity = self.scene.add_entity(
-                gs.morphs.Sphere(**params)
+                gs.morphs.Sphere(**params),
+                surface=surface
             )
             
         elif primitive_type == "plane":
             entity = self.scene.add_entity(
-                gs.morphs.Plane(**params)
+                gs.morphs.Plane(**params),
+                surface=surface
             )
             
         else:
@@ -153,48 +177,60 @@ class GenesisAdapter:
             "entity": entity
         }
 
-    def get_vertices(self, obj: Dict) -> np.ndarray:
+
+    
+    def get_bbox(self, obj: Union[Dict, Any]) -> Dict:
         """
-        Extract vertices from Genesis AI geometry.
+        Calculate axis-aligned bounding box for an object.
         
         Args:
-            obj: Genesis AI geometry representation
-            
+            obj: Object representation or direct entity
+        
         Returns:
-            Numpy array of vertices (Nx3)
+            Dictionary containing bounding box information:
+            - vertices: 8 corner points of the bounding box
+            - edges: 12 edges connecting the vertices
+            - min_bounds: Minimum coordinate values (x,y,z)
+            - max_bounds: Maximum coordinate values (x,y,z)
         """
-        entity = obj["entity"]
+        # Handle both dict wrapper and direct entity
+        entity = obj["entity"] if isinstance(obj, dict) else obj
+        
         # Get mesh data from entity
-        # Note: Exact API method may need adjustment based on Genesis documentation
-        mesh_data = entity.get_mesh_data()
+        vertices = entity.get_verts().cpu().numpy()
+
         
-        # Convert to numpy array if needed
-        if not isinstance(mesh_data.vertices, np.ndarray):
-            return np.array(mesh_data.vertices)
-        return mesh_data.vertices
+        # Calculate min and max bounds
+        min_bounds = np.min(vertices, axis=0)
+        max_bounds = np.max(vertices, axis=0)
+        
+        # Generate the 8 corners of the bounding box
+        corners = []
+        for x in [min_bounds[0], max_bounds[0]]:
+            for y in [min_bounds[1], max_bounds[1]]:
+                for z in [min_bounds[2], max_bounds[2]]:
+                    corners.append([x, y, z])
+        
+        corners = np.array(corners)
+        # Define the 12 edges as pairs of vertex indices
+        edge_indices = [
+            (0, 2), (4, 6), (0, 4), (2, 6),  # Bottom face
+            (1, 3), (5, 7), (3, 7), (1, 5),  # Top face
+            (0, 1), (2, 3), (4, 5), (6, 7)   # Connecting edges
+        ]
+        edges = [corners[j] - corners[i] for i, j in edge_indices]
+        edges = [edge / np.linalg.norm(edge) for edge in edges]
+        edges = np.array(edges)
+        
+
+        return {
+            "vertices": corners,
+            "edges": edges,
+            "min_bounds": min_bounds,
+            "max_bounds": max_bounds
+        }
     
-    def get_faces(self, obj: Dict) -> Optional[np.ndarray]:
-        """
-        Extract faces from Genesis AI geometry.
-        
-        Args:
-            obj: Genesis AI geometry representation
-            
-        Returns:
-            Numpy array of face indices
-        """
-        entity = obj["entity"]
-        # Get mesh data from entity
-        mesh_data = entity.get_mesh_data()
-        
-        if hasattr(mesh_data, 'faces') and mesh_data.faces:
-            # Convert to numpy array if needed
-            if not isinstance(mesh_data.faces, np.ndarray):
-                return np.array(mesh_data.faces)
-            return mesh_data.faces
-        return None
-    
-    def transform(self, obj: Dict, transformation: np.ndarray) -> Dict:
+    def transform(self, obj: Union[Dict, Any], transformation: np.ndarray) -> Dict:
         """
         Apply transformation to Genesis AI geometry.
         
@@ -205,48 +241,12 @@ class GenesisAdapter:
         Returns:
             Transformed Genesis AI geometry
         """
-        entity = obj["entity"]
+        entity = obj["entity"] if isinstance(obj, dict) else obj
         
-        # Extract rotation and translation from transformation matrix
-        rotation = transformation[:3, :3]
-        translation = transformation[:3, 3]
         
+        pq = pt.pq_from_transform(transformation)
         # Apply transformation to entity
-        entity.set_pose(
-            pos=translation,
-            rot=rotation
+        entity.set_qpos(
+            pq
         )
-        
-        return obj
-    
-    def compute_center_of_mass(self, obj: Dict) -> np.ndarray:
-        """
-        Compute center of mass with Genesis AI.
-        
-        Args:
-            obj: Genesis AI geometry representation
-            
-        Returns:
-            3D coordinates of the center of mass
-        """
-        entity = obj["entity"]
-        # Get center of mass from entity
-        com = entity.get_center_of_mass()
-        
-        return np.array(com)
-    
-    def compute_volume(self, obj: Dict) -> float:
-        """
-        Compute volume with Genesis AI.
-        
-        Args:
-            obj: Genesis AI geometry representation
-            
-        Returns:
-            Volume of the geometry
-        """
-        entity = obj["entity"]
-        # Get volume from entity
-        volume = entity.get_volume()
-        
-        return float(volume)
+
