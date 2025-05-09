@@ -17,5 +17,6 @@ except ImportError:
 
 from pandaSim.core.upright_task import UprightTask
 from pandaSim.core.config import SimulationConfig
+from pandaSim.control.resolved_rate import ResolvedRateController
 
-__all__ = ["UprightTask", "SimulationConfig"]
+__all__ = ["UprightTask", "SimulationConfig", "ResolvedRateController"]

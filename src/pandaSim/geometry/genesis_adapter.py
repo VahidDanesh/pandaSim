@@ -249,4 +249,189 @@ class GenesisAdapter:
         entity.set_qpos(
             pq
         )
+    
+    # Robot control methods
+    
+    def get_joint_positions(self, robot: Any) -> np.ndarray:
+        """
+        Get current joint positions of the robot.
+        
+        Args:
+            robot: The robot representation
+            
+        Returns:
+            Array of joint positions
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        
+        # Get joint positions using Genesis API
+        return entity.get_dofs_position().cpu().numpy()
+    
+    def set_joint_positions(self, robot: Any, positions: np.ndarray) -> None:
+        """
+        Set joint positions of the robot directly (without control).
+        
+        Args:
+            robot: The robot representation
+            positions: Array of joint positions
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        
+        # Set joint positions in Genesis
+        entity.set_dofs_position(positions)
+    
+    def control_joint_positions(self, robot: Any, positions: np.ndarray) -> None:
+        """
+        Control joint positions of the robot using PD controller.
+        
+        Args:
+            robot: The robot representation
+            positions: Array of joint positions (target)
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        
+        # Control joint positions using PD controller
+        entity.control_dofs_position(positions)
+    
+    def set_joint_velocities(self, robot: Any, velocities: np.ndarray) -> None:
+        """
+        Set joint velocities of the robot directly (without control).
+        
+        Args:
+            robot: The robot representation
+            velocities: Array of joint velocities
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        
+        # Set joint velocities in Genesis
+        entity.set_dofs_velocity(velocities)
+    
+    def control_joint_velocities(self, robot: Any, velocities: np.ndarray) -> None:
+        """
+        Control joint velocities of the robot using PD controller.
+        
+        Args:
+            robot: The robot representation
+            velocities: Array of joint velocities (target)
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        
+        # Control joint velocities using PD controller
+        entity.control_dofs_velocity(velocities)
+    
+    def get_joint_limits(self, robot: Any) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get joint limits of the robot.
+        
+        Args:
+            robot: The robot representation
+            
+        Returns:
+            Tuple of (lower_limits, upper_limits)
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        
+        # Get joint limits from Genesis
+        limits = entity.get_dofs_limit()
+        lower_limits = limits[0].cpu().numpy()
+        upper_limits = limits[1].cpu().numpy()
+        
+        return lower_limits, upper_limits
+    
+    def compute_jacobian(self, robot: Any, link: Any) -> np.ndarray:
+        """
+        Compute the Jacobian matrix for the robot.
+        
+        Args:
+            robot: The robot representation
+            link: End-effector link
+            
+        Returns:
+            Jacobian matrix
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        
+        jacobian = entity.get_jacobian(link=link).cpu().numpy()
+        
+        return jacobian
+    
+    def compute_forward_kinematics(self, robot: Any, link: Any = None, q: Optional[np.ndarray] = None) -> np.ndarray:
+        """
+        Compute forward kinematics for the robot.
+        
+        Args:
+            robot: The robot representation
+            q: Joint positions (optional)
+            link: End-effector link (optional)
+            
+        Returns:
+            End-effector pose as 4x4 homogeneous transformation matrix
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        
+        # Case 1: If both robot and joint positions are provided, use forward_kinematics
+        if q is not None:
+            # Use forward_kinematics to get position and orientation
+            links_pos, links_quat = entity.forward_kinematics(q)
+            
+            # Convert to 4x4 transformation matrix
+            # If we're interested in a specific link, use its index
+            if link is not None:
+                # If link is an integer index
+                if isinstance(link, int):
+                    pos = links_pos[link].cpu().numpy()
+                    quat = links_quat[link].cpu().numpy()
+                # If link is a string name, get its index
+                elif isinstance(link, str):
+                    link_idx = entity.get_link_idx(link)
+                    pos = links_pos[link_idx].cpu().numpy()
+                    quat = links_quat[link_idx].cpu().numpy()
+                else:
+                    # Default to the last link (end-effector)
+                    pos = links_pos[-1].cpu().numpy()
+                    quat = links_quat[-1].cpu().numpy()
+            else:
+                # Default to the last link (end-effector)
+                pos = links_pos[-1].cpu().numpy()
+                quat = links_quat[-1].cpu().numpy()
+                
+            # Convert position and quaternion to transformation matrix
+            transform = np.eye(4)
+            transform[:3, :3] = pr.matrix_from_quaternion(quat)
+            transform[:3, 3] = pos
+            
+        # Case 2: If only link is provided, get position and quaternion directly
+        elif link is not None:
+            # Get position and quaternion
+            pos = link.get_pos().cpu().numpy()
+            quat = link.get_quat().cpu().numpy()
+            
+            # Convert to transformation matrix
+            transform = np.eye(4)
+            transform[:3, :3] = pr.matrix_from_quaternion(quat)
+            transform[:3, 3] = pos
+            
+        # Default case: get current end-effector transform
+        else:
+            if 'RigidEntity' in str(type(entity)):
+                # For rigid entities, use get_link_transform
+                links_pos, links_quat = entity.forward_kinematics(
+                    entity.get_dofs_position()
+                    )
+                transforms = ptr.transforms_from_pqs(
+                    np.concatenate([links_pos, links_quat], axis=1),
+                )
+                return transforms
+                
+        return transform
+    
+    def step_simulation(self, dt: float = None) -> None:
+        """
+        Step the simulation forward by dt seconds.
+        
+        Args:
+            dt: Time step in seconds (optional, uses scene default if None)
+        """
+        # Step the Genesis simulation
+        self.scene.step(dt)
 
