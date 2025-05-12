@@ -24,8 +24,12 @@ def test_genesis_adapter():
     gs.init(backend=gs.gpu, seed=42)
     adapter = GenesisAdapter(config)
     
+    # =============================================
+    # Approach 1: Using the adapter wrapper methods
+    # =============================================
+    print("\n=== Using adapter methods ===")
+    
     # 1. Test loading a robot model from MJCF XML
-    # Adjust the path to a valid MJCF file on your system
     robot_path = 'xml/franka_emika_panda/panda.xml'
     try:
         robot = adapter.load(robot_path)
@@ -33,60 +37,73 @@ def test_genesis_adapter():
     except FileNotFoundError:
         print(f"Robot file not found: {robot_path} - skipping this test")
     
-    # 2. Test adding primitive shapes
-    # Add a ground plane
-    ground = adapter.add_primitive("plane", size=(20.0, 20.0))
+    # Add primitives with colors using the adapter
+    ground = adapter.add_primitive("plane", surface=gs.surfaces.Default(color=(0.3, 0.3, 0.3)))
     print(f"Added ground plane: {ground['id']}")
     
-    # Add a box
-    box = adapter.add_primitive("box", size=(0.2, 0.2, 0.2), pos=(1.0, 0.0, 0.1))
-    print(f"Added box: {box['id']}")
+    box = adapter.add_primitive(
+        "box", 
+        size=(0.2, 0.2, 0.2), 
+        pos=(1.0, 0.0, 0.1),
+        surface=gs.surfaces.Default(color=(0.8, 0.1, 0.1))
+    )
+    print(f"Added red box: {box['id']}")
     
-    # Add a cylinder
-    cylinder = adapter.add_primitive("cylinder", radius=0.1, height=0.3, pos=(0.0, 1.0, 0.15))
-    print(f"Added cylinder: {cylinder['id']}")
     
-    # Add a sphere
-    sphere = adapter.add_primitive("sphere", radius=0.15, pos=(-1.0, 0.0, 0.15))
-    print(f"Added sphere: {sphere['id']}")
+    # =============================================
+    # Approach 2: Using direct scene access
+    # =============================================
+    print("\n=== Using direct scene access ===")
     
-    # # 3. Test getting vertices and faces
-    # try:
-    #     vertices = adapter.get_vertices(box)
-    #     print(f"Box vertices shape: {vertices.shape}")
-        
-    #     faces = adapter.get_faces(box)
-    #     if faces is not None:
-    #         print(f"Box faces shape: {faces.shape}")
-    #     else:
-    #         print("Box faces not available")
-    # except Exception as e:
-    #     print(f"Error getting geometry data: {e}")
+    # Get direct scene access
+    scene = adapter.get_scene
     
-    # # 4. Test transformation
-    # # Create a translation matrix (move the box up by 0.5)
-    # translation = np.eye(4)
-    # translation[2, 3] = 0.5  # Move up in z direction
+    # Add objects directly with full Genesis API visibility
+    cube = scene.add_entity(
+        gs.morphs.Box(
+            size=(0.1, 0.07, 0.03),
+            pos=(0.5, 0.5, 0.05),
+        ),
+        surface=gs.surfaces.Default(
+            color=(0.1, 0.8, 0.1),  # Green
+        ),
+    )
+    print(f"Added green cube directly")
     
-    # try:
-    #     transformed_box = adapter.transform(box, translation)
-    #     print("Applied transformation to box")
-    # except Exception as e:
-    #     print(f"Error applying transformation: {e}")
+    # Add a sphere with metallic surface
+    sphere = scene.add_entity(
+        gs.morphs.Sphere(
+            radius=0.05,
+            pos=(-0.5, 0.5, 0.05),
+        ),
+        surface=gs.surfaces.Default(
+            color=(0.1, 0.1, 0.8),  # Blue
+            metallic=0.8,
+            roughness=0.2,
+        ),
+    )
+    print(f"Added metallic blue sphere directly")
+
+
+    # =============================================
+    # Build scene and get bounding box
+    # =============================================
+
+    adapter.scene.build()
+
+
+    bbox = adapter.get_bbox(box)
+    print(f"Box bounding box min: {bbox['min_bounds']}, max: {bbox['max_bounds']}")
+    print(f"Box edges: {bbox['edges']}")
+
     
-    # # 5. Test computing center of mass and volume
-    # try:
-    #     com = adapter.compute_center_of_mass(sphere)
-    #     print(f"Sphere center of mass: {com}")
-        
-    #     volume = adapter.compute_volume(sphere)
-    #     print(f"Sphere volume: {volume}")
-    # except Exception as e:
-    #     print(f"Error computing properties: {e}")
+    # You can still use adapter methods with direct entities
+    sphere_bbox = adapter.get_bbox(sphere)
+    print(f"Sphere bounding box min: {sphere_bbox['min_bounds']}, max: {sphere_bbox['max_bounds']}")
     
-    # # Wait for user input to keep the window open (if viewer is shown)
-    # if config.get("show_viewer"):
-    #     input("Press Enter to exit...")
+
+    # Keep open until key is pressed
+    input("Press Enter to exit...")
 
 if __name__ == "__main__":
     test_genesis_adapter()
