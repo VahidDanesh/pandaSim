@@ -355,7 +355,10 @@ class GenesisAdapter:
         
         return jacobian
     
-    def compute_forward_kinematics(self, robot: Any, link: Any = None, q: Optional[np.ndarray] = None) -> np.ndarray:
+    def compute_forward_kinematics(self, 
+                                   robot: Any, 
+                                   link: Any = None, 
+                                   q: Optional[np.ndarray] = None) -> np.ndarray:
         """
         Compute forward kinematics for the robot.
         
@@ -368,7 +371,7 @@ class GenesisAdapter:
             End-effector pose as 4x4 homogeneous transformation matrix
         """
         entity = robot["entity"] if isinstance(robot, dict) else robot
-        
+        links_name = [link.name for link in entity.links]
         # Case 1: If both robot and joint positions are provided, use forward_kinematics
         if q is not None:
             # Use forward_kinematics to get position and orientation
@@ -379,42 +382,50 @@ class GenesisAdapter:
             if link is not None:
                 # If link is an integer index
                 if isinstance(link, int):
-                    pos = links_pos[link].cpu().numpy()
-                    quat = links_quat[link].cpu().numpy()
+                    pos = links_pos[link]
+                    quat = links_quat[link]
                 # If link is a string name, get its index
                 elif isinstance(link, str):
-                    link_idx = entity.get_link_idx(link)
-                    pos = links_pos[link_idx].cpu().numpy()
-                    quat = links_quat[link_idx].cpu().numpy()
+                    link_idx = links_name.index(link)
+                    pos = links_pos[link_idx]
+                    quat = links_quat[link_idx]
                 else:
-                    # Default to the last link (end-effector)
-                    pos = links_pos[-1].cpu().numpy()
-                    quat = links_quat[-1].cpu().numpy()
+                    # Default to the last link
+                    pos = links_pos[-1]
+                    quat = links_quat[-1]
             else:
                 # Default to the last link (end-effector)
-                pos = links_pos[-1].cpu().numpy()
-                quat = links_quat[-1].cpu().numpy()
+                pos = links_pos[-1]
+                quat = links_quat[-1]
                 
             # Convert position and quaternion to transformation matrix
             transform = np.eye(4)
-            transform[:3, :3] = pr.matrix_from_quaternion(quat)
-            transform[:3, 3] = pos
+            transform[:3, :3] = pr.matrix_from_quaternion(quat.cpu().numpy())
+            transform[:3, 3] = pos.cpu().numpy()
             
         # Case 2: If only link is provided, get position and quaternion directly
         elif link is not None:
             # Get position and quaternion
-            pos = link.get_pos().cpu().numpy()
-            quat = link.get_quat().cpu().numpy()
+            if isinstance(link, int):
+                link_name = links_name[link]
+            elif isinstance(link, str):
+                link_name = link
+            elif 'Rigid' in str(type(link)):
+                link_name = link.name
+            else:
+                link_name = links_name[-1]
+            
+            link = entity.get_link(link_name)
             
             # Convert to transformation matrix
             transform = np.eye(4)
-            transform[:3, :3] = pr.matrix_from_quaternion(quat)
-            transform[:3, 3] = pos
+            transform[:3, :3] = pr.matrix_from_quaternion(link.get_quat().cpu().numpy())
+            transform[:3, 3] = link.get_pos().cpu().numpy()
             
         # Default case: get current end-effector transform
         else:
             if 'RigidEntity' in str(type(entity)):
-                # For rigid entities, use get_link_transform
+                # return all links transforms
                 links_pos, links_quat = entity.forward_kinematics(
                     entity.get_dofs_position()
                     )
@@ -425,13 +436,16 @@ class GenesisAdapter:
                 
         return transform
     
-    def step_simulation(self, dt: float = None) -> None:
+    def step_simulation(self, time: float) -> None:
         """
         Step the simulation forward by dt seconds.
         
         Args:
-            dt: Time step in seconds (optional, uses scene default if None)
+            time: wallclock time to step the simulation
         """
         # Step the Genesis simulation
-        self.scene.step(dt)
+        dt = self.scene.sim_options.dt
+        steps = int(time / dt)
+        for _ in range(steps):
+            self.scene.step()
 
