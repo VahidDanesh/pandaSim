@@ -34,18 +34,16 @@ class PlannerStrategy(Protocol):
     
     def plan(
         self,
-        obj: Any,
+        robot: Any,
         bbox: Any,
-        axes: List[np.ndarray],
         adapter: GeometryAdapter
     ) -> List[Any]:
         """
         Plan trajectory to achieve upright orientation.
         
         Args:
-            obj: The object representation
+            robot: The robot representation
             bbox: The bounding box
-            axes: The principal axes
             adapter: The geometry adapter to use for accessing the geometry
             
         Returns:
