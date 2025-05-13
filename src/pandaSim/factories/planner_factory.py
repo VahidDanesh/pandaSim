@@ -4,8 +4,6 @@ Factory for creating planner strategies.
 from typing import Any
 
 from pandaSim.core.config import SimulationConfig, PlannerType
-from pandaSim.planning.pca_planner import PCAPlanner
-from pandaSim.planning.convex_hull_planner import ConvexHullPlanner
 
 
 class PlannerFactory:

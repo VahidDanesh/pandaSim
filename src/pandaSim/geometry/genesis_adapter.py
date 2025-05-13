@@ -219,7 +219,7 @@ class GenesisAdapter:
             (0, 1), (2, 3), (4, 5), (6, 7)   # Connecting edges
         ]
         edges = [corners[j] - corners[i] for i, j in edge_indices]
-        edges = [edge / np.linalg.norm(edge) for edge in edges]
+        # edges = [edge / np.linalg.norm(edge) for edge in edges]
         edges = np.array(edges)
         
 
