@@ -4,7 +4,7 @@ Factory for creating planner strategies.
 from typing import Any
 
 from pandaSim.core.config import SimulationConfig, PlannerType
-
+from pandaSim.planning.screw_motion_planner import ScrewMotionPlanner
 
 class PlannerFactory:
     """
@@ -30,9 +30,7 @@ class PlannerFactory:
         planner_type = config.planner_type
         planner_params = config.planner_params or {}
         
-        if planner_type == PlannerType.PCA:
-            return PCAPlanner(planner_params)
-        elif planner_type == PlannerType.CONVEX_HULL:
-            return ConvexHullPlanner(planner_params)
+        if planner_type == PlannerType.SCREW_MOTION:
+            return ScrewMotionPlanner(planner_params)
         else:
             raise ValueError(f"Unsupported planner type: {planner_type}")
