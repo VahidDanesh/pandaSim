@@ -116,29 +116,113 @@ class ScrewMotionPlanner(PlannerStrategy):
             s_axes.append(s_axis)
 
         return np.array(qs), np.array(s_axes)
+    
+    def time_scaling (self,
+                      steps: int = 300,
+                      method: str = 'quintic') -> np.ndarray:
+        """
+        Generate time scaling for trajectory.
         
+        Args:
+            steps: Number of waypoints to generate
+            method: Time scaling method (quintic, cubic, linear, etc.)
+
+        Returns:
+            tau: Time scaling factor for each waypoint
+        """
+        s = np.linspace(0, 1, steps)
+        if method.lower().startswith('l'):
+            return s
+        elif method.lower().startswith('c'):
+            return 3*s**2 - 2*s**3
+        elif method.lower().startswith('q'):
+            return 10*s**3 - 15*s**4 + 6*s**5
+        else:
+            raise ValueError(f"Invalid time scaling method: {method}, choose from q, c, l")
+
     def generate_screw_trajectory(self, 
-                                  s_axis: np.ndarray, 
+                                  initial_pose: np.ndarray,
                                   q: np.ndarray, 
-                                  theta: float = np.pi/2, 
+                                  s_axis: np.ndarray, 
+                                  theta: float = np.pi/2,
                                   h: float = 0.0, 
-                                  steps: int = 20) -> List[np.ndarray]:
+                                  steps: Optional[int] = 300,
+                                  tau: Optional[np.ndarray] = None,
+                                  time_scaling: Optional[str] = 'q',
+                                  output_type: Optional[str] = 'dq'
+                                  ) -> List[np.ndarray]:
         """
         Generate trajectory waypoints using screw motion.
         
         Args:
-            s_axis: Unit vector along screw axis
-            q_point: Point on screw axis
-            theta: Total rotation angle (default: 90 degrees)
-            h: Screw pitch (default: 0 = pure rotation)
-            steps: Number of waypoints to generate
-            
+            initial_pose: array-like, shape (4, 4), (7,), (8,)
+                Initial pose of the robot (T, dual quaternion, or pq)
+            s_axis: array-like, shape (3,)
+                Unit vector along screw axis
+            q: array-like, shape (3,)
+                Point on screw axis
+            theta: float
+                Total rotation angle (default: 90 degrees)
+            h: float
+                Screw pitch (default: 0 = pure rotation)
+            steps: int
+                Number of waypoints to generate
+            tau: array-like, shape (steps,)
+                Time scaling factor for each waypoint
+            time_scaling: str
+                Time scaling method (quintic, cubic, linear, etc.)
+            output_type: str
+                Output type (dq, pq, T)
         Returns:
-            List of pose matrices representing the trajectory
+            List of dual quaternions representing the trajectory
         """
-        ...
+        
+        if tau is None:
+            tau = self.time_scaling(steps, time_scaling)
+
+        initial_pose = initial_pose.cpu().numpy()
+        # if initial_pose is transformation
+        if initial_pose.shape == (4, 4):
+            initial_pose = pt.dual_quaternion_from_transform(initial_pose)
+
+        # if initial_pose is pq
+        elif initial_pose.shape == (7,):
+            initial_pose = pt.dual_quaternion_from_pq(initial_pose)
+
+        # if initial_pose is dual quaternion
+        elif initial_pose.shape == (8,):
+            initial_pose = pt.check_dual_quaternion(initial_pose)
+
+        else:
+            raise ValueError(f"Invalid initial pose shape: {initial_pose.shape}, must be (4, 4), (7,), (8,)")
+        
+        initial_pose = pt.check_dual_quaternion(initial_pose)
+        print(pt.transform_from_dual_quaternion(initial_pose))
+        screw_dq = pt.dual_quaternion_from_screw_parameters(q=q, s_axis=s_axis, h=h, theta=theta)
+        goal_pose = pt.concatenate_dual_quaternions(screw_dq, initial_pose)
+        print(pt.transform_from_dual_quaternion(goal_pose))
+        
+        traj = [pt.dual_quaternion_sclerp(initial_pose, goal_pose, t) for t in tau]
+
+        if output_type.lower().startswith('t'):
+            return ptr.transforms_from_dual_quaternions(traj)
+
+        elif output_type.lower().startswith('p'):
+            return ptr.pqs_from_dual_quaternions(traj)
+
+        elif output_type.lower().startswith('d'):
+            return np.array(traj)
+
+        else:
+            raise ValueError(f"Invalid output type: {output_type}, must be T, pq, dq")
+
+        
+        
     
-    def plan(self, robot: Any, bbox: Any, adapter: GeometryAdapter) -> List[Any]:
+    def plan(self, 
+             robot: Any, 
+             bbox: Any, 
+             adapter: GeometryAdapter) -> List[Any]:
         """
         Plan trajectory for upright orientation using screw motion.
         

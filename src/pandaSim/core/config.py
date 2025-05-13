@@ -19,8 +19,6 @@ class BoundingBoxType(Enum):
 
 class PlannerType(Enum):
     """Available planner strategy types."""
-    PCA = auto()  # TODO: Implement PCA based planning
-    CONVEX_HULL = auto()  # TODO: Implement convex hull based planning
     SCREW_MOTION = auto()  # Screw motion based planning
 
 

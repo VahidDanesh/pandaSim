@@ -230,6 +230,39 @@ class GenesisAdapter:
             "max_bounds": max_bounds
         }
     
+    def get_dq(self, obj: Union[Dict, Any]) -> np.ndarray:
+        """
+        Get the dq of the object.
+        Args:
+            obj: Object representation or direct entity
+        Returns:
+            Dual quaternion of the object
+        """
+        entity = obj["entity"] if isinstance(obj, dict) else obj
+        pq = entity.get_qpos()
+        pq = pq.cpu().numpy()
+        dq = pt.dual_quaternion_from_pq(pq)
+        return dq
+    
+    def get_size(self, obj: Union[Dict, Any]) -> np.ndarray:
+        """
+        Get the size of the object, represented in object's coordinate frame.
+
+        Args:
+            obj: Object representation or direct entity
+        Returns:
+            Size of the object, in (x, y, z) order of it's own coordinate frame.
+        """
+        entity = obj["entity"] if isinstance(obj, dict) else obj
+        bbox = self.get_bbox(obj)
+        size_world = bbox['max_bounds'] - bbox['min_bounds'] # in world frame
+        wRb = pr.matrix_from_quaternion(entity.get_quat().cpu().numpy())
+        bRw = np.linalg.inv(wRb)
+        size = np.dot(bRw, size_world)
+        
+        return np.abs(size)
+        
+    
     def transform(self, obj: Union[Dict, Any], transformation: np.ndarray) -> Dict:
         """
         Apply transformation to Genesis AI geometry.
