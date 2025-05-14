@@ -1,0 +1,11 @@
+<mujoco model="combined_tables">
+  <worldbody>
+    <body name="combined_tables_body" pos="0 0 0.18">
+      <joint name="combined_tables_joint"/>
+      <geom name="table1_geom" size="0.7 1.7 0.02" type="box" rgba="0.5 0.5 0.5 1" pos="0.5 0 0"/>
+      <geom name="table2_geom" size="0.7 1.7 0.02" type="box" rgba="0.5 0.5 0.5 1" pos="-0.5 0 0"/>
+      <geom name="table3_geom" size="0.3 0.7 0.02" type="box" rgba="0.5 0.5 0.5 1" pos="0 -0.5 0"/>
+      <geom name="table4_geom" size="0.3 0.7 0.02" type="box" rgba="0.5 0.5 0.5 1" pos="0 0.5 0"/>
+    </body>
+  </worldbody>
+</mujoco>
