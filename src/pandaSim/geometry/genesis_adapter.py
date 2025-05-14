@@ -64,7 +64,10 @@ class GenesisAdapter:
             viewer_options=self.viewer_options,
             sim_options=self.sim_options,
             vis_options=self.vis_options,
+            rigid_options=gs.options.RigidOptions(
+                enable_multi_contact=self.config.get('enable_multi_contact', True)),
             renderer=gs.renderers.Rasterizer(),
+            show_FPS=self.config.get('show_FPS', False),
         )
         
         # Store loaded entities
@@ -388,10 +391,11 @@ class GenesisAdapter:
         
         return jacobian
     
-    def compute_forward_kinematics(self, 
-                                   robot: Any, 
-                                   link: Any = None, 
-                                   q: Optional[np.ndarray] = None) -> np.ndarray:
+    def forward_kinematics(self, 
+                            robot: Any, 
+                            link: Any = None, 
+                            q: Optional[np.ndarray] = None,
+                            output_type: Optional[str] = 'dq') -> np.ndarray:
         """
         Compute forward kinematics for the robot.
         
@@ -399,12 +403,15 @@ class GenesisAdapter:
             robot: The robot representation
             q: Joint positions (optional)
             link: End-effector link (optional)
+            output_type: Type of output ('t', 'dq', 'pq')
             
         Returns:
-            End-effector pose as 4x4 homogeneous transformation matrix
+            End-effector or all links pose as 4x4 homogeneous transformation matrix or dual quaternion or pq
         """
         entity = robot["entity"] if isinstance(robot, dict) else robot
         links_name = [link.name for link in entity.links]
+        output_type = output_type.lower()
+
         # Case 1: If both robot and joint positions are provided, use forward_kinematics
         if q is not None:
             # Use forward_kinematics to get position and orientation
@@ -431,10 +438,6 @@ class GenesisAdapter:
                 pos = links_pos[-1]
                 quat = links_quat[-1]
                 
-            # Convert position and quaternion to transformation matrix
-            transform = np.eye(4)
-            transform[:3, :3] = pr.matrix_from_quaternion(quat.cpu().numpy())
-            transform[:3, 3] = pos.cpu().numpy()
             
         # Case 2: If only link is provided, get position and quaternion directly
         elif link is not None:
@@ -449,25 +452,31 @@ class GenesisAdapter:
                 link_name = links_name[-1]
             
             link = entity.get_link(link_name)
+            pos = link.get_pos()
+            quat = link.get_quat()
             
-            # Convert to transformation matrix
-            transform = np.eye(4)
-            transform[:3, :3] = pr.matrix_from_quaternion(link.get_quat().cpu().numpy())
-            transform[:3, 3] = link.get_pos().cpu().numpy()
+            
+
             
         # Default case: get current end-effector transform
         else:
             if 'RigidEntity' in str(type(entity)):
                 # return all links transforms
-                links_pos, links_quat = entity.forward_kinematics(
+                pos, quat = entity.forward_kinematics(
                     entity.get_dofs_position()
                     )
-                transforms = ptr.transforms_from_pqs(
-                    np.concatenate([links_pos, links_quat], axis=1),
-                )
-                return transforms
-                
-        return transform
+        
+        if pos.ndim != 1:
+            pq = np.concatenate([pos.cpu().numpy(), quat.cpu().numpy()], axis=1)
+        else:
+            pq = np.concatenate([pos.cpu().numpy(), quat.cpu().numpy()], axis=0)
+
+        if output_type.startswith('t'):
+            return ptr.transforms_from_pqs(pq)
+        elif output_type.startswith('dq'):
+            return ptr.dual_quaternions_from_pqs(pq)
+        else:
+            return pq
     
     def step_simulation(self, time: float) -> None:
         """

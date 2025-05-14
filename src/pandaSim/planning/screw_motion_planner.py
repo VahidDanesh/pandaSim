@@ -6,7 +6,7 @@ This module implements planning for object reorientation using screw motion.
 import numpy as np
 from typing import Dict, List, Tuple, Any, Optional
 import numpy.linalg as LA
-
+import torch
 from pytransform3d import (
     transformations as pt,
     rotations as pr,
@@ -179,8 +179,10 @@ class ScrewMotionPlanner(PlannerStrategy):
         
         if tau is None:
             tau = self.time_scaling(steps, time_scaling)
-
-        initial_pose = initial_pose.cpu().numpy()
+        
+        if isinstance(initial_pose, torch.Tensor):
+            initial_pose = initial_pose.cpu().numpy()
+            
         # if initial_pose is transformation
         if initial_pose.shape == (4, 4):
             initial_pose = pt.dual_quaternion_from_transform(initial_pose)
