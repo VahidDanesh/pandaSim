@@ -197,10 +197,8 @@ class ScrewMotionPlanner(PlannerStrategy):
             raise ValueError(f"Invalid initial pose shape: {initial_pose.shape}, must be (4, 4), (7,), (8,)")
         
         initial_pose = pt.check_dual_quaternion(initial_pose)
-        print(pt.transform_from_dual_quaternion(initial_pose))
         screw_dq = pt.dual_quaternion_from_screw_parameters(q=q, s_axis=s_axis, h=h, theta=theta)
         goal_pose = pt.concatenate_dual_quaternions(screw_dq, initial_pose)
-        print(pt.transform_from_dual_quaternion(goal_pose))
         
         traj = [pt.dual_quaternion_sclerp(initial_pose, goal_pose, t) for t in tau]
 
