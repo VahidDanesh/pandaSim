@@ -295,33 +295,20 @@ class GenesisAdapter:
     def get_pose(self, obj: Union[Dict, Any], output_type: Optional[str] = 'pq') -> np.ndarray:
         """
         Get the pose of the object.
+
+        Args:
+            obj: Object representation or direct entity
+            output_type: Desired output format ('pq', 'transform', 'dual_quaternion', etc.)
+        Returns:
+            Pose of the object in the requested format
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
 
-        pos, quat = entity.get_pos().cpu().numpy(), entity.get_quat().cpu().numpy()
-        pq = np.concatenate([pos, quat])
-
-        output_type = output_type.lower()
-        if output_type == 'pq':
-            return pt.check_pq(pq)
-        elif output_type == 't':
-            return pt.transform_from_pq(pq)
-        elif output_type == 'dq':
-            return pt.dual_quaternion_from_pq(pq)
-        else:
-            raise ValueError(f"Unsupported output type: {output_type}")
+        pos, quat = entity.get_pos(), entity.get_quat()
+        
+        return self.to((pos, quat), output_type)
         
 
-    def get_dq(self, obj: Union[Dict, Any]) -> np.ndarray:
-        """
-        Get the dq of the object.
-        Args:
-            obj: Object representation or direct entity
-        Returns:
-            Dual quaternion of the object
-        """
-        return self.get_pose(obj, output_type='dq')
-    
 
     def get_size(self, obj: Union[Dict, Any]) -> np.ndarray:
         """
@@ -342,7 +329,7 @@ class GenesisAdapter:
         return np.abs(np.round(size, 3)) # round to compensate for bbox inaccuracy
         
     
-    def set_pose(self, obj: Union[Dict, Any], pose: np.ndarray) -> None:
+    def set_pose(self, obj: Union[Dict, Any], pose: tuple | np.ndarray | torch.Tensor) -> None:
         """
         Set the pose of the object.
 
@@ -354,58 +341,33 @@ class GenesisAdapter:
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
         
-        if isinstance(pose, torch.Tensor):
-            pose = pose.cpu().numpy()
-
-        if pose.shape == (4, 4):
-            pose = pt.pq_from_transform(pose)
+        pq = self.to(pose, 'pq')
         
-        elif pose.shape == (8,):
-            pose = pt.pq_from_dual_quaternion(pose)
-
-        elif pose.shape == (7,):
-            pose = pt.check_pq(pose)
-        else:
-            raise ValueError(f"Unsupported pose shape: {pose.shape}, must be (4, 4), (7,) or (8,) for T, pq, dq respectively")
-        
-        pos, quat = pose[:3], pose[3:]
-        entity.set_pos(pos)
-        entity.set_quat(quat)
+        entity.set_pos(pq[:3])
+        entity.set_quat(pq[3:])
         
             
         
 
     def transform(self, 
                   obj: Union[Dict, Any], 
-                  transformation: np.ndarray, 
+                  transformation: tuple | np.ndarray | torch.Tensor, 
                   apply: bool = True) -> Dict:
         """
         Apply transformation to object.
         
         Args:
             obj: Object representation or direct entity
-            transformation: Transformation to apply, can be (4, 4) transformation matrix, (7,) pq or (8,) dq
+            transformation: Transformation to apply, can be (4, 4) transformation matrix, (7,) pq or (8,) dq or tuple of (position, quaternion)
             apply: Whether to apply the transformation to the object
         
         Returns:
             Transformed pose of the object
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
-        
-        
-        if isinstance(transformation, torch.Tensor):
-            transformation = transformation.cpu().numpy()
 
-        if transformation.shape == (7,):
-            transformation = pt.transform_from_pq(transformation)
+        transformation = self.to(transformation, 't')
 
-        elif transformation.shape == (8,):
-            transformation = pt.transform_from_dual_quaternion(transformation)
-
-        elif transformation.shape == (4, 4):
-            transformation = pt.check_transform(transformation)
-        else:
-            raise ValueError(f"Unsupported transformation shape: {transformation.shape}, must be (4, 4), (7,) or (8,) for T, pq, dq respectively")
         
         object_pose = self.get_pose(entity, output_type='t')
         transformed_pose = np.dot(object_pose, transformation)
