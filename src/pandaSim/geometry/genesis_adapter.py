@@ -318,14 +318,17 @@ class GenesisAdapter:
             
         
 
-    def transform(self, obj: Union[Dict, Any], transformation: np.ndarray) -> Dict:
+    def transform(self, obj: Union[Dict, Any], transformation: np.ndarray, apply: bool = True) -> Dict:
         """
         Apply transformation to object.
         
         Args:
             obj: Object representation or direct entity
             transformation: Transformation to apply, can be (4, 4) transformation matrix, (7,) pq or (8,) dq
-            
+            apply: Whether to apply the transformation to the object
+        
+        Returns:
+            Transformed pose of the object
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
         
@@ -338,7 +341,7 @@ class GenesisAdapter:
 
         elif transformation.shape == (8,):
             transformation = pt.transform_from_dual_quaternion(transformation)
-            
+
         elif transformation.shape == (4, 4):
             transformation = pt.check_transform(transformation)
         else:
@@ -346,7 +349,9 @@ class GenesisAdapter:
         
         object_pose = self.get_pose(entity, output_type='t')
         transformed_pose = np.dot(object_pose, transformation)
-        self.set_pose(entity, transformed_pose)
+
+        if apply:
+            self.set_pose(entity, transformed_pose)
 
         return transformed_pose
             
