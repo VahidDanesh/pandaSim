@@ -6,6 +6,7 @@ This module provides an adapter for the Genesis AI geometry backend.
 from typing import Any, Optional, Dict, Tuple, Union
 import numpy as np
 import genesis as gs
+import torch
 from pathlib import Path
 from pytransform3d import (
     transformations as pt,
@@ -233,6 +234,27 @@ class GenesisAdapter:
             "max_bounds": max_bounds
         }
     
+
+    def get_pose(self, obj: Union[Dict, Any], output_type: Optional[str] = 'pq') -> np.ndarray:
+        """
+        Get the pose of the object.
+        """
+        entity = obj["entity"] if isinstance(obj, dict) else obj
+
+        pos, quat = entity.get_pos().cpu().numpy(), entity.get_quat().cpu().numpy()
+        pq = np.concatenate([pos, quat])
+
+        output_type = output_type.lower()
+        if output_type == 'pq':
+            return pq
+        elif output_type == 't':
+            return pt.transform_from_pq(pq)
+        elif output_type == 'dq':
+            return pt.dual_quaternion_from_pq(pq)
+        else:
+            raise ValueError(f"Unsupported output type: {output_type}")
+        
+
     def get_dq(self, obj: Union[Dict, Any]) -> np.ndarray:
         """
         Get the dq of the object.
@@ -241,20 +263,17 @@ class GenesisAdapter:
         Returns:
             Dual quaternion of the object
         """
-        entity = obj["entity"] if isinstance(obj, dict) else obj
-        pq = entity.get_qpos()
-        pq = pq.cpu().numpy()
-        dq = pt.dual_quaternion_from_pq(pq)
-        return dq
+        return self.get_pose(obj, output_type='dq')
     
+
     def get_size(self, obj: Union[Dict, Any]) -> np.ndarray:
         """
-        Get the size of the object, represented in object's coordinate frame.
+        Get the size of the bbox for the given object, represented in object's coordinate frame.
 
         Args:
             obj: Object representation or direct entity
         Returns:
-            Size of the object, in (x, y, z) order of it's own coordinate frame.
+            Size of the bbox, in (x, y, z) order of it's own coordinate frame.
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
         bbox = self.get_bbox(obj)
@@ -263,28 +282,74 @@ class GenesisAdapter:
         bRw = np.linalg.inv(wRb)
         size = np.dot(bRw, size_world)
         
-        return np.abs(size)
+        return np.abs(np.round(size, 3)) # round to compensate for bbox inaccuracy
         
     
+    def set_pose(self, obj: Union[Dict, Any], pose: np.ndarray) -> None:
+        """
+        Set the pose of the object.
+
+        Args:
+            obj: Object representation or direct entity
+            pose: Pose to set, can be (4, 4) transformation matrix, (7,) pq or (8,) dq
+
+        
+        """
+        entity = obj["entity"] if isinstance(obj, dict) else obj
+        
+        if isinstance(pose, torch.Tensor):
+            pose = pose.cpu().numpy()
+
+        if pose.shape == (4, 4):
+            pose = pt.pq_from_transform(pose)
+        
+        elif pose.shape == (8,):
+            pose = pt.pq_from_dual_quaternion(pose)
+
+        elif pose.shape == (7,):
+            pose = pt.check_pq(pose)
+        else:
+            raise ValueError(f"Unsupported pose shape: {pose.shape}, must be (4, 4), (7,) or (8,) for T, pq, dq respectively")
+        
+        pos, quat = pose[:3], pose[3:]
+        entity.set_pos(pos)
+        entity.set_quat(quat)
+        
+            
+        
+
     def transform(self, obj: Union[Dict, Any], transformation: np.ndarray) -> Dict:
         """
-        Apply transformation to Genesis AI geometry.
+        Apply transformation to object.
         
         Args:
-            obj: Genesis AI geometry representation
-            transformation: 4x4 transformation matrix
+            obj: Object representation or direct entity
+            transformation: Transformation to apply, can be (4, 4) transformation matrix, (7,) pq or (8,) dq
             
-        Returns:
-            Transformed Genesis AI geometry
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
         
         
-        pq = pt.pq_from_transform(transformation)
-        # Apply transformation to entity
-        entity.set_qpos(
-            pq
-        )
+        if isinstance(transformation, torch.Tensor):
+            transformation = transformation.cpu().numpy()
+
+        if transformation.shape == (7,):
+            transformation = pt.transform_from_pq(transformation)
+
+        elif transformation.shape == (8,):
+            transformation = pt.transform_from_dual_quaternion(transformation)
+            
+        elif transformation.shape == (4, 4):
+            transformation = pt.check_transform(transformation)
+        else:
+            raise ValueError(f"Unsupported transformation shape: {transformation.shape}, must be (4, 4), (7,) or (8,) for T, pq, dq respectively")
+        
+        object_pose = self.get_pose(entity, output_type='t')
+        transformed_pose = np.dot(object_pose, transformation)
+        self.set_pose(entity, transformed_pose)
+
+        return transformed_pose
+            
     
     # Robot control methods
     
