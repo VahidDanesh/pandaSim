@@ -352,7 +352,9 @@ class GenesisAdapter:
     def transform(self, 
                   obj: Union[Dict, Any], 
                   transformation: tuple | np.ndarray | torch.Tensor, 
-                  apply: bool = True) -> Dict:
+                  apply: bool = False,
+                  output_type: Optional[str] = 't'
+                  ) -> Dict:
         """
         Apply transformation to object.
         
@@ -362,20 +364,20 @@ class GenesisAdapter:
             apply: Whether to apply the transformation to the object
         
         Returns:
-            Transformed pose of the object
+            Transformed pose of the object in the requested format
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
 
         transformation = self.to(transformation, 't')
 
-        
+
         object_pose = self.get_pose(entity, output_type='t')
         transformed_pose = np.dot(object_pose, transformation)
 
         if apply:
             self.set_pose(entity, transformed_pose)
 
-        return transformed_pose
+        return self.to(transformed_pose, output_type)
             
     
     # Robot control methods
