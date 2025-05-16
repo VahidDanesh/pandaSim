@@ -17,11 +17,12 @@ class MotionController(Protocol):
     Any motion controller must implement these methods to be compatible with the system.
     """
     
+    adapter: GeometryAdapter
+    
     def compute_joint_velocities(
         self,
         robot: Any,
-        target_pose: np.ndarray,
-        adapter: GeometryAdapter
+        target_pose: np.ndarray
     ) -> Tuple[np.ndarray, bool]:
         """
         Compute joint velocities to achieve a target pose.
@@ -29,7 +30,6 @@ class MotionController(Protocol):
         Args:
             robot: The robot representation
             target_pose: The target end-effector pose (4x4 homogeneous transformation)
-            adapter: The geometry adapter to use for accessing the geometry
             
         Returns:
             Tuple containing:
@@ -42,7 +42,6 @@ class MotionController(Protocol):
         self,
         robot: Any,
         trajectory: List[np.ndarray],
-        adapter: GeometryAdapter,
         dt: float = 0.05,
         use_control: bool = True
     ) -> None:
@@ -52,7 +51,6 @@ class MotionController(Protocol):
         Args:
             robot: The robot representation
             trajectory: List of target poses (4x4 homogeneous transformations)
-            adapter: The geometry adapter to use for accessing the geometry
             dt: Time step for simulation
             use_control: Whether to use PD control (True) or direct velocity setting (False)
         """
