@@ -48,6 +48,8 @@ class GenesisAdapter:
         sim_options = self.config.get("sim_options", {})
         self.sim_options = gs.options.SimOptions(
             dt=sim_options.get("dt", 0.01),
+            substeps = sim_options.get("substeps", 8),
+            
         )
         
         # Configure visualization options
