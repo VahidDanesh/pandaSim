@@ -10,7 +10,7 @@ from pytransform3d import transformations as pt, rotations as pr
 
 from pandaSim.control.protocols import MotionController
 from pandaSim.geometry.protocols import GeometryAdapter
-
+from pandaSim.geometry.utils import convert_pose
 
 class ResolvedRateController(MotionController):
     """
@@ -22,6 +22,7 @@ class ResolvedRateController(MotionController):
     
     def __init__(
         self,
+        adapter: GeometryAdapter,
         gains_translation: float = 1.5,
         gains_rotation: float = 1.0,
         secondary_gain: float = 1.0,
@@ -33,6 +34,7 @@ class ResolvedRateController(MotionController):
         Initialize Resolved-Rate Motion Controller.
         
         Args:
+            adapter: Geometry adapter for interacting with the robot
             gains_translation: Proportional gain for translation control
             gains_rotation: Proportional gain for rotation control
             secondary_gain: Gain for secondary objectives (e.g., joint limit avoidance)
@@ -40,6 +42,7 @@ class ResolvedRateController(MotionController):
             end_effector_link: End-effector link for Jacobian calculation
             config: Optional additional configuration parameters
         """
+        self.adapter = adapter
         self.config = config or {}
         self.kt = gains_translation
         self.kr = gains_rotation
@@ -95,8 +98,7 @@ class ResolvedRateController(MotionController):
     def secondary_objective(
         self,
         robot: Any,
-        q: np.ndarray,
-        adapter: GeometryAdapter
+        q: np.ndarray
     ) -> np.ndarray:
         """
         Joint limit avoidance secondary objective.
@@ -104,7 +106,6 @@ class ResolvedRateController(MotionController):
         Args:
             robot: Robot representation
             q: Current joint angles
-            adapter: Geometry adapter for accessing robot properties
             
         Returns:
             Gradient for secondary objective
@@ -112,7 +113,7 @@ class ResolvedRateController(MotionController):
         n = len(q)
         
         # Get joint limits from robot
-        joint_limits = adapter.get_joint_limits(robot)
+        joint_limits = self.adapter.get_joint_limits(robot)
         q_min = joint_limits[0]  # Lower limits
         q_max = joint_limits[1]  # Upper limits
         
@@ -134,8 +135,7 @@ class ResolvedRateController(MotionController):
     def compute_joint_velocities(
         self,
         robot: Any,
-        target_pose: np.ndarray,
-        adapter: GeometryAdapter
+        target_pose: np.ndarray
     ) -> Tuple[np.ndarray, bool]:
         """
         Compute joint velocities using resolved rate control with null space optimization.
@@ -143,27 +143,26 @@ class ResolvedRateController(MotionController):
         Args:
             robot: Robot representation
             target_pose: Target end-effector pose matrix (4x4)
-            adapter: Geometry adapter for accessing robot properties
             
         Returns:
             Tuple of (joint_velocities, arrived_flag)
         """
         # Get current robot state
-        q = adapter.get_joint_positions(robot)
+        q = self.adapter.get_joint_positions(robot)
         n = len(q)  # Number of joints
         
         # Get Jacobian
-        J = adapter.compute_jacobian(robot, self.end_effector_link)
+        J = self.adapter.compute_jacobian(robot, self.end_effector_link)
         J_pinv = np.linalg.pinv(J)
         
         # Get current end-effector pose using forward kinematics
-        Te = adapter.compute_forward_kinematics(robot, q, self.end_effector_link)
+        Te = self.adapter.forward_kinematics(robot, self.end_effector_link, q, output_type='t')
         
         # Calculate required velocity and arrival status
         ev, arrived = self.p_servo(Te, target_pose)
         
         # Secondary objective for null space optimization
-        dw_dq = self.secondary_objective(robot, q, adapter)
+        dw_dq = self.secondary_objective(robot, q)
         q0 = self.k0 * dw_dq
         
         # Compute joint velocities with null space projection
@@ -175,7 +174,6 @@ class ResolvedRateController(MotionController):
         self,
         robot: Any,
         trajectory: List[np.ndarray],
-        adapter: GeometryAdapter,
         dt: float = 0.05,
         use_control: bool = True
     ) -> None:
@@ -185,7 +183,6 @@ class ResolvedRateController(MotionController):
         Args:
             robot: Robot representation
             trajectory: List of target poses (4x4 homogeneous transformations)
-            adapter: Geometry adapter for accessing robot properties
             dt: Time step for simulation
             use_control: Whether to use PD control (True) or direct velocity setting (False)
         """
@@ -193,13 +190,13 @@ class ResolvedRateController(MotionController):
             arrived = False
             while not arrived:
                 # Compute joint velocities
-                qd, arrived = self.compute_joint_velocities(robot, target_pose, adapter)
+                qd, arrived = self.compute_joint_velocities(robot, target_pose)
                 
                 # Apply velocities to robot
                 if use_control:
-                    adapter.control_joint_velocities(robot, qd)
+                    self.adapter.control_joint_velocities(robot, qd)
                 else:
-                    adapter.set_joint_velocities(robot, qd)
+                    self.adapter.set_joint_velocities(robot, qd)
                 
                 # Step simulation
-                adapter.step_simulation(dt) 
+                self.adapter.step_simulation(dt) 

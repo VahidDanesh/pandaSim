@@ -6,6 +6,7 @@ This module provides an adapter for the Genesis AI geometry backend.
 from typing import Any, Optional, Dict, Tuple, Union
 import numpy as np
 import genesis as gs
+import torch
 from pathlib import Path
 from pytransform3d import (
     transformations as pt,
@@ -14,6 +15,8 @@ from pytransform3d import (
     trajectories as ptr,
     plot_utils as ppu
 )
+
+from pandaSim.geometry.utils import convert_pose
 
 class GenesisAdapter:
     """
@@ -45,6 +48,8 @@ class GenesisAdapter:
         sim_options = self.config.get("sim_options", {})
         self.sim_options = gs.options.SimOptions(
             dt=sim_options.get("dt", 0.01),
+            substeps = sim_options.get("substeps", 8),
+            
         )
         
         # Configure visualization options
@@ -180,6 +185,22 @@ class GenesisAdapter:
             "entity": entity
         }
 
+    def to(self, transformation: Any, output_type: Optional[str] = 'pq') -> np.ndarray:
+        """
+        Convert input to the given output_type.
+        
+        Args:
+            input: Can be one of the following:
+                - tuple of (position(s), quaternion(s))
+                - pq(s) format (x, y, z, qw, qx, qy, qz)
+                - dual quaternion(s) (qw, qx, qy, qz, tx, ty, tz)
+                - transformation matrix(ices) 
+            output_type: Desired output format ('pq', 'transform', 'dual_quaternion', etc.)
+            
+        Returns:
+            np.ndarray: Converted representation in the requested format
+        """
+        return convert_pose(transformation, output_type)
 
     
     def get_bbox(self, obj: Union[Dict, Any]) -> Dict:
@@ -233,28 +254,33 @@ class GenesisAdapter:
             "max_bounds": max_bounds
         }
     
-    def get_dq(self, obj: Union[Dict, Any]) -> np.ndarray:
+
+    def get_pose(self, obj: Union[Dict, Any], output_type: Optional[str] = 'pq') -> np.ndarray:
         """
-        Get the dq of the object.
+        Get the pose of the object.
+
         Args:
             obj: Object representation or direct entity
+            output_type: Desired output format ('pq', 'transform', 'dual_quaternion', etc.)
         Returns:
-            Dual quaternion of the object
+            Pose of the object in the requested format
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
-        pq = entity.get_qpos()
-        pq = pq.cpu().numpy()
-        dq = pt.dual_quaternion_from_pq(pq)
-        return dq
-    
+
+        pos, quat = entity.get_pos(), entity.get_quat()
+        
+        return self.to((pos, quat), output_type)
+        
+
+
     def get_size(self, obj: Union[Dict, Any]) -> np.ndarray:
         """
-        Get the size of the object, represented in object's coordinate frame.
+        Get the size of the bbox for the given object, represented in object's coordinate frame.
 
         Args:
             obj: Object representation or direct entity
         Returns:
-            Size of the object, in (x, y, z) order of it's own coordinate frame.
+            Size of the bbox, in (x, y, z) order of it's own coordinate frame.
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
         bbox = self.get_bbox(obj)
@@ -263,28 +289,59 @@ class GenesisAdapter:
         bRw = np.linalg.inv(wRb)
         size = np.dot(bRw, size_world)
         
-        return np.abs(size)
+        return np.abs(np.round(size, 3)) # round to compensate for bbox inaccuracy
         
     
-    def transform(self, obj: Union[Dict, Any], transformation: np.ndarray) -> Dict:
+    def set_pose(self, obj: Union[Dict, Any], pose: tuple | np.ndarray | torch.Tensor) -> None:
         """
-        Apply transformation to Genesis AI geometry.
-        
+        Set the pose of the object.
+
         Args:
-            obj: Genesis AI geometry representation
-            transformation: 4x4 transformation matrix
-            
-        Returns:
-            Transformed Genesis AI geometry
+            obj: Object representation or direct entity
+            pose: Pose to set, can be (4, 4) transformation matrix, (7,) pq or (8,) dq
+
+        
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
         
+        pq = self.to(pose, 'pq')
         
-        pq = pt.pq_from_transform(transformation)
-        # Apply transformation to entity
-        entity.set_qpos(
-            pq
-        )
+        entity.set_pos(pq[:3])
+        entity.set_quat(pq[3:])
+        
+            
+        
+
+    def transform(self, 
+                  obj: Union[Dict, Any], 
+                  transformation: tuple | np.ndarray | torch.Tensor, 
+                  apply: bool = False,
+                  output_type: Optional[str] = 't'
+                  ) -> Dict:
+        """
+        Apply transformation to object.
+        
+        Args:
+            obj: Object representation or direct entity
+            transformation: Transformation to apply, can be (4, 4) transformation matrix, (7,) pq or (8,) dq or tuple of (position, quaternion)
+            apply: Whether to apply the transformation to the object
+        
+        Returns:
+            Transformed pose of the object in the requested format
+        """
+        entity = obj["entity"] if isinstance(obj, dict) else obj
+
+        transformation = self.to(transformation, 't')
+
+
+        object_pose = self.get_pose(entity, output_type='t')
+        transformed_pose = np.dot(object_pose, transformation)
+
+        if apply:
+            self.set_pose(entity, transformed_pose)
+
+        return self.to(transformed_pose, output_type)
+            
     
     # Robot control methods
     
