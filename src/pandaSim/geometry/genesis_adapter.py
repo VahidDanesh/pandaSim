@@ -185,7 +185,7 @@ class GenesisAdapter:
             "entity": entity
         }
 
-    def to(self, transformation: Any, output_type: Optional[str] = 'pq') -> np.ndarray:
+    def to(self, transformation: tuple | torch.Tensor | np.ndarray, output_type: Optional[str] = 'pq') -> np.ndarray:
         """
         Convert input to the given output_type.
         
@@ -222,31 +222,53 @@ class GenesisAdapter:
         
         # Get mesh data from entity
         vertices = entity.get_verts().cpu().numpy()
-
         
-        # Calculate min and max bounds
-        min_bounds = np.min(vertices, axis=0)
-        max_bounds = np.max(vertices, axis=0)
-        
-        # Generate the 8 corners of the bounding box
-        corners = []
-        for x in [min_bounds[0], max_bounds[0]]:
-            for y in [min_bounds[1], max_bounds[1]]:
-                for z in [min_bounds[2], max_bounds[2]]:
-                    corners.append([x, y, z])
-        
-        corners = np.array(corners)
-        # Define the 12 edges as pairs of vertex indices
+        # Define edge indices once - these don't change
         edge_indices = [
             (0, 2), (4, 6), (0, 4), (2, 6),  # Bottom face
             (1, 3), (5, 7), (3, 7), (1, 5),  # Top face
             (0, 1), (2, 3), (4, 5), (6, 7)   # Connecting edges
         ]
-        edges = [corners[j] - corners[i] for i, j in edge_indices]
-        # edges = [edge / np.linalg.norm(edge) for edge in edges]
-        edges = np.array(edges)
         
-
+        # Create corner pattern for the box (which corners get min vs max)
+        corner_template = np.array([
+            [0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1],
+            [1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1]
+        ])
+        
+        # Handle both single and multi-environment cases uniformly
+        if len(vertices.shape) == 3:  # Multiple environments: (n_envs, n_vertices, 3)
+            # Compute min and max bounds along the vertices dimension
+            min_bounds = np.min(vertices, axis=1)  # Shape: (n_envs, 3)
+            max_bounds = np.max(vertices, axis=1)  # Shape: (n_envs, 3)
+            
+            # Expand dimensions for broadcasting with corner template
+            min_expanded = np.expand_dims(min_bounds, axis=1)  # Shape: (n_envs, 1, 3)
+            max_expanded = np.expand_dims(max_bounds, axis=1)  # Shape: (n_envs, 1, 3)
+            
+            # Generate corners by interpolating between min and max bounds
+            corners = min_expanded + corner_template * (max_expanded - min_expanded)  # Shape: (n_envs, 8, 3)
+            
+            # Calculate edges
+            edges = np.zeros((vertices.shape[0], len(edge_indices), 3))  # Shape: (n_envs, 12, 3)
+            for i, (start, end) in enumerate(edge_indices):
+                edges[:, i] = corners[:, end] - corners[:, start]
+        
+        else:  # Single environment: (n_vertices, 3)
+            # Compute min and max bounds
+            min_bounds = np.min(vertices, axis=0)  # Shape: (3,)
+            max_bounds = np.max(vertices, axis=0)  # Shape: (3,)
+            
+            # Generate corners
+            corners = np.zeros((8, 3))
+            for i, corner in enumerate(corner_template):
+                corners[i] = min_bounds + corner * (max_bounds - min_bounds)
+            
+            # Calculate edges
+            edges = np.zeros((len(edge_indices), 3))
+            for i, (start, end) in enumerate(edge_indices):
+                edges[i] = corners[end] - corners[start]
+        
         return {
             "vertices": corners,
             "edges": edges,
@@ -280,34 +302,44 @@ class GenesisAdapter:
         Args:
             obj: Object representation or direct entity
         Returns:
-            Size of the bbox, in (x, y, z) order of it's own coordinate frame.
+            Size of the bbox, in (x, y, z) order of it's own coordinate frame. shape is (3,) 
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
         bbox = self.get_bbox(obj)
         size_world = bbox['max_bounds'] - bbox['min_bounds'] # in world frame
-        wRb = pr.matrix_from_quaternion(entity.get_quat().cpu().numpy())
+        wRb = pr.matrix_from_quaternion(entity.get_quat().cpu().numpy()[0])
         bRw = np.linalg.inv(wRb)
-        size = np.dot(bRw, size_world)
+        size = np.dot(bRw, size_world[0])
         
         return np.abs(np.round(size, 3)) # round to compensate for bbox inaccuracy
         
     
-    def set_pose(self, obj: Union[Dict, Any], pose: tuple | np.ndarray | torch.Tensor) -> None:
+    def set_pose(self, obj: Union[Dict, Any], pose: tuple | np.ndarray | torch.Tensor, envs_idx=None) -> None:
         """
         Set the pose of the object.
 
         Args:
             obj: Object representation or direct entity
             pose: Pose to set, can be (4, 4) transformation matrix, (7,) pq or (8,) dq
+            envs_idx : None | array_like, optional
+            The indices of the environments. If None, all environments will be considered. Defaults to None.
+
 
         
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
         
         pq = self.to(pose, 'pq')
+
+        if envs_idx is not None:
+            pos = pq[envs_idx, :3]
+            quat = pq[envs_idx, 3:]
+        else:
+            pos = pq[..., :3]
+            quat = pq[..., 3:]
         
-        entity.set_pos(pq[:3])
-        entity.set_quat(pq[3:])
+        entity.set_pos(pos, envs_idx=envs_idx)
+        entity.set_quat(quat, envs_idx=envs_idx)
         
             
         
@@ -316,29 +348,56 @@ class GenesisAdapter:
                   obj: Union[Dict, Any], 
                   transformation: tuple | np.ndarray | torch.Tensor, 
                   apply: bool = False,
-                  output_type: Optional[str] = 't'
+                  output_type: Optional[str] = 't',
+                  envs_idx=None
                   ) -> Dict:
         """
         Apply transformation to object.
         
         Args:
             obj: Object representation or direct entity
-            transformation: Transformation to apply, can be (4, 4) transformation matrix, (7,) pq or (8,) dq or tuple of (position, quaternion)
+            transformation: Transformation to apply, can be (4, 4) transformation matrix, (7,) pq or (8,) dq or tuple of (position, quaternion).
+                            Can be shape (n_envs, ...) to apply different transformations to each environment, or a single transformation to apply to all.
             apply: Whether to apply the transformation to the object
-        
+            output_type: Desired output format ('t', 'pq', 'dq', etc.)
+            envs_idx: None | array_like, optional
+                      The indices of the environments. If None, all environments will be considered. Defaults to None.
+
         Returns:
             Transformed pose of the object in the requested format
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
 
+        # Convert transformation to transformation matrix format
         transformation = self.to(transformation, 't')
-
-
+        
+        # Get object's current pose
         object_pose = self.get_pose(entity, output_type='t')
-        transformed_pose = np.dot(object_pose, transformation)
+        
+        # Handle single transformation applied to multiple environments
+        if len(transformation.shape) == 2 and len(object_pose.shape) > 2:
+            # Expand single transformation to match number of environments
+            transformation = np.tile(transformation, (object_pose.shape[0], 1, 1))
+            print(transformation.shape)
+        
+        # Apply transformation only to specified environments if envs_idx is provided
+        if envs_idx is not None:
+            # Get the full transformed pose (all environments)
+            full_transformed_pose = object_pose.copy()
+            # Apply transformation only to specified environments
+            selected_object_pose = object_pose[envs_idx]
+            selected_transformation = transformation if len(transformation.shape) == 2 else transformation[envs_idx]
+            print(selected_transformation.shape, selected_object_pose.shape)
+            selected_transformed_pose = pt.concat(selected_object_pose, selected_transformation)
+            # Update only the specified environments
+            full_transformed_pose[envs_idx] = selected_transformed_pose
+            transformed_pose = full_transformed_pose
+        else:
+            # Apply transformation to all environments
+            transformed_pose = ptr.concat_many_to_many(object_pose, transformation)
 
         if apply:
-            self.set_pose(entity, transformed_pose)
+            self.set_pose(entity, transformed_pose, envs_idx=envs_idx)
 
         return self.to(transformed_pose, output_type)
             
@@ -523,10 +582,7 @@ class GenesisAdapter:
                     entity.get_dofs_position()
                     )
         
-        if pos.ndim != 1:
-            pq = np.concatenate([pos.cpu().numpy(), quat.cpu().numpy()], axis=1)
-        else:
-            pq = np.concatenate([pos.cpu().numpy(), quat.cpu().numpy()], axis=0)
+        pq = np.hstack((pos.cpu().numpy(), quat.cpu().numpy()))
 
         if output_type.startswith('t'):
             return ptr.transforms_from_pqs(pq)
