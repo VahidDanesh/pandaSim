@@ -17,6 +17,7 @@ from pytransform3d import (
 
 from pandaSim.planning.protocols import PlannerStrategy
 from pandaSim.geometry.protocols import GeometryAdapter
+from pandaSim.geometry.utils import convert_pose
 
 
 class ScrewMotionPlanner(PlannerStrategy):
@@ -30,7 +31,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         self.ground_height_tolerance = self.config.get("ground_height_tolerance", 0.01)
         self.gripper_max_size = self.config.get("gripper_max_size", 0.08)  # 8cm
         
-    def find_ground_edges(self, bbox: Dict) -> List[Tuple[int, np.ndarray]]:
+    def find_ground_edges(self, bbox: Dict) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Find edges that lie on the ground plane.
         
@@ -38,84 +39,116 @@ class ScrewMotionPlanner(PlannerStrategy):
             bbox: Bounding box from adapter.get_bbox()
             
         Returns:
-            List of (edge_index, edge_vector) tuples for edges on ground
+            pairs_per_env: List of edge pairs
+            edges_per_env: List of edge vectors
         """
         vertices = bbox["vertices"]
         edges = bbox["edges"]
         min_bounds = bbox["min_bounds"]
-        
-        # Define ground plane height with some tolerance
-        ground_height = min_bounds[2]
-        
-        # Find vertices on the ground (z coordinate close to min_z)
-        ground_vertices_indices = [
-            i for i, v in enumerate(vertices) 
-            if abs(v[2] - ground_height) < self.ground_height_tolerance
-        ]
 
-        # Define edge connections between vertices (from the AABB definition)
-        # Bottom face edges: (0,2), (4,6), (0,4), (2,6)
-        edge_connections = [(0, 2), (4, 6), (0, 4), (2, 6)]
+        # --- handle single‐env case by adding a batch dimension ---
+        if vertices.ndim   == 2:  # (8,3) → (1,8,3)
+            vertices = vertices[None, ...]
+        if edges.ndim      == 2:  # (12,3) →  (1,12,3)
+            edges = edges[None, ...]
+        if min_bounds.ndim == 1:  # (3,) → (1,3)
+            min_bounds = min_bounds[None, ...]
+
+        # Define ground plane height with tolerance
+        ground_height = min_bounds[..., 2]               # (n_envs,)
         
-        # Find edges where both vertices are on the ground
-        ground_edges = []
-        for i, (v1_idx, v2_idx) in enumerate(edge_connections):
-            if v1_idx in ground_vertices_indices and v2_idx in ground_vertices_indices:
-                ground_edges.append(((v1_idx, v2_idx), edges[i]))
+        # Find vertices with z coordinate close to ground height
+        z_coords = vertices[..., 2]                      # (n_envs, 8)
+        ground_height_expanded = ground_height[:, None]  # (n_envs, 1)
+        mask = np.abs(z_coords - ground_height_expanded) < self.ground_height_tolerance
+                                                        # (n_envs, 8)
+
+        # fixed list of the 12 vertex‐pairs
+        edge_pairs = np.array([
+            (0,2),(4,6),(0,4),(2,6),   # bottom face
+            (1,3),(5,7),(3,7),(1,5),   # top face
+            (0,1),(2,3),(4,5),(6,7)    # side connectors
+        ], dtype=int)                  # (12, 2)
+
+        # which edges have both endpoints on the ground?
+        edge_on_ground = mask[:, edge_pairs].all(axis=2)  # (n_envs, 12)
+
+        pairs_per_env = [edge_pairs[row]    for row in edge_on_ground]
+        edges_per_env = [edges[env, row]    for env, row in enumerate(edge_on_ground)]
+
+        return pairs_per_env, edges_per_env
+
+    
         
-        return ground_edges
+
         
     def screw_from_bbox(self, 
-                         bbox: Dict, 
-                         ) -> Tuple[np.ndarray, np.ndarray]:
+                        bbox: Dict, 
+                        base_pos: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray]:
         """
         Select the optimal edge and vertex for screw motion.
         
         Args:
-            bbox: Bounding box from adapter.get_bbox()
-            
+            bbox: Bounding box from adapter.get_bbox(obj)
+            base_pos: Position of the robot base, or EE. Screw axes will be sorted based on distance from this point.
         Returns:
-            qs: List of points on screw axis
-            s_axes: List of unit vectors along screw axis
+            qs: List of points on screw axis, (n_envs, n_valid_qs, 3)
+            s_axes: List of unit vectors along screw axis, (n_envs, n_valid_qs, 3)
         """
         vertices = bbox["vertices"]
         
-        # 1. Find edges on the ground
-        ground_edges = self.find_ground_edges(bbox)
+        if vertices.ndim   == 2:  # (8,3) → (1,8,3)
+            vertices = vertices[None, ...]
         
-        if not ground_edges:
+        # 1. Find edges on the ground
+        pairs_per_env, edges_per_env = self.find_ground_edges(bbox)
+        
+        if not pairs_per_env:
             raise ValueError("No ground edges found for screw motion")
         
         # 2. Filter edges by length (must be smaller than gripper size)
-        valid_edges = []
-        for edge_idx, edge_dir in ground_edges:
-                v1_idx, v2_idx = edge_idx
-                v1, v2 = vertices[v1_idx], vertices[v2_idx]
-                
-                # Calculate edge length
-                edge_length = LA.norm(v2 - v1)
-                
-                if edge_length <= self.gripper_max_size:
-                    valid_edges.append((edge_idx, edge_dir, edge_length, v1, v2))
+        edge_mask = [np.linalg.norm(edge, axis=1) <= self.gripper_max_size for edge in edges_per_env]
         
-        if not valid_edges:
-            raise ValueError("No valid edges found that fit within gripper size")
-        
-        # 3. Sort by length (shortest first) and take the two smallest
-        valid_edges.sort(key=lambda x: x[2])
-        candidate_edges = valid_edges[:min(2, len(valid_edges))]
-        
+
         qs = []
         s_axes = []
-        for edge_idx, edge_dir, edge_length, v1, v2 in candidate_edges:
-            # Calculate midpoint of the edge
-            midpoint = (v1 + v2) / 2
-            
-            q, s_axis = midpoint, edge_dir/LA.norm(edge_dir)  # q, s_axis
-            qs.append(q)
-            s_axes.append(s_axis)
+        
+        for env_idx, (pairs, edges, mask) in enumerate(zip(pairs_per_env, edges_per_env, edge_mask)):
+            valid_edges = edges[mask]
+            valid_pairs = pairs[mask]
 
-        return np.array(qs), np.array(s_axes)
+            if len(valid_edges) == 0:
+                # If no valid edges, use any ground edge
+                valid_edges = edges
+                valid_pairs = pairs
+            
+            # Calculate distances from robot base to edge midpoints
+            midpoints = []
+            for pair in valid_pairs:
+                v1 = vertices[env_idx, pair[0]]
+                v2 = vertices[env_idx, pair[1]]
+                midpoint = (v1 + v2) / 2
+                midpoints.append(midpoint)
+            
+            midpoints = np.array(midpoints)
+
+            if base_pos is None:
+                base_pos = np.array([0, 0, 0])
+                 
+            distances = np.linalg.norm(midpoints - base_pos[env_idx], axis=1)
+            # Sort edges based on distance from base
+            sorted_indices = np.argsort(distances)
+            sorted_edges = valid_edges[sorted_indices]
+            sorted_edges = sorted_edges / np.linalg.norm(sorted_edges, axis=1, keepdims=True)
+            sorted_midpoints = midpoints[sorted_indices]
+            
+            qs.append(sorted_midpoints)
+            s_axes.append(sorted_edges)
+
+        return qs, s_axes
+
+        
+
     
     def time_scaling (self,
                       steps: int = 300,
@@ -141,7 +174,7 @@ class ScrewMotionPlanner(PlannerStrategy):
             raise ValueError(f"Invalid time scaling method: {method}, choose from q, c, l")
 
     def generate_screw_trajectory(self, 
-                                  initial_pose: np.ndarray,
+                                  initial_pose: tuple | torch.Tensor | np.ndarray,
                                   q: np.ndarray, 
                                   s_axis: np.ndarray, 
                                   theta: float = np.pi/2,
@@ -156,7 +189,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         
         Args:
             initial_pose: array-like, shape (4, 4), (7,), (8,)
-                Initial pose of the robot (T, dual quaternion, or pq)
+                Initial pose of the robot EE, or object(T, dual quaternion, or pq)
             s_axis: array-like, shape (3,)
                 Unit vector along screw axis
             q: array-like, shape (3,)
@@ -180,25 +213,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         if tau is None:
             tau = self.time_scaling(steps, time_scaling)
         
-        if isinstance(initial_pose, torch.Tensor):
-            initial_pose = initial_pose.cpu().numpy()
-            
-        # if initial_pose is transformation
-        if initial_pose.shape == (4, 4):
-            initial_pose = pt.dual_quaternion_from_transform(initial_pose)
-
-        # if initial_pose is pq
-        elif initial_pose.shape == (7,):
-            initial_pose = pt.dual_quaternion_from_pq(initial_pose)
-
-        # if initial_pose is dual quaternion
-        elif initial_pose.shape == (8,):
-            initial_pose = pt.check_dual_quaternion(initial_pose)
-
-        else:
-            raise ValueError(f"Invalid initial pose shape: {initial_pose.shape}, must be (4, 4), (7,), (8,)")
-        
-        initial_pose = pt.check_dual_quaternion(initial_pose)
+        initial_pose = convert_pose(initial_pose, 'dq')
         screw_dq = pt.dual_quaternion_from_screw_parameters(q=q, s_axis=s_axis, h=h, theta=theta)
         goal_pose = pt.concatenate_dual_quaternions(screw_dq, initial_pose)
         
@@ -221,31 +236,104 @@ class ScrewMotionPlanner(PlannerStrategy):
     
     def plan(self, 
              robot: Any, 
-             bbox: Any, 
-             adapter: GeometryAdapter) -> List[Any]:
+             link: Any,
+             object: Any, 
+             adapter: GeometryAdapter,
+             initial_pose: Optional[np.ndarray] = None,
+             prefer_closest: bool = True,
+             base_pos: Optional[np.ndarray | str] = None,
+             theta: float = np.pi/2,
+             h: float = 0.0,
+             steps: int = 300,
+             time_scaling: str = 'q',
+             output_type: str = 'pq') -> List[np.ndarray]:
         """
-        Plan trajectory for upright orientation using screw motion.
+        Plan trajectory for object reorientation using screw motion.
         
         Args:
             robot: The robot representation
-            bbox: The bounding box information
+            link: The link representation
+            object: The object representation
             adapter: Geometry adapter for accessing geometry
+            initial_pose: Initial pose of to apply screw motion to
+                If None, the current pose of the robot link will be used
+            prefer_closest: If True, select the screw axis closest to base_pos, otherwise select the farthest
+            base_pos: Position to measure distance from when selecting screw axis (defaults to robot base)
+            theta: Rotation angle in radians (default: π/2)
+            h: Screw pitch for translation along axis (default: 0.0)
+            steps: Number of waypoints in trajectory (default: 100)
+            time_scaling: Time scaling method ('q'=quintic, 'c'=cubic, 'l'=linear)
+            output_type: Output format ('pq', 'dq', or 't' for transformation matrices)
             
         Returns:
-            List of pose matrices representing the trajectory
+            List of poses representing the trajectory, with length n_envs and each shape (steps, output_type dims)
         """
-        # Get current robot end-effector position
-        ee_transform = adapter.compute_forward_kinematics(robot)
-        ee_pos = ee_transform[:3, 3]
+        # Get robot base position if not provided
+        if base_pos is None:
+            # Use robot base position - assuming first link is base
+            if hasattr(robot, "get_pos"):
+                base_pos = robot.get_pos().cpu().numpy()
+        elif isinstance(base_pos, str) and base_pos.lower().startswith("e"):
+            base_pos = adapter.forward_kinematics(robot, link, output_type='pq')[..., :3]
+        else:
+            base_pos = np.array(base_pos)
         
-        # Select screw axis and point
-        s_axis, q_point = self.select_screw_axis(bbox, ee_pos)
+        # Get current robot end-effector pose
+        ee_pose_dq = adapter.forward_kinematics(robot, link, output_type='dq')
         
-        # Set standard parameters for upright orientation
-        theta = np.pi/2  # 90 degrees rotation by default
-        h = 0.0  # No translation along axis by default
+        # Get object bounding box
+        bbox = adapter.get_bbox(object)
         
-        # Generate trajectory
-        trajectory = self.generate_screw_trajectory(s_axis, q_point, theta, h, steps=20)
+        # Get candidate screw axes and points
         
-        return trajectory
+        qs_per_env, s_axes_per_env = self.screw_from_bbox(bbox, base_pos)
+        
+        # Generate trajectories for each environment
+        all_trajectories = []
+        
+        # Determine number of environments
+        n_envs = len(qs_per_env)
+        
+        for env_idx in range(n_envs):
+            # Get candidates for this environment
+            qs = qs_per_env[env_idx]
+            s_axes = s_axes_per_env[env_idx]
+            
+            if len(qs) == 0:
+                raise ValueError(f"No valid screw axes found for environment {env_idx}")
+            
+            # Select appropriate screw axis (first one is closest, last one is farthest)
+            q_idx = 0 if prefer_closest else -1
+            q = qs[q_idx]
+            s_axis = s_axes[q_idx]
+            
+            if initial_pose is not None:
+                current_pose = initial_pose[env_idx] 
+            else:
+                # Get the current pose for this environment
+                if isinstance(ee_pose_dq, np.ndarray) and ee_pose_dq.ndim > 1 and len(ee_pose_dq) > 1:
+                    # Multi-environment case
+                    current_pose = ee_pose_dq[env_idx]
+                else:
+                # Single environment case
+                    current_pose = ee_pose_dq
+            
+            # Generate trajectory
+            traj = self.generate_screw_trajectory(
+                initial_pose=current_pose,
+                q=q,
+                s_axis=s_axis,
+                theta=theta,
+                h=h,
+                steps=steps,
+                time_scaling=time_scaling,
+                output_type=output_type
+            )
+            
+            all_trajectories.append(traj)
+        
+        # Convert to numpy array
+        result = np.array(all_trajectories)
+        
+        
+        return result

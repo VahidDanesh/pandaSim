@@ -1,7 +1,7 @@
 """
 Geometry utility functions for conversions between different representations.
 """
-
+from typing import Any, Optional, Dict, Tuple, Union
 import numpy as np
 import torch
 from pytransform3d import (
@@ -12,7 +12,7 @@ from pytransform3d import (
     plot_utils as ppu
 )
 
-def convert_pose(transformation: any, output_type: str = 'pq') -> np.ndarray:
+def convert_pose(transformation: tuple | torch.Tensor | np.ndarray, output_type: str = 'pq') -> np.ndarray:
     """
     Convert input to the given output_type.
     
