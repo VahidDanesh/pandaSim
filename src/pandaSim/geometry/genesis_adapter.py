@@ -330,13 +330,10 @@ class GenesisAdapter:
         entity = obj["entity"] if isinstance(obj, dict) else obj
         
         pq = self.to(pose, 'pq')
+        print(pq)
 
-        if envs_idx is not None:
-            pos = pq[envs_idx, :3]
-            quat = pq[envs_idx, 3:]
-        else:
-            pos = pq[..., :3]
-            quat = pq[..., 3:]
+        pos = pq[..., :3]
+        quat = pq[..., 3:]
         
         entity.set_pos(pos, envs_idx=envs_idx)
         entity.set_quat(quat, envs_idx=envs_idx)
