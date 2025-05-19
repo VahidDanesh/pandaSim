@@ -7,6 +7,7 @@ from typing import Any, Optional, Dict, Tuple, Union
 import numpy as np
 import genesis as gs
 import torch
+import trimesh
 from pathlib import Path
 from pytransform3d import (
     transformations as pt,
@@ -202,7 +203,158 @@ class GenesisAdapter:
         """
         return convert_pose(transformation, output_type)
 
-    
+    def get_obb(self, obj: Union[Dict, Any]) -> Dict:
+        """
+        Calculate oriented bounding box (OBB) for an object using trimesh.
+        
+        Args:
+            obj: Object representation or direct entity
+        
+        Returns:
+            Dictionary containing bounding box information:
+            - vertices: 8 corner points of the bounding box
+            - edges: 12 edges connecting the vertices
+            - min_bounds: Minimum coordinate values in OBB space
+            - max_bounds: Maximum coordinate values in OBB space
+            - center: Center point of the OBB
+            - axes: Principal axes of the OBB (3x3 rotation matrix)
+            - extents: Full lengths of the OBB along its principal axes
+        """
+        # Handle both dict wrapper and direct entity
+        entity = obj["entity"] if isinstance(obj, dict) else obj
+        
+        # Get mesh data from entity
+        vertices = entity.get_verts().cpu().numpy()
+        
+        # Handle both single and multi-environment cases
+        n_envs = self.scene.n_envs
+        edge_indices = [
+            (0, 1), (1, 3), (3, 2), (2, 0),  # Bottom face (clockwise)
+            (4, 5), (5, 7), (7, 6), (6, 4),  # Top face (clockwise)
+            (0, 4), (1, 5), (2, 6), (3, 7)   # Connecting edges (bottom to top)
+        ]
+
+
+
+            
+        if n_envs == 0:
+
+            
+            # Get object pose and size
+            pose = self.get_pose(obj, 't')
+            size = self.get_size(obj)
+            center = pose[:3, 3]
+            
+            # Create corners in a specific order (bottom, up, clockwise)
+            # Extract dimensions for clarity
+            l, w, h = size  # length, width, height
+
+            local_corners = np.array([
+                [-l/2, -w/2, -h/2], 
+                [ l/2, -w/2, -h/2],   
+                [-l/2,  w/2, -h/2],   
+                [ l/2,  w/2, -h/2],   
+                [-l/2, -w/2,  h/2],    
+                [ l/2, -w/2,  h/2],    
+                [-l/2,  w/2,  h/2],     
+                [ l/2,  w/2,  h/2]     
+            ])
+            # Transform corners to world coordinates
+            rotation = pose[:3, :3]
+            corners = np.array([rotation @ corner + center for corner in local_corners])
+            
+            # Calculate edges
+            edges = np.zeros((len(edge_indices), 3))  # Shape: (12, 3)
+            for i, (start, end) in enumerate(edge_indices):
+                edges[i] = corners[end] - corners[start]
+            
+            # Calculate min/max bounds
+            min_bounds = corners[0]  # bottom-back-left
+            max_bounds = corners[7]  # top-front-right
+            
+            return {
+                "vertices": corners,
+                "edges": edges,
+                "min_bounds": min_bounds,
+                "max_bounds": max_bounds,
+                "center": center,
+                "transform": pose,
+                "extents": size,
+                'edge_indices': edge_indices
+            }
+        
+        else:
+            # Multi-environment case
+            result_corners = []
+            result_centers = []
+            result_edges = []
+            result_transforms = []
+            result_min_bounds = []
+            result_max_bounds = []
+            result_extents = []
+            
+            for i in range(n_envs):
+                # Get object pose and size for this environment
+                pose = self.get_pose(obj, 't', env_idx=i)
+                size = self.get_size(obj)
+                center = pose[:3, 3]
+                
+                # Extract dimensions for clarity
+                l, w, h = size[i, :] # length, width, height
+
+                local_corners = np.array([
+                    [-l/2, -w/2, -h/2], 
+                    [ l/2, -w/2, -h/2],   
+                    [-l/2,  w/2, -h/2],   
+                    [ l/2,  w/2, -h/2],   
+                    [-l/2, -w/2,  h/2],    
+                    [ l/2, -w/2,  h/2],    
+                    [-l/2,  w/2,  h/2],     
+                    [ l/2,  w/2,  h/2]     
+                ])
+                # Transform corners to world coordinates
+                rotation = pose[:3, :3]
+                corners = np.array([rotation @ corner + center for corner in local_corners])
+                
+                result_corners.append(corners)
+                result_centers.append(center)
+                result_transforms.append(pose)
+                result_extents.append(size)
+                
+                # Calculate min/max bounds
+                min_bounds = corners[0]  # bottom-back-left
+                max_bounds = corners[7]  # top-front-right
+                
+                result_min_bounds.append(min_bounds)
+                result_max_bounds.append(max_bounds)
+                
+                # Calculate edges
+                edges = np.zeros((len(edge_indices), 3))
+                for j, (start, end) in enumerate(edge_indices):
+                    edges[j] = corners[end] - corners[start]
+                    
+                result_edges.append(edges)
+                
+            # Stack all results
+            corners = np.stack(result_corners)
+            centers = np.stack(result_centers)
+            edges = np.stack(result_edges)
+            transforms = np.stack(result_transforms)
+            extents = np.stack(result_extents)
+            min_bounds = np.stack(result_min_bounds)
+            max_bounds = np.stack(result_max_bounds)
+            
+            return {
+                "vertices": corners,
+                "edges": edges,
+                "min_bounds": min_bounds,
+                "max_bounds": max_bounds,
+                "center": centers,
+                "transforms": transforms,
+                "extents": extents,
+                'edge_indices': edge_indices
+            }
+
     def get_bbox(self, obj: Union[Dict, Any]) -> Dict:
         """
         Calculate axis-aligned bounding box for an object.
@@ -273,9 +425,9 @@ class GenesisAdapter:
             "vertices": corners,
             "edges": edges,
             "min_bounds": min_bounds,
-            "max_bounds": max_bounds
+            "max_bounds": max_bounds,
+            'edge_indices': edge_indices
         }
-    
 
     def get_pose(self, obj: Union[Dict, Any], output_type: Optional[str] = 'pq') -> np.ndarray:
         """
@@ -305,11 +457,21 @@ class GenesisAdapter:
             Size of the bbox, in (x, y, z) order of it's own coordinate frame. shape is (3,) 
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
-        bbox = self.get_bbox(obj)
-        size_world = bbox['max_bounds'] - bbox['min_bounds'] # in world frame
-        wRb = pr.matrix_from_quaternion(entity.get_quat().cpu().numpy()[0])
-        bRw = np.linalg.inv(wRb)
-        size = np.dot(bRw, size_world[0])
+        # Create a trimesh mesh from vertices
+        vertices = entity.get_verts().cpu().numpy()
+        mesh = trimesh.Trimesh(vertices=vertices)
+        
+        # Get the oriented bounding box
+        obb = mesh.bounding_box_oriented
+        to_origin, extents = trimesh.bounds.oriented_bounds(mesh, angle_digits=3)
+        size = extents
+        
+        # bbox = self.get_bbox(obj)
+        # size_world = bbox['max_bounds'] - bbox['min_bounds'] # in world frame
+        # wTb = self.get_pose(entity, 't')
+        # wRb = wTb[..., :3, :3]
+        # bRw = np.linalg.inv(wRb)
+        # size = np.einsum('nij,nj->ni', bRw, size_world)
         
         return np.abs(np.round(size, 3)) # round to compensate for bbox inaccuracy
         
@@ -330,7 +492,6 @@ class GenesisAdapter:
         entity = obj["entity"] if isinstance(obj, dict) else obj
         
         pq = self.to(pose, 'pq')
-        print(pq)
 
         pos = pq[..., :3]
         quat = pq[..., 3:]
@@ -375,23 +536,17 @@ class GenesisAdapter:
         if len(transformation.shape) == 2 and len(object_pose.shape) > 2:
             # Expand single transformation to match number of environments
             transformation = np.tile(transformation, (object_pose.shape[0], 1, 1))
-            print(transformation.shape)
         
         # Apply transformation only to specified environments if envs_idx is provided
         if envs_idx is not None:
-            # Get the full transformed pose (all environments)
-            full_transformed_pose = object_pose.copy()
             # Apply transformation only to specified environments
             selected_object_pose = object_pose[envs_idx]
-            selected_transformation = transformation if len(transformation.shape) == 2 else transformation[envs_idx]
-            print(selected_transformation.shape, selected_object_pose.shape)
-            selected_transformed_pose = pt.concat(selected_object_pose, selected_transformation)
-            # Update only the specified environments
-            full_transformed_pose[envs_idx] = selected_transformed_pose
-            transformed_pose = full_transformed_pose
+            transformation = transformation[envs_idx] if transformation.ndim == 3 else transformation
+            transformed_pose = pt.concat(transformation, selected_object_pose)
+
         else:
             # Apply transformation to all environments
-            transformed_pose = ptr.concat_many_to_many(object_pose, transformation)
+            transformed_pose = ptr.concat_many_to_many(transformation, object_pose)
 
         if apply:
             self.set_pose(entity, transformed_pose, envs_idx=envs_idx)
