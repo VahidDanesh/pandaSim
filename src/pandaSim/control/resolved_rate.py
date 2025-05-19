@@ -68,20 +68,17 @@ class ResolvedRateController(MotionController):
         Returns:
             Tuple of (velocity_twist, arrived_flag)
         """
-        # Compute pose difference in SE(3)
+        current_pose = convert_pose(current_pose, output_type='t')
+        target_pose = convert_pose(target_pose, output_type='t')
+
         eTep = np.linalg.inv(current_pose) @ target_pose
         
         # Initialize error vector
         e = np.zeros(6)
         
         if method == "twist":
-            # Get translational error
-            e[:3] = eTep[:3, 3]
+            e[:3] = pt.transform_log_from_transform
             
-            # Get rotational error as axis-angle
-            rot_matrix = eTep[:3, :3]
-            angle, axis = pr.axis_angle_from_matrix(rot_matrix)
-            e[3:] = axis * angle if angle != 0 else np.zeros(3)
         else:
             # RPY method
             e[:3] = eTep[:3, 3]

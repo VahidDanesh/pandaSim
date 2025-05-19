@@ -233,7 +233,7 @@ class GenesisAdapter:
             (7, 3), (6, 2), (7, 6), (3, 2),  # Top face
             (5, 7), (1, 3), (4, 6), (0, 2)   # Connecting edges
         ]
-        if n_envs == 1:
+        if n_envs == 0:
             # Single environment case
             if len(vertices.shape) == 3:  # Already has environment dimension
                 vertices = vertices[0]

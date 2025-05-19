@@ -266,7 +266,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         obb = adapter.get_obb(obj)
         wTobj = adapter.get_pose(obj, 't')
         wRobj = wTobj[..., :3, :3]
-        objRw = np.einsum('nij->nji', wRobj)
+        objRw = np.einsum('...ij->...ji', wRobj)
         object_center = wTobj[..., :3, 3]
         object_size_local = adapter.get_size(obj)
         vertices = obb["vertices"]
@@ -324,11 +324,14 @@ class ScrewMotionPlanner(PlannerStrategy):
             w_T_grasp = wTobj.copy()
             w_T_grasp[..., :3, 3] = grasp_point
             
-            w_T_gripper = ptr.concat_one_to_many(grasp_T_gripper, w_T_grasp)
+            if w_T_grasp.ndim == 3:
+                w_T_gripper = ptr.concat_one_to_many(grasp_T_gripper, w_T_grasp)
+            else:
+                w_T_gripper = pt.concat(grasp_T_gripper, w_T_grasp)
 
-            return convert_pose(w_T_gripper, output_type), qs, s_axes
+            return convert_pose(w_T_gripper, output_type).squeeze(), qs, s_axes
         
-        return grasp_point, qs, s_axes
+        return grasp_point.squeeze(), qs, s_axes
         
 
     def plan(self, 
@@ -337,8 +340,10 @@ class ScrewMotionPlanner(PlannerStrategy):
              object: Any, 
              adapter: GeometryAdapter,
              initial_pose: Optional[np.ndarray] = None,
-             prefer_closest: bool = True,
+             prefer_closer_grasp: bool = True,
              base_pos: Optional[np.ndarray | str] = None,
+             qs: Optional[List[np.ndarray]] = None,
+             s_axes: Optional[List[np.ndarray]] = None,
              theta: float = np.pi/2,
              h: float = 0.0,
              steps: int = 300,
@@ -361,6 +366,9 @@ class ScrewMotionPlanner(PlannerStrategy):
             steps: Number of waypoints in trajectory (default: 100)
             time_scaling: Time scaling method ('q'=quintic, 'c'=cubic, 'l'=linear)
             output_type: Output format ('pq', 'dq', or 't' for transformation matrices)
+            grasp_pose: Pre-computed grasp pose from compute_grasp
+            qs: Pre-computed points on screw axes from compute_grasp
+            s_axes: Pre-computed screw axes from compute_grasp
             
         Returns:
             List of poses representing the trajectory, with length n_envs and each shape (steps, output_type dims)
@@ -375,48 +383,52 @@ class ScrewMotionPlanner(PlannerStrategy):
         else:
             base_pos = np.array(base_pos)
         
-        # Get current robot end-effector pose
-        ee_pose_dq = adapter.forward_kinematics(robot, link, output_type='dq')
+        # Get current robot end-effector pose if initial_pose not provided
+        if initial_pose is None:
+            initial_pose = adapter.forward_kinematics(robot, link, output_type='dq')
         
-        # Get object bounding box
-        bbox = adapter.get_bbox(object)
-        
-        # Get candidate screw axes and points
-        
-        qs_per_env, s_axes_per_env = self.screw_from_bbox(bbox=bbox, 
-                                                          base_pos=base_pos, 
-                                                          prefer_closest=prefer_closest)
+        # If grasp info not provided, compute it
+        if qs is None or s_axes is None:
+            _, qs, s_axes = self.compute_grasp(
+                obj=object,
+                adapter=adapter,
+                prefer_closer_grasp=prefer_closer_grasp,
+                base_pos=base_pos
+            )
         
         # Generate trajectories for each environment
         all_trajectories = []
         
-        # Determine number of environments
-        n_envs = len(qs_per_env)
-        
+        # Determine if we're dealing with single or multiple environments
+        is_multi_env = adapter.scene.n_envs > 0
+        n_envs = adapter.scene.n_envs if is_multi_env else 1
+        # Ensure initial_pose is properly formatted for iteration
+        if not isinstance(initial_pose, list) and n_envs > 1:
+            # If single pose provided for multiple environments, duplicate it
+            if hasattr(initial_pose, "ndim") and initial_pose.ndim == 1:
+                initial_pose = [initial_pose] * n_envs
         for env_idx in range(n_envs):
-            # Get candidates for this environment
-            q = qs_per_env[env_idx]
-            s_axis = s_axes_per_env[env_idx]
+            # Get data for this environment
+            env_q = qs[env_idx] if is_multi_env else np.array(qs).squeeze()
+            env_s_axis = s_axes[env_idx] if is_multi_env else np.array(s_axes).squeeze()
             
-            if len(q) == 0:
+            if len(env_q) == 0 if isinstance(env_q, list) else False:
                 raise ValueError(f"No valid screw axes found for environment {env_idx}")
             
+            # Get the current pose for this environment
             if initial_pose is not None:
-                current_pose = initial_pose[env_idx] 
-            else:
-                # Get the current pose for this environment
-                if isinstance(ee_pose_dq, np.ndarray) and ee_pose_dq.ndim > 1 and len(ee_pose_dq) > 1:
+                if isinstance(initial_pose, list) or (hasattr(initial_pose, "ndim") and initial_pose.ndim > 1 and len(initial_pose) > 1):
                     # Multi-environment case
-                    current_pose = ee_pose_dq[env_idx]
+                    current_pose = initial_pose[env_idx]
                 else:
-                # Single environment case
-                    current_pose = ee_pose_dq
-        
-        # Generate trajectory
+                    # Single environment case
+                    current_pose = initial_pose
+            
+            # Generate trajectory
             traj = self.generate_screw_trajectory(
                 initial_pose=current_pose,
-                q=q,
-                s_axis=s_axis,
+                q=env_q,
+                s_axis=env_s_axis,
                 theta=theta,
                 h=h,
                 steps=steps,
@@ -429,5 +441,4 @@ class ScrewMotionPlanner(PlannerStrategy):
         # Convert to numpy array
         result = np.array(all_trajectories)
         
-        
-        return result
+        return result.squeeze()
