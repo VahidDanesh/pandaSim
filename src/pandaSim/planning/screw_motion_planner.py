@@ -28,7 +28,7 @@ class ScrewMotionPlanner(PlannerStrategy):
     def __init__(self, config: Optional[Dict] = None):
         """Initialize the planner with configuration options."""
         self.config = config or {}
-        self.ground_height_tolerance = self.config.get("ground_height_tolerance", 0.01)
+        self.ground_height_tolerance = self.config.get("ground_height_tolerance", 0.03)
         self.gripper_max_size = self.config.get("gripper_max_size", 0.08)  # 8cm
         
     def find_ground_edges(self, bbox: Dict) -> Tuple[List[np.ndarray], List[np.ndarray]]:
@@ -70,6 +70,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         pairs_per_env = [edge_pairs[row]    for row in edge_on_ground]
         edges_per_env = [edges[env, row]    for env, row in enumerate(edge_on_ground)]
 
+
         return pairs_per_env, edges_per_env
 
     
@@ -104,6 +105,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         
         # 2. Filter edges by length (must be smaller than gripper size)
         edge_mask = [np.linalg.norm(edge, axis=1) <= self.gripper_max_size for edge in edges_per_env]
+        print(edge_mask)
         
         
         qs = []
@@ -113,6 +115,8 @@ class ScrewMotionPlanner(PlannerStrategy):
         for env_idx, (pairs, edges, mask) in enumerate(zip(pairs_per_env, edges_per_env, edge_mask)):
             valid_edges = edges[mask]
             valid_pairs = pairs[mask]
+            print(valid_edges)
+            print(valid_pairs)
 
             if len(valid_edges) == 0:
                 # If no valid edges, use any ground edge
@@ -224,6 +228,23 @@ class ScrewMotionPlanner(PlannerStrategy):
         screw_dq = pt.dual_quaternion_from_screw_parameters(q=q, s_axis=s_axis, h=h, theta=theta)
         goal_pose = pt.concatenate_dual_quaternions(screw_dq, initial_pose)
         
+        # TODO: Add check for goal_pose and change theta if needed
+        # assume initial_pose is given for the virtual_finger, then x should be in negative z direction
+        # if initial_pose is given for the object, then z should be in positive z direction
+        # check the z element of goal and intial dq
+
+        goal_pose_T = convert_pose(goal_pose, 't')
+        initial_pose_T = convert_pose(initial_pose, 't')
+        if goal_pose_T[..., 2, 3] < initial_pose_T[..., 2, 3]:
+
+            theta = -theta
+            screw_dq = pt.dual_quaternion_from_screw_parameters(q=q, s_axis=s_axis, h=h, theta=theta)
+            goal_pose = pt.concatenate_dual_quaternions(screw_dq, initial_pose)
+            print("theta changed to ", theta)
+        
+        # end TODO
+
+        
         traj = [pt.dual_quaternion_sclerp(initial_pose, goal_pose, t) for t in tau]
 
         if output_type.lower().startswith('t'):
@@ -244,7 +265,8 @@ class ScrewMotionPlanner(PlannerStrategy):
                            prefer_closer_grasp: bool = True,
                            base_pos: Optional[np.ndarray] = None,
                            grasp_height: Optional[str] = 'center',
-                           gripper_depth: float = 0.03,
+                           offset_toward: float = 0.03,
+                           offset_upward: float = 0.02,
                            gripper_offset: Optional[np.ndarray] = None,
                            output_type: Optional[str] = 't') -> np.ndarray:
         """
@@ -299,7 +321,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         direction_unit_obj = np.einsum('...ij,...j->...i', objRw, direction_unit)
         direction_unit_obj = direction_unit_obj / np.linalg.norm(direction_unit_obj, axis=-1, keepdims=True)
 
-        offset_obj = direction_unit_obj * object_size_local / 2 - gripper_depth * direction_unit_obj
+        offset_obj = direction_unit_obj * object_size_local / 2 - offset_toward * direction_unit_obj
         offset_w = (wTobj[..., :3, :3] @ offset_obj[..., :, None])[..., 0] + wTobj[..., :3, 3]
 
         grasp_point_xy = offset_w
@@ -308,9 +330,9 @@ class ScrewMotionPlanner(PlannerStrategy):
         if grasp_height == 'center':
             z_height = object_center[..., 2]
         elif grasp_height == 'top':
-            z_height = max_height - gripper_depth
+            z_height = max_height - offset_upward
         elif grasp_height == 'bottom':
-            z_height = min_height + gripper_depth
+            z_height = min_height + offset_upward
         else:
             # Default to center if invalid option provided
             z_height = object_center[:, 2]
@@ -331,7 +353,7 @@ class ScrewMotionPlanner(PlannerStrategy):
 
             return convert_pose(w_T_gripper, output_type).squeeze(), qs, s_axes
         
-        return grasp_point.squeeze(), qs, s_axes
+        return grasp_point.squeeze(), qs.squeeze(), s_axes.squeeze()
         
 
     def plan(self, 
@@ -357,7 +379,7 @@ class ScrewMotionPlanner(PlannerStrategy):
             link: The link representation
             object: The object representation
             adapter: Geometry adapter for accessing geometry
-            initial_pose: Initial pose of to apply screw motion to
+            initial_pose: Initial pose of the robot EE, or object(T, dual quaternion, or pq)
                 If None, the current pose of the robot link will be used
             prefer_closest: If True, select the screw axis closest to base_pos, otherwise select the farthest
             base_pos: Position to measure distance from when selecting screw axis (defaults to robot base)
