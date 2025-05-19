@@ -32,6 +32,7 @@ class GenesisAdapter:
         
         Args:
             config: Optional configuration parameters
+            cam: Optional camera to record video
         """
         self.config = config or {}
         
@@ -39,7 +40,7 @@ class GenesisAdapter:
         viewer_options = self.config.get("viewer_options", {})
         self.viewer_options = gs.options.ViewerOptions(
             res=(viewer_options.get("width", 1280), viewer_options.get("height", 960)),
-            camera_pos=viewer_options.get("camera_pos", (3.5, 0.0, 2.5)),
+            camera_pos=viewer_options.get("camera_pos", (2.0, 2.0, 1.5)),
             camera_lookat=viewer_options.get("camera_lookat", (0.0, 0.0, 0.5)),
             camera_fov=viewer_options.get("fov", 40),
             max_FPS=viewer_options.get("max_fps", 60),
@@ -71,14 +72,16 @@ class GenesisAdapter:
             sim_options=self.sim_options,
             vis_options=self.vis_options,
             rigid_options=gs.options.RigidOptions(
-                enable_multi_contact=self.config.get('enable_multi_contact', True)),
+                enable_multi_contact=self.config.get('enable_multi_contact', True),
+                box_box_detection=self.config.get('box_box_detection', True),
+            ),
             renderer=gs.renderers.Rasterizer(),
             show_FPS=self.config.get('show_FPS', False),
         )
         
         # Store loaded entities
         self.entities = {}
-    
+
     @property
     def get_scene(self):
         """Get the underlying Genesis scene for direct access"""
@@ -753,6 +756,11 @@ class GenesisAdapter:
         # Step the Genesis simulation
         dt = self.scene.sim_options.dt
         steps = int(time / dt)
+
+        record = self.scene.cam is not None
+
         for _ in range(steps):
             self.scene.step()
+            if record:
+                self.scene.cam.render()
 
