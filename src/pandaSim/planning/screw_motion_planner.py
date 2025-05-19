@@ -105,7 +105,6 @@ class ScrewMotionPlanner(PlannerStrategy):
         
         # 2. Filter edges by length (must be smaller than gripper size)
         edge_mask = [np.linalg.norm(edge, axis=1) <= self.gripper_max_size for edge in edges_per_env]
-        print(edge_mask)
         
         
         qs = []
@@ -115,8 +114,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         for env_idx, (pairs, edges, mask) in enumerate(zip(pairs_per_env, edges_per_env, edge_mask)):
             valid_edges = edges[mask]
             valid_pairs = pairs[mask]
-            print(valid_edges)
-            print(valid_pairs)
+
 
             if len(valid_edges) == 0:
                 # If no valid edges, use any ground edge
@@ -351,9 +349,9 @@ class ScrewMotionPlanner(PlannerStrategy):
             else:
                 w_T_gripper = pt.concat(grasp_T_gripper, w_T_grasp)
 
-            return convert_pose(w_T_gripper, output_type).squeeze(), qs, s_axes
+            return convert_pose(w_T_gripper, output_type).squeeze(), np.asarray(qs).squeeze(), np.asarray(s_axes).squeeze()
         
-        return grasp_point.squeeze(), qs.squeeze(), s_axes.squeeze()
+        return grasp_point.squeeze(), np.asarray(qs).squeeze(), np.asarray(s_axes).squeeze()
         
 
     def plan(self, 

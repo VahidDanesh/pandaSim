@@ -229,46 +229,57 @@ class GenesisAdapter:
         # Handle both single and multi-environment cases
         n_envs = self.scene.n_envs
         edge_indices = [
-            (5, 1), (4, 0), (5, 4), (1, 0),  # Bottom face
-            (7, 3), (6, 2), (7, 6), (3, 2),  # Top face
-            (5, 7), (1, 3), (4, 6), (0, 2)   # Connecting edges
+            (0, 1), (1, 3), (3, 2), (2, 0),  # Bottom face (clockwise)
+            (4, 5), (5, 7), (7, 6), (6, 4),  # Top face (clockwise)
+            (0, 4), (1, 5), (2, 6), (3, 7)   # Connecting edges (bottom to top)
         ]
+
+
+
+            
         if n_envs == 0:
-            # Single environment case
-            if len(vertices.shape) == 3:  # Already has environment dimension
-                vertices = vertices[0]
-                
-            # Create a trimesh mesh from vertices
-            mesh = trimesh.Trimesh(vertices=vertices)
-            
-            # Get the oriented bounding box
-            obb = mesh.bounding_box_oriented
-            to_origin, extents = trimesh.bounds.oriented_bounds(vertices)
-            
-            # Extract OBB properties
-            corners = np.array(obb.vertices)
-            center = obb.centroid
-            transform = to_origin
-            
-            # Calculate min/max bounds from vertices that has minx, minz and maxx, maxz among all vertices
-            order = np.lexsort((corners[:,2], corners[:,0]))
-            lower = corners[order[0]]
 
-            # upper: sort by x↓ then z↓ → take first
-            order = np.lexsort((-corners[:,2], -corners[:,0]))
-            upper = corners[order[0]]
+            
+            # Get object pose and size
+            pose = self.get_pose(obj, 't')
+            size = self.get_size(obj)
+            center = pose[:3, 3]
+            
+            # Create corners in a specific order (bottom, up, clockwise)
+            # Extract dimensions for clarity
+            l, w, h = size  # length, width, height
 
+            local_corners = np.array([
+                [-l/2, -w/2, -h/2], 
+                [ l/2, -w/2, -h/2],   
+                [-l/2,  w/2, -h/2],   
+                [ l/2,  w/2, -h/2],   
+                [-l/2, -w/2,  h/2],    
+                [ l/2, -w/2,  h/2],    
+                [-l/2,  w/2,  h/2],     
+                [ l/2,  w/2,  h/2]     
+            ])
+            # Transform corners to world coordinates
+            rotation = pose[:3, :3]
+            corners = np.array([rotation @ corner + center for corner in local_corners])
+            
+            # Calculate edges
             edges = np.zeros((len(edge_indices), 3))  # Shape: (12, 3)
             for i, (start, end) in enumerate(edge_indices):
                 edges[i] = corners[end] - corners[start]
+            
+            # Calculate min/max bounds
+            min_bounds = corners[0]  # bottom-back-left
+            max_bounds = corners[7]  # top-front-right
+            
             return {
                 "vertices": corners,
                 "edges": edges,
-                "min_bounds": lower,
-                "max_bounds": upper,
+                "min_bounds": min_bounds,
+                "max_bounds": max_bounds,
                 "center": center,
-                "transform": transform,
-                "extents": extents,
+                "transform": pose,
+                "extents": size,
                 'edge_indices': edge_indices
             }
         
@@ -277,53 +288,61 @@ class GenesisAdapter:
             result_corners = []
             result_centers = []
             result_edges = []
-            results_transforms = []
+            result_transforms = []
             result_min_bounds = []
             result_max_bounds = []
             result_extents = []
             
             for i in range(n_envs):
-                # Create a trimesh mesh from vertices for this environment
-                env_vertices = vertices[i] if len(vertices.shape) == 3 else vertices
-                mesh = trimesh.Trimesh(vertices=env_vertices)
+                # Get object pose and size for this environment
+                pose = self.get_pose(obj, 't', env_idx=i)
+                size = self.get_size(obj)
+                center = pose[:3, 3]
                 
-                # Get the oriented bounding box
-                obb = mesh.bounding_box_oriented
-                to_origin, extents = trimesh.bounds.oriented_bounds(env_vertices)
+                # Extract dimensions for clarity
+                l, w, h = size[i, :] # length, width, height
+
+                local_corners = np.array([
+                    [-l/2, -w/2, -h/2], 
+                    [ l/2, -w/2, -h/2],   
+                    [-l/2,  w/2, -h/2],   
+                    [ l/2,  w/2, -h/2],   
+                    [-l/2, -w/2,  h/2],    
+                    [ l/2, -w/2,  h/2],    
+                    [-l/2,  w/2,  h/2],     
+                    [ l/2,  w/2,  h/2]     
+                ])
+                # Transform corners to world coordinates
+                rotation = pose[:3, :3]
+                corners = np.array([rotation @ corner + center for corner in local_corners])
                 
-                # Extract OBB properties
-                corners = np.array(obb.vertices)
                 result_corners.append(corners)
-                result_centers.append(obb.centroid)
-                results_transforms.append(to_origin)
-                result_extents.append(extents)
-                # Calculate min/max bounds from vertices that has minx, minz and maxx, maxz among all vertices
-                order = np.lexsort((corners[:,2], corners[:,0]))
-                lower = corners[order[0]]
-
-                # upper: sort by x↓ then z↓ → take first
-                order = np.lexsort((-corners[:,2], -corners[:,0]))
-                upper = corners[order[0]]
-                result_min_bounds.append(lower)
-                result_max_bounds.append(upper)
-
-
+                result_centers.append(center)
+                result_transforms.append(pose)
+                result_extents.append(size)
+                
+                # Calculate min/max bounds
+                min_bounds = corners[0]  # bottom-back-left
+                max_bounds = corners[7]  # top-front-right
+                
+                result_min_bounds.append(min_bounds)
+                result_max_bounds.append(max_bounds)
+                
+                # Calculate edges
                 edges = np.zeros((len(edge_indices), 3))
-
-                for i, (start, end) in enumerate(edge_indices):
-                    edges[i] = corners[end] - corners[start]
+                for j, (start, end) in enumerate(edge_indices):
+                    edges[j] = corners[end] - corners[start]
+                    
                 result_edges.append(edges)
+                
             # Stack all results
             corners = np.stack(result_corners)
             centers = np.stack(result_centers)
             edges = np.stack(result_edges)
-            transforms = np.stack(results_transforms)
+            transforms = np.stack(result_transforms)
             extents = np.stack(result_extents)
             min_bounds = np.stack(result_min_bounds)
             max_bounds = np.stack(result_max_bounds)
-            
-            # Calculate min/max bounds in OBB's local coordinate system
-
             
             return {
                 "vertices": corners,
@@ -438,8 +457,14 @@ class GenesisAdapter:
             Size of the bbox, in (x, y, z) order of it's own coordinate frame. shape is (3,) 
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
-        obb_box = self.get_obb(obj)
-        size = obb_box['extents']
+        # Create a trimesh mesh from vertices
+        vertices = entity.get_verts().cpu().numpy()
+        mesh = trimesh.Trimesh(vertices=vertices)
+        
+        # Get the oriented bounding box
+        obb = mesh.bounding_box_oriented
+        to_origin, extents = trimesh.bounds.oriented_bounds(mesh, angle_digits=3)
+        size = extents
         
         # bbox = self.get_bbox(obj)
         # size_world = bbox['max_bounds'] - bbox['min_bounds'] # in world frame
