@@ -64,7 +64,14 @@ class GeometryAdapter(Protocol):
             Numpy array of face indices or None if not applicable
         """
         ...
-    
+    def get_obb(self, obj: Union[Dict, Any]) -> Dict:
+        """
+        Calculate oriented bounding box for an object.
+        
+        Args:
+            obj: Object representation or direct entity
+        """
+        ...
     def get_bbox(self, obj: Union[Dict, Any]) -> Dict:
         """
         Calculate axis-aligned bounding box for an object.
