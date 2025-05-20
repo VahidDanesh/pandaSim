@@ -11,8 +11,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Create and activate virtual environment
 uv venv .panda
 source .panda/bin/activate
-
-# Install dependencies
+```
+### Install Genesis
+```bash
 uv pip install 'pytransform3d[all]'
 ```
 
