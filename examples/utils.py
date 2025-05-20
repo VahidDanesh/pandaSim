@@ -110,8 +110,8 @@ class RobotController:
         cube = self.scene.add_entity(
             gs.morphs.Box(
                 size=(0.1, 0.07, 0.25),
-                pos=(0.5, 0, 0.05+0.2),
-                euler=(0, -90, 0)
+                pos=(0.4, 0.1, 0.05+0.2),
+                euler=(45, -90, 0)
             ),
             surface=gs.surfaces.Default(
                 color=(0.5, 0.8, 0.94),
@@ -124,8 +124,8 @@ class RobotController:
             morph=gs.morphs.URDF(
                 file="urdf/3763/mobility_vhacd.urdf",
                 scale=0.09,
-                pos=(0.3, 0.5, 0.036+0.2),
-                euler=(45, -90, 0),
+                pos=(0.3, -0.3, 0.036+0.2),
+                euler=(-45, -90, 0),
             ),
         )
 
@@ -133,8 +133,8 @@ class RobotController:
             morph=gs.morphs.Cylinder(
                 radius=0.03,
                 height=0.15,
-                pos=(0.4, -0.4, 0.03+0.2),
-                euler=(-45, -90, 0),
+                pos=(0.3, 0.3, 0.03+0.2),
+                euler=(90, -90, 0),
             ),
             surface=gs.surfaces.Default(
                 color=(0.3, 0.47, 0.17),
@@ -170,7 +170,7 @@ class RobotController:
         bottle.name = "bottle"
         cylinder.name = "cylinder"
 
-        self.objects_list = [cube, bottle, cylinder]
+        self.objects_list = [cylinder,cube, bottle]
         self.scene_list = [plane, table1, table2, table3, table4]
 
         
@@ -203,8 +203,8 @@ class RobotController:
         return qpos
 
     def compute_object_grasp(self, obj, grasp_height='center', 
-                           offset_toward=0.04, offset_upward=0.02, 
-                           grasp_T_gripper=None):
+                           offset_toward=0.04, offset_upward=0.02,
+                           grasp_T_gripper=None, prefer_closer_grasp=True):
         """Compute a grasp pose for the given object"""
         self.scene.step()
         
@@ -219,7 +219,7 @@ class RobotController:
         grasp_pose, qs, s_axes = self.planner.compute_grasp(
             obj=obj,
             adapter=self.adapter,
-            prefer_closer_grasp=True,
+            prefer_closer_grasp=prefer_closer_grasp,
             grasp_height=grasp_height,
             offset_toward=offset_toward,
             offset_upward=offset_upward,

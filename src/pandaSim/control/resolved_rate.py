@@ -5,6 +5,7 @@ This module provides a Resolved-Rate Motion Controller for precise end-effector 
 """
 from typing import Tuple, Any, List, Dict, Optional
 import numpy as np
+import genesis as gs
 
 from pytransform3d import transformations as pt, rotations as pr
 
@@ -77,18 +78,23 @@ class ResolvedRateController(MotionController):
         e = np.zeros(6)
         
         if method == "twist":
-            e[:3] = pt.transform_log_from_transform
+            Stheta = pt.transform_log_from_transform(eTep)
+            e[:6] = pt.screw_axis_from_screw_matrix(Stheta)
+            
             
         else:
-            # RPY method
-            e[:3] = eTep[:3, 3]
-            e[3:] = pt.euler_from_matrix(eTep[:3, :3], 'sxyz')
-        
+            # quat method
+            target_pq = convert_pose(target_pose,'pq')
+            current_pq = convert_pose(current_pose,'pq')
+            error_pos = target_pq[3:] - current_pq[3:]
+            error_quat = gs.transform_quat_by_quat(gs.inv_quat(current_pq[3:]), target_pq[3:])
+            error_rotvec = gs.quat_to_rotvec(error_quat)
+            e = np.hstack((error_pos, error_rotvec))
         # Apply gains
         v = self.k * e
         
         # Check if arrived at target
-        arrived = np.sum(np.abs(e)) < self.threshold
+        arrived = np.linalg.norm(e) < self.threshold
         
         return v, arrived
     
