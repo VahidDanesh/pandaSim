@@ -686,6 +686,7 @@ class GenesisAdapter:
         # Case 1: If both robot and joint positions are provided, use forward_kinematics
         if q is not None:
             # Use forward_kinematics to get position and orientation
+            # TODO: get error when q is not torch tensor
             links_pos, links_quat = entity.forward_kinematics(q)
             
             # Convert to 4x4 transformation matrix
