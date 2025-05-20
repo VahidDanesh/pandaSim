@@ -340,7 +340,6 @@ class ScrewMotionPlanner(PlannerStrategy):
 
         if gripper_offset is not None:
             grasp_T_gripper = convert_pose(gripper_offset, 't')
-            
             w_T_grasp = wTobj.copy()
             w_T_grasp[..., :3, 3] = grasp_point
             
@@ -348,9 +347,8 @@ class ScrewMotionPlanner(PlannerStrategy):
                 w_T_gripper = ptr.concat_one_to_many(grasp_T_gripper, w_T_grasp)
             else:
                 w_T_gripper = pt.concat(grasp_T_gripper, w_T_grasp)
-
             return convert_pose(w_T_gripper, output_type).squeeze(), np.asarray(qs).squeeze(), np.asarray(s_axes).squeeze()
-        
+          
         return grasp_point.squeeze(), np.asarray(qs).squeeze(), np.asarray(s_axes).squeeze()
         
 

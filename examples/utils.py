@@ -49,7 +49,7 @@ class RobotController:
         table1 = self.scene.add_entity(
             gs.morphs.Box(
                 size = (0.7, 1.7, 0.02),
-                pos = (0.5, 0, 0.18),
+                pos = (0.5, 0, 0.19),
                 fixed = True,
             ),
             surface=gs.surfaces.Default(
@@ -64,7 +64,7 @@ class RobotController:
         table2 = self.scene.add_entity(
             gs.morphs.Box(
                 size = (0.7, 1.7, 0.02),
-                pos = (-0.5, 0, 0.18),
+                pos = (-0.5, 0, 0.19),
                 fixed = True,
             ),
             surface=gs.surfaces.Default(
@@ -79,7 +79,7 @@ class RobotController:
         table3 = self.scene.add_entity(
             gs.morphs.Box(
                 size = (0.3, 0.7, 0.02),
-                pos = (0, -0.5, 0.18),
+                pos = (0, -0.5, 0.19),
                 fixed = True,
             ),
             surface=gs.surfaces.Default(
@@ -94,7 +94,7 @@ class RobotController:
         table4 = self.scene.add_entity(
             gs.morphs.Box(
                 size = (0.3, 0.7, 0.02),
-                pos = (0, 0.5, 0.18),
+                pos = (0, 0.5, 0.19),
                 fixed = True,
             ),
             surface=gs.surfaces.Default(
@@ -110,7 +110,7 @@ class RobotController:
         cube = self.scene.add_entity(
             gs.morphs.Box(
                 size=(0.1, 0.07, 0.25),
-                pos=(0.5, 0, 0.05+0.19),
+                pos=(0.5, 0, 0.05+0.2),
                 euler=(0, -90, 0)
             ),
             surface=gs.surfaces.Default(
@@ -124,8 +124,8 @@ class RobotController:
             morph=gs.morphs.URDF(
                 file="urdf/3763/mobility_vhacd.urdf",
                 scale=0.09,
-                pos=(0.4, 0.4, 0.036+0.19),
-                euler=(30, -90, 0),
+                pos=(0.3, 0.5, 0.036+0.2),
+                euler=(45, -90, 0),
             ),
         )
 
@@ -133,11 +133,11 @@ class RobotController:
             morph=gs.morphs.Cylinder(
                 radius=0.03,
                 height=0.15,
-                pos=(0.4, -0.4, 0.03+0.19),
+                pos=(0.4, -0.4, 0.03+0.2),
                 euler=(-45, -90, 0),
             ),
             surface=gs.surfaces.Default(
-                color=(0.99, 0.94, 0.83),
+                color=(0.3, 0.47, 0.17),
             ),
             material=gs.materials.Rigid(rho = 300,friction=5)
         )
@@ -184,7 +184,7 @@ class RobotController:
             quat=orientation,
             pos_tol=1e-5,
             rot_tol=1e-5,
-            rot_mask=[False, False, True]
+            max_solver_iters=100,
         )
         qpos[fingers_dof] = fingers_state
         
@@ -230,6 +230,8 @@ class RobotController:
         self.target_entity.set_qpos(grasp_pose)
         self.scene.step()
         s_axes[..., 2] = 0
+        lower, upper = obj.get_AABB().cpu().numpy()
+        qs[..., 2] = lower[..., 2]
         return grasp_pose, qs, s_axes
 
     def pregrasp_object(self, finger_link, grasp_pose, fingers_state=0.04):
@@ -265,7 +267,8 @@ class RobotController:
                 quat=pq[3:],
                 init_qpos=qpos,
                 pos_tol=1e-6,
-                rot_mask=[True, False, False]
+                rot_tol=1e-6,
+                max_solver_iters=100,
             )
             qposs.append(qpos)
         
