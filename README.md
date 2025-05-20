@@ -69,7 +69,7 @@ We assumed that the objects' dimensions and initial configurations lie within th
 In each scene, the initial configurations of the objects were randomly assigned. Using the functions available in the Genesis Geometry Adapter, the geometric features—such as size, edges and vertices—were extracted, from which all necessary parameters for motion execution were derived.
 This allows to construct the screw axis which the object will be manipulated about that axis.
 Moreover, an extension involving rotational slippage at the grasp point to allow upright manipulation while maximizing manipulability was explored.
-All simulations were performed in the Genesis-AI physics-based simulator and we were able to reorient objects in multiple simulations with a xx\% success rate. 
+All simulations were performed in the Genesis-AI physics-based simulator and we were able to reorient objects in multiple simulations with a 96\% success rate. 
 
 ## Examples
 
