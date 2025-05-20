@@ -12,7 +12,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv venv .panda
 source .panda/bin/activate
 ```
-### Install Pytransfor3D
+### Install Pytransform3D
 ```bash
 uv pip install 'pytransform3d[all]'
 ```
