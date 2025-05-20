@@ -435,7 +435,7 @@ class ScrewMotionPlanner(PlannerStrategy):
             
             # Get the current pose for this environment
             if initial_pose is not None:
-                if isinstance(initial_pose, list) or (hasattr(initial_pose, "ndim") and initial_pose.ndim > 1 and len(initial_pose) > 1):
+                if isinstance(initial_pose, list):
                     # Multi-environment case
                     current_pose = initial_pose[env_idx]
                 else:

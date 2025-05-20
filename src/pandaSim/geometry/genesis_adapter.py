@@ -40,7 +40,7 @@ class GenesisAdapter:
         viewer_options = self.config.get("viewer_options", {})
         self.viewer_options = gs.options.ViewerOptions(
             res=(viewer_options.get("width", 1280), viewer_options.get("height", 960)),
-            camera_pos=viewer_options.get("camera_pos", (2.0, 2.0, 1.5)),
+            camera_pos=viewer_options.get("camera_pos", (2.0, 1.0, 1.5)),
             camera_lookat=viewer_options.get("camera_lookat", (0.0, 0.0, 0.5)),
             camera_fov=viewer_options.get("fov", 40),
             max_FPS=viewer_options.get("max_fps", 60),

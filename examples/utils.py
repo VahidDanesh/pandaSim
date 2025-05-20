@@ -156,7 +156,7 @@ class RobotController:
         if record:
             self.scene.cam = self.scene.add_camera(
                 res=(1280, 960),
-                pos=(2.0, 2.0, 1.5),
+                pos=(2.0, 1.0, 1.5),
                 lookat=(0, 0, 0.5),
                 fov=40,
                 GUI=False,
@@ -245,6 +245,21 @@ class RobotController:
         self.franka.control_dofs_force(np.array([-fingers_force, -fingers_force]), fingers_dof)
         self.adapter.step_simulation(0.5)
 
+    def object_trajectory(self, finger_link, obj, qs, s_axes):
+        obj_initial_pose = self.adapter.get_pose(obj, 't')
+        trajectory = self.planner.plan(
+            robot=self.franka,
+            link=finger_link,
+            object=obj,
+            adapter=self.adapter,
+            initial_pose=obj_initial_pose,
+            qs=qs,
+            s_axes=s_axes,
+            theta=np.pi/2,
+            output_type='t'
+        )
+        return trajectory
+    
     def execute_manipulation(self, finger_link, obj, qs, s_axes):
         """Execute planned manipulation with the grasped object"""
         trajectory = self.planner.plan(
@@ -306,3 +321,44 @@ class RobotController:
                 self.scene.cam.render()
         
         self.adapter.step_simulation(0.1)
+    
+    def Success_Rate(self, initial_pose, goal_pose, current_pose, method):
+        """
+        Compare the goal and current transformation and give a success rate based on that.
+        """
+        
+        threshold = 0.2
+        # Compute pose difference in SE(3)
+        eTep = np.linalg.inv(current_pose) @ goal_pose
+        
+        # Initialize error vector
+        e_log = np.zeros(6)
+        e_rpy = np.zeros(6)
+        e = np.zeros(6)
+        
+        if method.lower().startswith("a"):
+            # Get translational error
+            e_log[:3] = eTep[:3, 3]
+            
+            # Get rotational error as axis-angle
+            rot_matrix = eTep[:3, :3]
+            axis_ang = pr.axis_angle_from_matrix(rot_matrix)
+            axis = axis_ang[:3]
+            angle = axis_ang[3]
+            e_log[3:] = axis * angle if angle != 0 else np.zeros(3)
+            # Check if arrived at target
+            arrived = np.linalg.norm(np.abs(e_log)) < threshold
+            e = e_log
+        elif method.lower().startswith("r"):
+            # RPY method
+            e_rpy[:3] = eTep[:3, 3]
+            e_rpy[3:] = pr.euler_from_matrix(eTep[:3, :3], 0, 1, 2, extrinsic=False)
+            # Check if arrived at target
+            arrived = np.linalg.norm(np.abs(e_rpy)) < threshold
+            e = e_rpy
+        #elif method =='log':
+            
+        angular_rate = 1 - np.linalg.norm(np.abs(e[3:])) / (np.pi/2)   
+        trans_rate = 1 - np.linalg.norm(np.abs(e[:3])) / np.linalg.norm(np.abs(goal_pose[:3,3]- initial_pose[:3,3]))
+        Success = ((angular_rate+trans_rate)/2)*100
+        return e, Success, arrived
