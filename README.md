@@ -40,16 +40,17 @@ uv pip install .
 
 ```
 pandaSim/
-├── src/pandaSim/              # Source code
-│   ├── geometry/              # Geometry-related modules
-│   │
-│   ├── planning/              # Planning modules
+├── src/pandaSim/                   # Source code
+│   ├── geometry/                   # Geometry-related modules
+│   │   └── genesis_adapter.py      # Genesis adapter
+│   ├── planning/                   # Planning modules
 │   │   └── screw_motion_planner.py # Screw motion planning
-│   ├── control/               # Control modules
-├── examples/                  # Example code and notebooks
-│   ├── upright.ipynb          # Object reorientation example
-│   └── utils.py               # Utility functions for examples
-└── model/                     # Robot models and resources
+│   ├── control/                    # Control modules
+|   |   └── resolved_rate.py        # RMRC motion controller
+├── examples/                       # Example code and notebooks
+│   ├── upright.ipynb               # Object reorientation example
+│   └── utils.py                    # Utility functions for examples
+└── model/                          # Robot models and resources
 ```
 
 ## Core Components
