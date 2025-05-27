@@ -5,12 +5,12 @@ First install **PyTorch**  following the [official instructions](https://pytorch
 ### Set up environment with uv
 
 ```bash
-# Install uv if you don't have it
+# Install uv if you don't have it (macOS and Linux)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Create and activate virtual environment
-uv venv .panda
-source .panda/bin/activate
+uv venv panda
+source panda/bin/activate
 ```
 ### Install Pytransform3D
 ```bash
