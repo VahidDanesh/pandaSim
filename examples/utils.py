@@ -11,7 +11,7 @@ from pytransform3d import (
 from pandaSim.geometry.genesis_adapter import GenesisAdapter
 from pandaSim.planning.screw_motion_planner import ScrewMotionPlanner
 
-import spatialmath as sm
+# import spatialmath as sm
 
 # Define joint groups
 motors_dof = np.arange(7)  # Joints 0-6 for arm movement
@@ -42,7 +42,7 @@ class RobotController:
         )
 
         self.franka = self.scene.add_entity(
-            gs.morphs.MJCF(file="../assets/xml/franka_emika_panda/panda_vir.xml")
+            gs.morphs.MJCF(file="../model/panda_vir.xml")
         )
 
         # Create tables
