@@ -11,8 +11,15 @@ from pytransform3d import (
     trajectories as ptr,
     plot_utils as ppu
 )
+import roboticstoolbox as rtb
+import os
+from pathlib import Path
+import spatialmath as sm
 
-def convert_pose(transformation: tuple | torch.Tensor | np.ndarray, output_type: str = 'pq') -> np.ndarray:
+
+PANDA_VIRTUAL = '../../../model/franka_description/robots/frankaEmikaPandaVirtual.urdf'
+
+def convert_pose(transformation: tuple | torch.Tensor | np.ndarray | sm.SE3, output_type: str = 'pq') -> np.ndarray:
     """
     Convert input to the given output_type.
     
@@ -27,6 +34,9 @@ def convert_pose(transformation: tuple | torch.Tensor | np.ndarray, output_type:
     Returns:
         np.ndarray: Converted representation in the requested format
     """
+
+    if isinstance(transformation, sm.SE3):
+        transformation = transformation.A
 
     # Convert from tuple (pos, quat)
     if isinstance(transformation, tuple):
@@ -69,3 +79,36 @@ def convert_pose(transformation: tuple | torch.Tensor | np.ndarray, output_type:
         return pq
     else:
         raise ValueError(f"Unsupported output type: {output_type}") 
+    
+
+
+def create_virtual_panda(urdf_path: Union[str, None] = None) -> rtb.models.Panda:
+    """
+    Attaches a virtual finger link to a Panda robot model and returns the modified Panda.
+
+    Args:
+        urdf_path (str): The path to the URDF file containing the virtual finger.
+
+    Returns:
+        rtb.models.Panda: The modified Panda robot model.
+    """
+    if urdf_path is None:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        urdf_path = os.path.abspath(os.path.join(current_dir, PANDA_VIRTUAL))
+    else:
+        urdf_path = os.path.abspath(urdf_path)
+
+    panda = rtb.models.Panda()
+    panda_virtual = rtb.Robot.URDF(file_path=urdf_path, gripper='panda_hand')
+
+    panda_virtual.addconfiguration('qr', np.append(panda.qr, 0))
+    panda_virtual.addconfiguration('qz', np.append(panda.qz, 0))
+    panda_virtual.qr = np.append(panda.qr, 0)
+    panda_virtual.qz = np.append(panda.qz, 0)
+
+    panda_virtual.q = panda_virtual.qr
+
+    #rebuild the ETS.
+    panda_virtual.ets()
+
+    return panda_virtual
