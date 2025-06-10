@@ -349,21 +349,11 @@ class RoboticsToolboxAdapter:
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
         
-        # Convert pose to SE3
-        if isinstance(pose, sm.SE3):
-            se3_pose = pose
-        else:
-            T_matrix = self.to(pose, 'transform')
-            se3_pose = sm.SE3(T_matrix)
+
+        pose = self.to(pose, 'transform')
+        entity.T = pose
+
         
-        if hasattr(entity, 'T'):
-            # Spatialgeometry object
-            entity.T = se3_pose
-        elif hasattr(entity, 'base'):
-            # Robot entity
-            entity.base = se3_pose
-        else:
-            raise ValueError("Cannot set pose for this object type")
 
     def get_size(self, obj: Union[Dict, Any]) -> np.ndarray:
         """
@@ -374,9 +364,8 @@ class RoboticsToolboxAdapter:
         Returns:
             Size of the bbox, in (x, y, z) order
         """
-        bbox = self.get_bbox(obj)
-        size = bbox['max_bounds'] - bbox['min_bounds']
-        return np.abs(size)
+        mesh = self.get_mesh(obj)
+        return mesh.extents
 
     def transform(self, 
                   obj: Union[Dict, Any], 
