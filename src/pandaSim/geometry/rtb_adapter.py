@@ -414,6 +414,7 @@ class RoboticsToolboxAdapter:
 
         if apply:
             self.set_pose(entity, transformed_pose)
+            self.step_simulation(0.01)
 
         return self.to(transformed_pose, output_type)
     
