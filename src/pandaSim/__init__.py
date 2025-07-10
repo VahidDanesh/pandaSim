@@ -18,5 +18,6 @@ except ImportError:
 from pandaSim.core.upright_task import UprightTask
 from pandaSim.core.config import SimulationConfig
 from pandaSim.control.resolved_rate import ResolvedRateController
+from pandaSim.control.qp import QPController
 
-__all__ = ["UprightTask", "SimulationConfig", "ResolvedRateController"]
+__all__ = ["UprightTask", "SimulationConfig", "ResolvedRateController", "QPController"]

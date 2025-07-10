@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from pandaSim.control.protocols import MotionController
 from pandaSim.control.resolved_rate import ResolvedRateController
+from pandaSim.control.qp import QPController
 from pandaSim.geometry.protocols import GeometryAdapter
 
 
@@ -27,7 +28,7 @@ class MotionControllerFactory:
         
         Args:
             adapter: Geometry adapter for the controller to use
-            controller_type: Type of controller ("resolved_rate" for Resolved-Rate Motion Control)
+            controller_type: Type of controller ("resolved_rate", "qp")
             config: Configuration parameters
             
         Returns:
@@ -40,5 +41,7 @@ class MotionControllerFactory:
         
         if controller_type.lower() == "resolved_rate":
             return ResolvedRateController(adapter=adapter, **controller_params)
+        elif controller_type.lower() == "qp":
+            return QPController(adapter=adapter, **controller_params)
         else:
             raise ValueError(f"Unsupported controller type: {controller_type}") 
