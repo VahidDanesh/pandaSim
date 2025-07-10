@@ -11,7 +11,13 @@ import spatialmath as sm
 from swift import Swift
 from pathlib import Path
 import trimesh
-
+from pytransform3d import (
+    transformations as pt,
+    rotations as pr,
+    batch_rotations as pb,
+    trajectories as ptr,
+    plot_utils as ppu
+)
 from pandaSim.geometry.utils import convert_pose
 
 class RoboticsToolboxAdapter:
@@ -148,7 +154,7 @@ class RoboticsToolboxAdapter:
             "entity": entity
         }
     
-    def get_mesh(self, obj: Any) -> trimesh.Trimesh:
+    def get_mesh(self, obj: Any, transformed: bool = True) -> trimesh.Trimesh:
         """
         Extract mesh from the geometry.
         
@@ -159,6 +165,9 @@ class RoboticsToolboxAdapter:
             trimesh.Trimesh object
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
+
+        
+        
         
         if hasattr(entity, 'to_dict'):
             obj_dict = entity.to_dict()
@@ -167,11 +176,11 @@ class RoboticsToolboxAdapter:
             raise ValueError("Cannot extract mesh from this object type")
         
         if obj_dict['stype'].lower() == 'cuboid':
-            mesh = trimesh.creation.box(extents=obj_dict['scale'], transform=entity.T)
+            mesh = trimesh.creation.box(extents=obj_dict['scale'], transform=entity.T if transformed else None)
         elif obj_dict['stype'].lower() == 'cylinder':
-            mesh = trimesh.creation.cylinder(radius=obj_dict['radius'], height=obj_dict['length'], transform=entity.T)
+            mesh = trimesh.creation.cylinder(radius=obj_dict['radius'], height=obj_dict['length'], transform=entity.T if transformed else None)
         elif obj_dict['stype'].lower() == 'sphere':
-            mesh = trimesh.creation.icosphere(radius=obj_dict['radius'], transform=entity.T)
+            mesh = trimesh.creation.icosphere(radius=obj_dict['radius'], transform=entity.T if transformed else None)
         else:
             raise ValueError("Cannot extract vertices from this object type")
         return mesh
@@ -185,10 +194,11 @@ class RoboticsToolboxAdapter:
             obj: The geometry representation
             
         Returns:
-            Numpy array of vertices (Nx3)
+            Numpy array of vertices (Nx3) in world frame
         """
         mesh = self.get_mesh(obj)
-        return mesh.vertices
+        obb = mesh.bounding_box_oriented
+        return np.array(obb.vertices)
         
 
     def get_faces(self, obj: Any) -> Optional[np.ndarray]:
@@ -228,44 +238,57 @@ class RoboticsToolboxAdapter:
             Dictionary containing bounding box information
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
-        
-        # Get vertices from the object
-        vertices = self.get_vertices(obj)
-        
-        # Create trimesh object for OBB calculation
-        mesh = trimesh.Trimesh(vertices=vertices)
-        obb = mesh.bounding_box_oriented
-        
-        # Extract OBB properties
-        center = obb.centroid
-        extents = obb.extents
-        transform = obb.primitive.transform
-        
-        # Get corner vertices
-        corners = obb.vertices
-        
-        # Define edge indices for a box
+
+
         edge_indices = [
-            (0, 1), (1, 3), (3, 2), (2, 0),  # Bottom face
-            (4, 5), (5, 7), (7, 6), (6, 4),  # Top face
-            (0, 4), (1, 5), (2, 6), (3, 7)   # Connecting edges
+            (0, 1), (1, 3), (3, 2), (2, 0),  # Bottom face (clockwise)
+            (4, 5), (5, 7), (7, 6), (6, 4),  # Top face (clockwise)
+            (0, 4), (1, 5), (2, 6), (3, 7)   # Connecting edges (bottom to top)
         ]
+                    
+        # Get object pose and size
+        pose = self.get_pose(obj, 't')
+        size = self.get_size(obj)
+        center = pose[:3, 3]
         
+        # Create corners in a specific order (bottom, up, clockwise)
+        # Extract dimensions for clarity
+        l, w, h = size  # length, width, height
+
+        local_corners = np.array([
+            [-l/2, -w/2, -h/2], 
+            [ l/2, -w/2, -h/2],   
+            [-l/2,  w/2, -h/2],   
+            [ l/2,  w/2, -h/2],   
+            [-l/2, -w/2,  h/2],    
+            [ l/2, -w/2,  h/2],    
+            [-l/2,  w/2,  h/2],     
+            [ l/2,  w/2,  h/2]     
+        ])
+        
+        # Transform corners to world coordinates
+        corners = pt.transform(pose, np.hstack([local_corners, np.ones((8, 1))]))[:, :3]
+        # corners = self.get_vertices(obj)
         # Calculate edges
-        edges = np.zeros((len(edge_indices), 3))
+        edges = np.zeros((len(edge_indices), 3))  # Shape: (12, 3)
         for i, (start, end) in enumerate(edge_indices):
             edges[i] = corners[end] - corners[start]
+        
+        # Calculate min/max bounds
+        min_bounds = corners[0]  # bottom-back-left
+        max_bounds = corners[7]  # top-front-right
         
         return {
             "vertices": corners,
             "edges": edges,
-            "min_bounds": np.min(corners, axis=0),
-            "max_bounds": np.max(corners, axis=0),
+            "min_bounds": min_bounds,
+            "max_bounds": max_bounds,
             "center": center,
-            "transform": transform,
-            "extents": extents,
+            "transform": pose,
+            "extents": size,
             'edge_indices': edge_indices
         }
+    
 
     def get_bbox(self, obj: Union[Dict, Any]) -> Dict:
         """
@@ -329,9 +352,8 @@ class RoboticsToolboxAdapter:
         entity = obj["entity"] if isinstance(obj, dict) else obj
 
         if hasattr(entity, 'T'):
-            # Spatialgeometry object with transformation matrix
-            T_matrix = entity.T.A if hasattr(entity.T, 'A') else entity.T
-            return self.to(T_matrix, output_type)
+            # object entity
+            return self.to(entity.T, output_type)
         elif hasattr(entity, 'base'):
             # Robot entity - get base pose
             return self.to(entity.base, output_type)
@@ -362,9 +384,9 @@ class RoboticsToolboxAdapter:
         Args:
             obj: Object representation or direct entity
         Returns:
-            Size of the bbox, in (x, y, z) order
+            Size of the bbox (not the object), in (x, y, z) order
         """
-        mesh = self.get_mesh(obj)
+        mesh = self.get_mesh(obj, transformed=False)
         return mesh.extents
 
     def transform(self, 
@@ -387,19 +409,8 @@ class RoboticsToolboxAdapter:
         """
         entity = obj["entity"] if isinstance(obj, dict) else obj
 
-        # Convert transformation to SE3
-        if isinstance(transformation, sm.SE3):
-            T_transform = transformation
-        else:
-            T_matrix = self.to(transformation, 'transform')
-            T_transform = sm.SE3(T_matrix)
-        
-        # Get object's current pose
         current_pose = self.get_pose(entity, output_type='transform')
-        current_se3 = sm.SE3(current_pose)
-        
-        # Apply transformation
-        transformed_pose = T_transform * current_se3
+        transformed_pose = current_pose * transformation
 
         if apply:
             self.set_pose(entity, transformed_pose)
@@ -491,11 +502,11 @@ class RoboticsToolboxAdapter:
         
         if hasattr(entity, 'qlim'):
             limits = entity.qlim
-            return limits[:, 0], limits[:, 1]  # lower, upper
+            return limits[0, :], limits[1, :]  # lower, upper
         else:
             raise ValueError("Object does not have joint limits")
     
-    def compute_jacobian(self, robot: Any, link: Any = None) -> np.ndarray:
+    def compute_jacobian(self, robot: Any, link: Any = None, base: bool = False) -> np.ndarray:
         """
         Compute the Jacobian matrix for the robot.
         
@@ -508,10 +519,10 @@ class RoboticsToolboxAdapter:
         """
         entity = robot["entity"] if isinstance(robot, dict) else robot
         
-        if hasattr(entity, 'jacob0'):
+        if base:
             return entity.jacob0(entity.q, end=link)
         else:
-            raise ValueError("Object does not support Jacobian computation")
+            return entity.jacobe(entity.q, end=link)
     
     def forward_kinematics(self, 
                            robot: Any, 
