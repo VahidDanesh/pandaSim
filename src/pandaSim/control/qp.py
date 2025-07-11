@@ -96,55 +96,38 @@ class QPController(MotionController):
         
         return v, arrived
     
-    def joint_velocity_damper(self, robot: Any, q: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def joint_velocity_damper(self, robot: Any) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Create joint limit avoidance constraints.
+        Formulates an inequality constraint which, when optimised for will
+        make it impossible for the robot to run into joint limits.
         
-        Implements: xᵢ ≤ η (ρᵢ - ρₛ)/(ρᵢ - ρₛ) for i = 1...n
+        Based on the original implementation from QR2.ipynb notebook.
         
         Args:
             robot: Robot representation
-            q: Current joint positions
             
         Returns:
             Tuple of (A_in, b_in) for inequality constraint A_in * qd <= b_in
+            A_in: n×n matrix, b_in: n-dimensional vector
         """
-        n = len(q)
-        joint_limits = self.adapter.get_joint_limits(robot)
-        q_min, q_max = joint_limits[0], joint_limits[1]
+        n = self.adapter.get_dof(robot)
+        q = self.adapter.get_joint_positions(robot)  # Current joint positions from robot
+        lower_limits, upper_limits = self.adapter.get_joint_limits(robot)
         
-        A_in_list = []
-        b_in_list = []
+        # Initialize A_in as n×n matrix and b_in as n-dimensional vector
+        A_in = np.zeros((n, n))
+        b_in = np.zeros(n)
         
         for i in range(n):
-            # Distance to lower limit
-            rho_lower = q[i] - q_min[i]
-            # Distance to upper limit  
-            rho_upper = q_max[i] - q[i]
-            
             # Check if within influence distance of lower limit
-            if rho_lower <= self.pi:
-                # For lower limit, we want xᵢ ≥ -η(ρ-ρₛ)/(ρᵢ-ρₛ)
-                # Rearranged: -xᵢ ≤ η(ρ-ρₛ)/(ρᵢ-ρₛ)
-                constraint_row = np.zeros(n)
-                constraint_row[i] = -1
-                A_in_list.append(constraint_row)
-                b_in_list.append(self.eta * (rho_lower - self.ps) / (self.pi - self.ps))
-            
-            # Check if within influence distance of upper limit
-            if rho_upper <= self.pi:
-                # For upper limit: xᵢ ≤ η(ρ-ρₛ)/(ρᵢ-ρₛ)
-                constraint_row = np.zeros(n)
-                constraint_row[i] = 1
-                A_in_list.append(constraint_row)
-                b_in_list.append(self.eta * (rho_upper - self.ps) / (self.pi - self.ps))
-        
-        if A_in_list:
-            A_in = np.array(A_in_list)
-            b_in = np.array(b_in_list)
-        else:
-            A_in = np.zeros((0, n))
-            b_in = np.zeros(0)
+            if q[i] - lower_limits[i] <= self.pi:
+                b_in[i] = -self.eta * (((lower_limits[i] - q[i]) + self.ps) / (self.pi - self.ps))
+                A_in[i, i] = -1
+                
+            # Check if within influence distance of upper limit  
+            if upper_limits[i] - q[i] <= self.pi:
+                b_in[i] = self.eta * ((upper_limits[i] - q[i]) - self.ps) / (self.pi - self.ps)
+                A_in[i, i] = 1
                 
         return A_in, b_in
     
@@ -205,7 +188,7 @@ class QPController(MotionController):
         b_eq = v_b
         
         # Inequality constraints: joint velocity dampers
-        A_in, b_in = self.joint_velocity_damper(robot, q)
+        A_in, b_in = self.joint_velocity_damper(robot)
         
         # Box constraints: x_min ≤ x ≤ x_max
         qd_max = 2.0  # rad/s - can be made configurable
