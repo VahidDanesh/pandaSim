@@ -420,6 +420,14 @@ class RoboticsToolboxAdapter:
     
     # Robot control methods
     
+    def get_dof(self, robot: Any) -> int:
+        """
+        Get the number of degrees of freedom of the robot.
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        return entity.n
+    
+
     def get_joint_positions(self, robot: Any) -> np.ndarray:
         """
         Get current joint positions of the robot.
