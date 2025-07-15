@@ -101,14 +101,14 @@ class QPController(MotionController):
         Formulates an inequality constraint which, when optimised for will
         make it impossible for the robot to run into joint limits.
         
-        Based on the original implementation from QR2.ipynb notebook.
+        
         
         Args:
             robot: Robot representation
             
         Returns:
             Tuple of (A_in, b_in) for inequality constraint A_in * qd <= b_in
-            A_in: n×n matrix, b_in: n-dimensional vector
+            A_in: n x n matrix, b_in: n-dimensional vector
         """
         n = self.adapter.get_dof(robot)
         q = self.adapter.get_joint_positions(robot)  # Current joint positions from robot
@@ -133,8 +133,9 @@ class QPController(MotionController):
     
     def compute_joint_velocities(
         self,
-        robot: Any,
-        target_pose: np.ndarray
+        robot: rtb.Robot,
+        target_pose: np.ndarray, 
+        v_b: Optional[np.ndarray] = None
     ) -> Tuple[np.ndarray, bool]:
         """
         Compute joint velocities using QP formulation:
@@ -145,31 +146,38 @@ class QPController(MotionController):
         Args:
             robot: Robot representation
             target_pose: Target end-effector pose matrix (4x4)
-            
+            v_b: End-effector desired velocity, either target_pose or v_b should be provided
         Returns:
             Tuple of (joint_velocities, arrived_flag)
         """
         # Get current robot state
         q = self.adapter.get_joint_positions(robot)
-        n = len(q)
+        # Get current joint velocities
+        qd = self.adapter.get_joint_velocities(robot)
+
+        n = self.adapter.get_dof(robot)
         
         # Get current end-effector pose
         Te = self.adapter.forward_kinematics(robot, self.end_effector_link, q, output_type='t')
         
         # Calculate required end-effector velocity V_b using RTB p_servo
-        v_b, arrived = self.p_servo(Te, target_pose)
+        if v_b is None:
+            v_b, arrived = self.p_servo(Te, target_pose)
+        else:
+            arrived = np.linalg.norm(v_b - qd) < self.threshold
         
         # Get Jacobian J_b
-        J_b = self.adapter.compute_jacobian(robot, self.end_effector_link)
+        J0 = robot.jacob0(q, end=self.end_effector_link)
+        H0 = robot.hessian0(J0=J0, end=self.end_effector_link)
         
         # Get manipulability Jacobian J_m using RTB jacobm
         try:
             # Try to get RTB robot object from adapter
             if hasattr(robot, 'jacobm'):
-                J_m = robot.jacobm(q, end=self.end_effector_link)
+                J_m = robot.jacobm(J=J0, H=H0, end=self.end_effector_link, axes='all')
             else:
-                # Fallback: try to call jacobm through adapter
-                J_m = self.adapter.compute_manipulability_jacobian(robot, self.end_effector_link)
+                print("Warning: Could not compute manipulability Jacobian, using zero")
+                J_m = np.zeros(n)
         except:
             # Final fallback: zero manipulability gradient
             print("Warning: Could not compute manipulability Jacobian, using zero")
@@ -181,35 +189,30 @@ class QPController(MotionController):
         Q = self.lambda_q * np.eye(n)
         
         # Linear term: c = -λ_m * J_m (negative for maximization)
-        c = -self.lambda_m * J_m
+        c = -self.lambda_m * J_m.reshape((n,))
         
         # Equality constraint: J_b * x = V_b
-        A_eq = J_b
+        A_eq = J0
         b_eq = v_b
         
         # Inequality constraints: joint velocity dampers
         A_in, b_in = self.joint_velocity_damper(robot)
         
         # Box constraints: x_min ≤ x ≤ x_max
-        qd_max = 2.0  # rad/s - can be made configurable
-        lb = -qd_max * np.ones(n)
-        ub = qd_max * np.ones(n)
+        lb, ub = self.adapter.get_joint_velocity_limits(robot)
+
+
+        print(Q.shape, c.shape, A_in.shape, b_in.shape, A_eq.shape, b_eq.shape, lb.shape, ub.shape)
         
-        # Solve QP
-        try:
-            qd = qp.solve_qp(
-                Q, c, A_in, b_in, A_eq, b_eq,
-                lb=lb, ub=ub, solver=self.solver
-            )
-            
-            if qd is None:
-                # Fallback to pseudoinverse if QP fails
-                print("QP solver failed, using pseudoinverse fallback")
-                qd = np.linalg.pinv(J_b) @ v_b
-                
-        except Exception as e:
-            print(f"QP solver error: {e}, using pseudoinverse fallback")
-            qd = np.linalg.pinv(J_b) @ v_b
+        qd = qp.solve_qp(
+            P=Q, q=c, G=A_in, h=b_in, A=A_eq, b=b_eq,
+            lb=lb, ub=ub, solver=self.solver, initvals=qd
+        )
+        
+        if qd is None:
+            # Fallback to pseudoinverse if QP fails
+            print("QP solver failed, using pseudoinverse fallback")
+            return None, False
             
         return qd, arrived
     
