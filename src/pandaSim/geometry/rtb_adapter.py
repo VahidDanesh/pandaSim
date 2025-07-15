@@ -420,13 +420,6 @@ class RoboticsToolboxAdapter:
     
     # Robot control methods
     
-    def get_dof(self, robot: Any) -> int:
-        """
-        Get the number of degrees of freedom of the robot.
-        """
-        entity = robot["entity"] if isinstance(robot, dict) else robot
-        return entity.n
-    
 
     def get_joint_positions(self, robot: Any) -> np.ndarray:
         """
@@ -444,6 +437,17 @@ class RoboticsToolboxAdapter:
             return np.array(entity.q)
         else:
             raise ValueError("Object does not have joint positions")
+        
+    def get_joint_velocities(self, robot: Any) -> np.ndarray:
+        """
+        Get current joint velocities of the robot.
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        
+        if hasattr(entity, 'qd'):
+            return np.array(entity.qd)
+        else:
+            raise ValueError("Object does not have joint velocities")
     
     def set_joint_positions(self, robot: Any, positions: np.ndarray) -> None:
         """
@@ -496,6 +500,23 @@ class RoboticsToolboxAdapter:
         """
         # RTB doesn't have built-in control, just set directly
         self.set_joint_velocities(robot, velocities)
+    
+    def get_dof(self, robot: Any) -> int:
+        """
+        Get the number of degrees of freedom of the robot.
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        return entity.n
+    
+    def get_joint_velocity_limits(self, robot: Any) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get joint velocity limits of the robot.
+        """
+        entity = robot["entity"] if isinstance(robot, dict) else robot
+        if hasattr(entity, 'qdlim') and entity.qdlim is not None:
+            return entity.qdlim[0, :], entity.qdlim[1, :]
+        else:
+            raise ValueError("Robot does not have joint velocity limits, set it using qdlim property")
     
     def get_joint_limits(self, robot: Any) -> Tuple[np.ndarray, np.ndarray]:
         """

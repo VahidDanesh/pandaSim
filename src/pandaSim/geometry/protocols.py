@@ -158,6 +158,12 @@ class GeometryAdapter(Protocol):
         """
         ...
     
+    def get_joint_velocity_limits(self, robot: Any) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get joint velocity limits of the robot.
+        """
+        ...
+
     def get_joint_positions(self, robot: Any) -> np.ndarray:
         """
         Get current joint positions of the robot.
@@ -167,6 +173,12 @@ class GeometryAdapter(Protocol):
             
         Returns:
             Array of joint positions
+        """
+        ...
+    
+    def get_joint_velocities(self, robot: Any) -> np.ndarray:
+        """
+        Get current joint velocities of the robot.
         """
         ...
     
@@ -222,14 +234,14 @@ class GeometryAdapter(Protocol):
         """
         ...
     
-    def compute_jacobian(self, robot: Any, link: Any) -> np.ndarray:
+    def compute_jacobian(self, robot: Any, link: Any, base: Optional[bool]) -> np.ndarray:
         """
         Compute the Jacobian matrix for the robot.
         
         Args:
             robot: The robot representation
             link: End-effector link
-            
+            base: Whether to compute the Jacobian for the base frame (default: False)
         Returns:
             Jacobian matrix
         """
