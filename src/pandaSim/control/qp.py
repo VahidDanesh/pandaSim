@@ -33,6 +33,7 @@ class QPController(MotionController):
         end_effector_link: Optional[Any] = None,
         lambda_q: float = 0.5,
         lambda_m: float = 0.1,
+        lambda_j: float = 0.1,
         ps: float = 0.05,
         pi: float = 0.3,
         eta: float = 1.0,
@@ -48,7 +49,8 @@ class QPController(MotionController):
             threshold: Convergence threshold
             end_effector_link: End-effector link for Jacobian calculation
             lambda_q: Joint velocity minimization weight (λ)
-            lambda_m: Manipulability maximization weight
+            lambda_m: Manipulability maximization weight (λ_m)
+            lambda_j: Joint limit minimization weight (λ_j)
             ps: Joint limit stopping distance (ρₛ)
             pi: Joint limit influence distance (ρᵢ)
             eta: Joint limit damper gain (η)
@@ -64,6 +66,7 @@ class QPController(MotionController):
         # QP parameters
         self.lambda_q = lambda_q
         self.lambda_m = lambda_m
+        self.lambda_j = lambda_j
         self.ps = ps  # ρₛ
         self.pi = pi  # ρᵢ
         self.eta = eta  # η
@@ -135,7 +138,8 @@ class QPController(MotionController):
         self,
         robot: rtb.Robot,
         target_pose: np.ndarray, 
-        v_b: Optional[np.ndarray] = None
+        v_b: Optional[np.ndarray] = None,
+        optimization_type: Optional[str] = "qp"
     ) -> Tuple[np.ndarray, bool]:
         """
         Compute joint velocities using QP formulation:
@@ -164,8 +168,9 @@ class QPController(MotionController):
         if v_b is None:
             v_b, arrived = self.p_servo(Te, target_pose)
         else:
-            arrived = np.linalg.norm(v_b - qd) < self.threshold
-        
+            # arrived = np.linalg.norm(v_b - qd) < self.threshold
+            pass
+
         # Get Jacobian J_b
         J0 = robot.jacob0(q, end=self.end_effector_link)
         H0 = robot.hessian0(J0=J0, end=self.end_effector_link)
@@ -187,9 +192,19 @@ class QPController(MotionController):
         
         # Quadratic term: Q = λ * I_n
         Q = self.lambda_q * np.eye(n)
+        Q[-1, -1] *= 0.001
+
+        if optimization_type.startswith("q"):
+            # Linear term: c = -λ_m * J_m (negative for maximization)
+            c = -self.lambda_m * J_m.reshape((n,))
+            c[-1] *= 1
+        elif optimization_type.startswith("j"):
+            l_qlim, u_qlim = self.adapter.get_joint_limits(robot)
+            c = self.lambda_j * (q - (l_qlim + u_qlim) / 2) - self.lambda_m * J_m.reshape((n,))
+            c[-1] *= 0
+        else:
+            raise ValueError(f"Invalid optimization type: {optimization_type}")
         
-        # Linear term: c = -λ_m * J_m (negative for maximization)
-        c = -self.lambda_m * J_m.reshape((n,))
         
         # Equality constraint: J_b * x = V_b
         A_eq = J0
@@ -198,20 +213,19 @@ class QPController(MotionController):
         # Inequality constraints: joint velocity dampers
         A_in, b_in = self.joint_velocity_damper(robot)
         
-        # Box constraints: x_min ≤ x ≤ x_max
+        # Constraints: x_min ≤ x ≤ x_max
         lb, ub = self.adapter.get_joint_velocity_limits(robot)
 
 
-        print(Q.shape, c.shape, A_in.shape, b_in.shape, A_eq.shape, b_eq.shape, lb.shape, ub.shape)
-        
         qd = qp.solve_qp(
             P=Q, q=c, G=A_in, h=b_in, A=A_eq, b=b_eq,
             lb=lb, ub=ub, solver=self.solver, initvals=qd
         )
-        
+
+
         if qd is None:
             # Fallback to pseudoinverse if QP fails
-            print("QP solver failed, using pseudoinverse fallback")
+            print("QP solver failed, try different hyperparameters")
             return None, False
             
         return qd, arrived
