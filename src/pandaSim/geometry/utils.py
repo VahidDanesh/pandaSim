@@ -107,6 +107,10 @@ def create_virtual_panda(urdf_path: Union[str, None] = None) -> rtb.models.Panda
     panda_virtual.qz = np.append(panda.qz, 0)
 
     panda_virtual.q = panda_virtual.qr
+    # Make a variable for the upper and lower limits of the robot
+    qd_lb = -np.pi * np.array([5/6]*4 + [1]*(panda_virtual.n-4))
+    qd_ub = np.pi * np.array([5/6]*4 + [1]*(panda_virtual.n-4))
+    panda_virtual.qdlim = np.vstack((qd_lb, qd_ub))
 
     #rebuild the ETS.
     panda_virtual.ets()
