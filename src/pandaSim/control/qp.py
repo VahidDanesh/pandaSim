@@ -10,7 +10,9 @@ from typing import Tuple, Any, List, Dict, Optional, Union
 import numpy as np
 import qpsolvers as qp
 import roboticstoolbox as rtb
+import spatialmath as sm
 from spatialmath import SE3
+import modern_robotics as mr
 
 from pandaSim.control.protocols import MotionController
 from pandaSim.geometry.protocols import GeometryAdapter
@@ -89,14 +91,28 @@ class QPController(MotionController):
         Returns:
             Tuple of (velocity_twist, arrived_flag)
         """
-        # Use RTB p_servo function
-        v, arrived = rtb.p_servo(
-            current_pose, target_pose, 
-            gain=self.k, 
-            threshold=self.threshold, 
-            method=method
-        )
-        
+        # if self.k is scalar, convert it to a matrix
+        if np.isscalar(self.k):
+            k = self.k * np.eye(6)
+        else:
+            k = np.diag(self.k)
+            
+        if method.startswith("t"):
+            bTd = mr.TransInv(current_pose) * target_pose
+            ang_axis = mr.se3ToVec(mr.MatrixLog6(bTd)) 
+            axis_ang = np.concatenate([ang_axis[3:], ang_axis[:3]])
+            v = k @ axis_ang
+            arrived = True if np.sum(np.abs(axis_ang)) < self.threshold else False
+
+        else:
+            # Use RTB p_servo function
+            v, arrived = rtb.p_servo(
+                current_pose, target_pose, 
+                gain=self.k, 
+                threshold=self.threshold, 
+                method=method
+            )
+            
         return v, arrived
     
     def joint_velocity_damper(self, robot: Any) -> Tuple[np.ndarray, np.ndarray]:
@@ -166,20 +182,20 @@ class QPController(MotionController):
         
         # Calculate required end-effector velocity V_b using RTB p_servo
         if v_b is None:
-            v_b, arrived = self.p_servo(Te, target_pose)
+            v_b, arrived = self.p_servo(Te, target_pose, method="t")
         else:
             # arrived = np.linalg.norm(v_b - qd) < self.threshold
             pass
 
-        # Get Jacobian J_b
-        J0 = robot.jacob0(q, end=self.end_effector_link)
-        H0 = robot.hessian0(J0=J0, end=self.end_effector_link)
+        # Get Jacobian J_e
+        Je = robot.jacobe(q, end=self.end_effector_link)
+        He = robot.hessiane(Je=Je, end=self.end_effector_link)
         
         # Get manipulability Jacobian J_m using RTB jacobm
         try:
             # Try to get RTB robot object from adapter
             if hasattr(robot, 'jacobm'):
-                J_m = robot.jacobm(J=J0, H=H0, end=self.end_effector_link, axes='all')
+                J_m = robot.jacobm(J=Je, H=He, end=self.end_effector_link, axes='all')
             else:
                 print("Warning: Could not compute manipulability Jacobian, using zero")
                 J_m = np.zeros(n)
@@ -192,22 +208,24 @@ class QPController(MotionController):
         
         # Quadratic term: Q = λ * I_n
         Q = self.lambda_q * np.eye(n)
-        Q[-1, -1] *= 0.001
+        # Q[-1, -1] *= 0.001
 
         if optimization_type.startswith("q"):
             # Linear term: c = -λ_m * J_m (negative for maximization)
             c = -self.lambda_m * J_m.reshape((n,))
-            c[-1] *= 1
+            # c[-1] *= 1
         elif optimization_type.startswith("j"):
             l_qlim, u_qlim = self.adapter.get_joint_limits(robot)
-            c = self.lambda_j * (q - (l_qlim + u_qlim) / 2) - self.lambda_m * J_m.reshape((n,))
-            c[-1] *= 0
+            mid_q = (l_qlim + u_qlim) / 2
+            mid_q[-1] = -np.pi/3
+            c = self.lambda_j * (q - mid_q) - self.lambda_m * J_m.reshape((n,))
+            # c[-1] *= 10
         else:
             raise ValueError(f"Invalid optimization type: {optimization_type}")
         
         
         # Equality constraint: J_b * x = V_b
-        A_eq = J0
+        A_eq = Je
         b_eq = v_b
         
         # Inequality constraints: joint velocity dampers
@@ -227,7 +245,7 @@ class QPController(MotionController):
             # Fallback to pseudoinverse if QP fails
             print("QP solver failed, try different hyperparameters")
             return None, False
-            
+        
         return qd, arrived
     
     def execute_trajectory(
@@ -248,7 +266,7 @@ class QPController(MotionController):
         """
         for target_pose in trajectory:
             arrived = False
-            
+            print(target_pose)
             while not arrived:
                 # Compute joint velocities using QP
                 qd, arrived = self.compute_joint_velocities(robot, target_pose)
