@@ -280,7 +280,9 @@ class ScrewMotionPlanner(PlannerStrategy):
             gripper_offset: Offset transformation for the gripper fingers (grasp pose is at the center of the gripper fingers, 
             if the link is offset from the center of the gripper fingers, this offset is applied, if provided, the grasp_point will be grasp_pose)
         Returns:
-            Grasp point as numpy array with shape (n_envs, 3)
+            grasp_pose: Grasp pose as numpy array with shape (n_envs, 4, 4)
+            qs: Array of points on screw axis, (n_envs, n_valid_qs, 3)
+            s_axes: Array of unit vectors along screw axis, (n_envs, n_valid_qs, 3)
         """
         # Get object pose and bounding box
         obb = adapter.get_obb(obj)
@@ -416,10 +418,15 @@ class ScrewMotionPlanner(PlannerStrategy):
         
         # Generate trajectories for each environment
         all_trajectories = []
-        
+
+        if hasattr(adapter, "scene"):
         # Determine if we're dealing with single or multiple environments
-        is_multi_env = adapter.scene.n_envs > 0
-        n_envs = adapter.scene.n_envs if is_multi_env else 1
+            is_multi_env = adapter.scene.n_envs > 0
+            n_envs = adapter.scene.n_envs if is_multi_env else 1
+        else:
+            is_multi_env = False
+            n_envs = 1
+            
         # Ensure initial_pose is properly formatted for iteration
         if not isinstance(initial_pose, list) and n_envs > 1:
             # If single pose provided for multiple environments, duplicate it
