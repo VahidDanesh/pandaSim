@@ -29,17 +29,19 @@ class QPController(MotionController):
     def __init__(
         self,
         adapter: GeometryAdapter,
+        robot: Optional[Any] = None,
+        end_effector_link: Optional[Any] = None,
         gains_translation: float = 5.0,
         gains_rotation: float = 2.0,
         threshold: float = 0.001,
-        end_effector_link: Optional[Any] = None,
         lambda_q: float = 0.5,
         lambda_m: float = 0.1,
         lambda_j: float = 0.1,
         ps: float = 0.05,
         pi: float = 0.3,
         eta: float = 1.0,
-        solver: str = 'quadprog'
+        solver: str = 'quadprog',
+        T: float = 1.0,
     ):
         """
         Initialize QP Motion Controller.
@@ -57,13 +59,15 @@ class QPController(MotionController):
             pi: Joint limit influence distance (ρᵢ)
             eta: Joint limit damper gain (η)
             solver: QP solver to use
+            T: Ramp-up time in seconds
         """
         self.adapter = adapter
+        self.robot = robot
+        self.end_effector_link = end_effector_link
         self.kt = gains_translation
         self.kr = gains_rotation
         self.k = np.array([self.kt, self.kt, self.kt, self.kr, self.kr, self.kr])
         self.threshold = threshold
-        self.end_effector_link = end_effector_link
         
         # QP parameters
         self.lambda_q = lambda_q
@@ -73,12 +77,13 @@ class QPController(MotionController):
         self.pi = pi  # ρᵢ
         self.eta = eta  # η
         self.solver = solver
+        self.T = T
     
     def p_servo(
         self,
         current_pose: np.ndarray,
         target_pose: np.ndarray,
-        method: str = "angle-axis"
+        method: str = "twist"
     ) -> Tuple[np.ndarray, bool]:
         """
         Position-based servoing using robotics toolbox implementation.
@@ -86,7 +91,7 @@ class QPController(MotionController):
         Args:
             current_pose: Current end-effector pose matrix (4x4)
             target_pose: Target end-effector pose matrix (4x4)
-            method: Method to compute error ("rpy" or "angle-axis")
+            method: Method to compute error ("twist" or "rpy" or "angle-axis")
             
         Returns:
             Tuple of (velocity_twist, arrived_flag)
@@ -96,9 +101,14 @@ class QPController(MotionController):
             k = self.k * np.eye(6)
         else:
             k = np.diag(self.k)
+
+        if isinstance(current_pose, SE3):
+            current_pose = current_pose.A
+        if isinstance(target_pose, SE3):
+            target_pose = target_pose.A
             
         if method.startswith("t"):
-            bTd = mr.TransInv(current_pose) * target_pose
+            bTd = mr.TransInv(current_pose) @ target_pose
             ang_axis = mr.se3ToVec(mr.MatrixLog6(bTd)) 
             axis_ang = np.concatenate([ang_axis[3:], ang_axis[:3]])
             v = k @ axis_ang
@@ -115,7 +125,46 @@ class QPController(MotionController):
             
         return v, arrived
     
-    def joint_velocity_damper(self, robot: Any) -> Tuple[np.ndarray, np.ndarray]:
+    def smooth_velocity_ramp(self, qd_cmd: np.ndarray, elapsed_time: float, method: str = 'quintic') -> np.ndarray:
+        """
+        Compute smooth joint velocity command using specified time scaling method.
+        
+        Args:
+            q_cmd (np.ndarray): Desired joint velocity command from QP solver.
+            q_act (np.ndarray): Current joint velocity.
+            T (float): Ramp-up time in seconds.
+            t (float): Current time since ramp start.
+            dt (float): Control cycle time in seconds.
+            method (str): Scaling method, either 'quintic' or 'cosine'.
+        
+        Returns:
+            np.ndarray: Scaled joint velocity command.
+        """
+        # Compute scaling factor based on method
+        T = self.T
+        if elapsed_time < 0:
+            s = 0.0
+        elif elapsed_time <= T:
+            tau = elapsed_time / T
+            if method == 'quintic':
+                s = 10 * tau**3 - 15 * tau**4 + 6 * tau**5
+            elif method == 'cosine':
+                s = 0.5 * (1 - np.cos(np.pi * tau))
+            else:
+                raise ValueError("Method must be 'quintic' or 'cosine'")
+        else:
+            s = 1.0
+        
+        qd = self.adapter.get_joint_velocities(self.robot)
+        # Compute scaled command
+        if np.linalg.norm(qd) < 1e-6:  # Assume zero if small
+            qd_scaled = s * qd_cmd
+        else:
+            qd_scaled = (1 - s) * qd + s * qd_cmd
+        
+        return qd_scaled
+
+    def joint_velocity_damper(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         Formulates an inequality constraint which, when optimised for will
         make it impossible for the robot to run into joint limits.
@@ -129,9 +178,9 @@ class QPController(MotionController):
             Tuple of (A_in, b_in) for inequality constraint A_in * qd <= b_in
             A_in: n x n matrix, b_in: n-dimensional vector
         """
-        n = self.adapter.get_dof(robot)
-        q = self.adapter.get_joint_positions(robot)  # Current joint positions from robot
-        lower_limits, upper_limits = self.adapter.get_joint_limits(robot)
+        n = self.adapter.get_dof(self.robot)
+        q = self.adapter.get_joint_positions(self.robot)  # Current joint positions from robot
+        lower_limits, upper_limits = self.adapter.get_joint_limits(self.robot)
         
         # Initialize A_in as n×n matrix and b_in as n-dimensional vector
         A_in = np.zeros((n, n))
@@ -152,7 +201,6 @@ class QPController(MotionController):
     
     def compute_joint_velocities(
         self,
-        robot: rtb.Robot,
         target_pose: np.ndarray, 
         v_b: Optional[np.ndarray] = None,
         optimization_type: Optional[str] = "qp"
@@ -171,14 +219,14 @@ class QPController(MotionController):
             Tuple of (joint_velocities, arrived_flag)
         """
         # Get current robot state
-        q = self.adapter.get_joint_positions(robot)
+        q = self.adapter.get_joint_positions(self.robot)
         # Get current joint velocities
-        qd = self.adapter.get_joint_velocities(robot)
+        qd = self.adapter.get_joint_velocities(self.robot)
 
-        n = self.adapter.get_dof(robot)
+        n = self.adapter.get_dof(self.robot)
         
         # Get current end-effector pose
-        Te = self.adapter.forward_kinematics(robot, self.end_effector_link, q, output_type='t')
+        Te = self.adapter.forward_kinematics(self.robot, self.end_effector_link, q, output_type='t')
         
         # Calculate required end-effector velocity V_b using RTB p_servo
         if v_b is None:
@@ -188,14 +236,14 @@ class QPController(MotionController):
             pass
 
         # Get Jacobian J_e
-        Je = robot.jacobe(q, end=self.end_effector_link)
-        He = robot.hessiane(Je=Je, end=self.end_effector_link)
+        Je = self.robot.jacobe(q, end=self.end_effector_link)
+        He = self.robot.hessiane(Je=Je, end=self.end_effector_link)
         
         # Get manipulability Jacobian J_m using RTB jacobm
         try:
             # Try to get RTB robot object from adapter
-            if hasattr(robot, 'jacobm'):
-                J_m = robot.jacobm(J=Je, H=He, end=self.end_effector_link, axes='all')
+            if hasattr(self.robot, 'jacobm'):
+                J_m = self.robot.jacobm(J=Je, H=He, end=self.end_effector_link, axes='all')
             else:
                 print("Warning: Could not compute manipulability Jacobian, using zero")
                 J_m = np.zeros(n)
@@ -208,18 +256,15 @@ class QPController(MotionController):
         
         # Quadratic term: Q = λ * I_n
         Q = self.lambda_q * np.eye(n)
-        # Q[-1, -1] *= 0.001
+
 
         if optimization_type.startswith("q"):
             # Linear term: c = -λ_m * J_m (negative for maximization)
             c = -self.lambda_m * J_m.reshape((n,))
-            # c[-1] *= 1
         elif optimization_type.startswith("j"):
-            l_qlim, u_qlim = self.adapter.get_joint_limits(robot)
+            l_qlim, u_qlim = self.adapter.get_joint_limits(self.robot)
             mid_q = (l_qlim + u_qlim) / 2
-            mid_q[-1] = -np.pi/3
             c = self.lambda_j * (q - mid_q) - self.lambda_m * J_m.reshape((n,))
-            # c[-1] *= 10
         else:
             raise ValueError(f"Invalid optimization type: {optimization_type}")
         
@@ -229,10 +274,10 @@ class QPController(MotionController):
         b_eq = v_b
         
         # Inequality constraints: joint velocity dampers
-        A_in, b_in = self.joint_velocity_damper(robot)
+        A_in, b_in = self.joint_velocity_damper()
         
         # Constraints: x_min ≤ x ≤ x_max
-        lb, ub = self.adapter.get_joint_velocity_limits(robot)
+        lb, ub = self.adapter.get_joint_velocity_limits(self.robot)
 
 
         qd = qp.solve_qp(
@@ -250,7 +295,6 @@ class QPController(MotionController):
     
     def execute_trajectory(
         self,
-        robot: Any,
         trajectory: List[np.ndarray],
         dt: float = 0.01,
         use_control: bool = True
@@ -259,7 +303,6 @@ class QPController(MotionController):
         Execute a trajectory on the robot using QP control.
         
         Args:
-            robot: Robot representation
             trajectory: List of target poses (4x4 homogeneous transformations)
             dt: Time step for simulation
             use_control: Whether to use PD control (True) or direct velocity setting (False)
@@ -269,13 +312,13 @@ class QPController(MotionController):
             print(target_pose)
             while not arrived:
                 # Compute joint velocities using QP
-                qd, arrived = self.compute_joint_velocities(robot, target_pose)
+                qd, arrived = self.compute_joint_velocities(target_pose)
                 
                 # Apply velocities to robot
                 if use_control:
-                    self.adapter.control_joint_velocities(robot, qd)
+                    self.adapter.control_joint_velocities(self.robot, qd)
                 else:
-                    self.adapter.set_joint_velocities(robot, qd)
+                    self.adapter.set_joint_velocities(self.robot, qd)
                 
                 # Step simulation
                 self.adapter.step_simulation(dt)
