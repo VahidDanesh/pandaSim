@@ -160,7 +160,8 @@ class QPController(MotionController):
         if np.linalg.norm(qd) < 1e-6:  # Assume zero if small
             qd_scaled = s * qd_cmd
         else:
-            qd_scaled = (1 - s) * qd + s * qd_cmd
+            # qd_scaled = (1 - s) * qd + s * qd_cmd
+            qd_scaled = s * qd_cmd
         
         return qd_scaled
 
@@ -201,8 +202,8 @@ class QPController(MotionController):
     
     def compute_joint_velocities(
         self,
-        target_pose: np.ndarray, 
-        v_b: Optional[np.ndarray] = None,
+        target_pose: Optional[np.ndarray] = None, 
+        twist: Optional[np.ndarray] = None,
         optimization_type: Optional[str] = "qp"
     ) -> Tuple[np.ndarray, bool]:
         """
@@ -214,10 +215,17 @@ class QPController(MotionController):
         Args:
             robot: Robot representation
             target_pose: Target end-effector pose matrix (4x4)
-            v_b: End-effector desired velocity, either target_pose or v_b should be provided
+            twist: End-effector desired twist, either target_pose or twist should be provided, (6,), in format of (v, omega)
         Returns:
             Tuple of (joint_velocities, arrived_flag)
         """
+        if target_pose is None and twist is None:
+            raise ValueError("Either target_pose or twist must be provided")
+        
+        if target_pose is not None and twist is not None:
+            raise ValueError("Only one of target_pose or twist can be provided")
+        
+
         # Get current robot state
         q = self.adapter.get_joint_positions(self.robot)
         # Get current joint velocities
@@ -227,17 +235,22 @@ class QPController(MotionController):
         
         # Get current end-effector pose
         Te = self.adapter.forward_kinematics(self.robot, self.end_effector_link, q, output_type='t')
-        
-        # Calculate required end-effector velocity V_b using RTB p_servo
-        if v_b is None:
-            v_b, arrived = self.p_servo(Te, target_pose, method="t")
-        else:
-            # arrived = np.linalg.norm(v_b - qd) < self.threshold
-            pass
 
         # Get Jacobian J_e
         Je = self.robot.jacobe(q, end=self.end_effector_link)
         He = self.robot.hessiane(Je=Je, end=self.end_effector_link)
+
+       
+        
+        # Calculate required end-effector velocity V_b using RTB p_servo
+        if twist is None:
+            v_b, arrived = self.p_servo(Te, target_pose, method="t") # (v, omega)
+        else:
+            v_b = twist.reshape((6,)) 
+            v_b_current = Je @ qd
+            arrived = np.linalg.norm(v_b - v_b_current) < self.threshold
+
+
         
         # Get manipulability Jacobian J_m using RTB jacobm
         try:

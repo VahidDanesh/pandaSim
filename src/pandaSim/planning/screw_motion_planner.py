@@ -173,12 +173,13 @@ class ScrewMotionPlanner(PlannerStrategy):
             tau: Time scaling factor for each waypoint
         """
         s = np.linspace(0, 1, steps)
+        sdot = np.ones_like(s)
         if method.lower().startswith('l'):
-            return s
+            return s, sdot
         elif method.lower().startswith('c'):
-            return 3*s**2 - 2*s**3
+            return 3*s**2 - 2*s**3, 6*s - 6*s**2
         elif method.lower().startswith('q'):
-            return 10*s**3 - 15*s**4 + 6*s**5
+            return 10*s**3 - 15*s**4 + 6*s**5, 30*s**2 - 60*s**3 + 30*s**4
         else:
             raise ValueError(f"Invalid time scaling method: {method}, choose from q, c, l")
 
@@ -191,7 +192,7 @@ class ScrewMotionPlanner(PlannerStrategy):
                                   steps: Optional[int] = 300,
                                   tau: Optional[np.ndarray] = None,
                                   time_scaling: Optional[str] = 'q',
-                                  output_type: Optional[str] = 'dq'
+                                  output_type: Optional[str] = 'dq', 
                                   ) -> List[np.ndarray]:
         """
         Generate trajectory waypoints using screw motion.
@@ -220,7 +221,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         """
         
         if tau is None:
-            tau = self.time_scaling(steps, time_scaling)
+            tau, _ = self.time_scaling(steps, time_scaling)
         
         initial_pose = convert_pose(initial_pose, 'dq')
         screw_dq = pt.dual_quaternion_from_screw_parameters(q=q, s_axis=s_axis, h=h, theta=theta)
@@ -257,16 +258,77 @@ class ScrewMotionPlanner(PlannerStrategy):
         else:
             raise ValueError(f"Invalid output type: {output_type}, must be T, pq, dq")
 
-    def compute_grasp(self, 
-                           obj: Any,
-                           adapter: GeometryAdapter,
-                           prefer_closer_grasp: bool = True,
-                           base_pos: Optional[np.ndarray] = None,
-                           grasp_height: Optional[str] = 'center',
-                           offset_toward: float = 0.03,
-                           offset_upward: float = 0.02,
-                           gripper_offset: Optional[np.ndarray] = None,
-                           output_type: Optional[str] = 't') -> np.ndarray:
+    def generate_twist_trajectory(self, 
+                                  body_pose: tuple | torch.Tensor | np.ndarray,
+                                  q: np.ndarray, 
+                                  s_axis: np.ndarray, 
+                                  theta: float = np.pi/2,
+                                  h: float = 0.0, 
+                                  theta_dot: Optional[np.ndarray] = None,
+                                  steps: Optional[int] = 300,
+                                  time_scaling: Optional[str] = 'q', 
+                                  body_coordinate: Optional[bool] = True,
+                                  ) -> List[np.ndarray]:
+
+        """
+        Generate trajectory waypoints using twist motion.
+
+        Args:
+            body_pose: array-like, shape (4, 4), (7,), (8,)
+                Initial pose of the body
+            q: array-like, shape (3,)
+                Point on screw axis
+            s_axis: array-like, shape (3,)
+                Unit vector along screw axis
+            theta: float
+                Total rotation angle (default: 90 degrees)
+            h: float
+                Screw pitch (default: 0 = pure rotation)
+            steps: int
+                Number of waypoints to generate
+            tau: array-like, shape (steps,)
+                Time scaling factor for each waypoint
+            time_scaling: str
+                Time scaling method (quintic, cubic, linear, etc.)
+            body_coordinate: bool
+                If True, the twist is in body coordinate, otherwise in space coordinate
+        
+        Returns:
+            List of twists representing the trajectory
+        """
+
+        screw_s = pt.screw_axis_from_screw_parameters(q=q, s_axis=s_axis, h=h) # (omega, v)
+        Stheta = pt.exponential_coordinates_from_screw_axis(screw_s, theta=theta)
+        taus, taus_dot = self.time_scaling(steps, time_scaling)
+
+        twist_s = Stheta * taus_dot[..., None]
+
+
+
+        if body_coordinate:
+            Ad_bTs = pt.adjoint_from_transform(pt.invert_transform(body_pose))
+            twist_b = np.einsum('ij,kj->ki', Ad_bTs, twist_s)
+
+            # flip the order of the twist
+            return np.hstack([twist_b[..., 3:], twist_b[..., :3]]) # (v, omega)
+        else:
+            return np.hstack([twist_s[..., 3:], twist_s[..., :3]]) # (v, omega)
+
+        
+        
+        
+        
+
+    def compute_grasp(  self, 
+                        obj: Any,
+                        adapter: GeometryAdapter,
+                        prefer_closer_grasp: bool = True,
+                        base_pos: Optional[np.ndarray] = None,
+                        grasp_height: Optional[str] = 'center',
+                        offset_toward: float = 0.03,
+                        offset_upward: float = 0.02,
+                        gripper_offset: Optional[np.ndarray] = None,
+                        output_type: Optional[str] = 't') -> np.ndarray:
         """
         Compute optimal grasp point (middle point of robot fingers) for an object.
         
