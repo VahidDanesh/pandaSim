@@ -301,7 +301,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         Stheta = pt.exponential_coordinates_from_screw_axis(screw_s, theta=theta)
         taus, taus_dot = self.time_scaling(steps, time_scaling)
 
-        twist_s = Stheta * taus_dot[..., None]
+        twist_s = Stheta * theta_dot * taus_dot[..., None]
 
 
 
