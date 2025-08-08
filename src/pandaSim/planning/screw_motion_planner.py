@@ -25,10 +25,11 @@ class ScrewMotionPlanner(PlannerStrategy):
     Planner that generates screw motion trajectories for object reorientation.
     """
     
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self, adapter: GeometryAdapter, config: Optional[Dict] = None):
         """Initialize the planner with configuration options."""
+        self.adapter = adapter
         self.config = config or {}
-        self.ground_height_tolerance = self.config.get("ground_height_tolerance", 0.03)
+        self.ground_height_tolerance = self.config.get("ground_height_tolerance", 0.02)
         self.gripper_max_size = self.config.get("gripper_max_size", 0.08)  # 8cm
         
     def find_ground_edges(self, bbox: Dict) -> Tuple[List[np.ndarray], List[np.ndarray]]:
@@ -160,20 +161,23 @@ class ScrewMotionPlanner(PlannerStrategy):
 
     
     def time_scaling (self,
-                      steps: int = 300,
+                      Tf: float = 3.0,
                       method: str = 'quintic') -> np.ndarray:
         """
         Generate time scaling for trajectory.
         
-        Args:
-            steps: Number of waypoints to generate
+        Args:   
+            Tf: Total time of the trajectory
             method: Time scaling method (quintic, cubic, linear, etc.)
 
         Returns:
             tau: Time scaling factor for each waypoint
         """
-        s = np.linspace(0, 1, steps)
+        steps = int(Tf / self.adapter.dt)
+        t = np.linspace(0, Tf, steps)
+        s = t/Tf
         sdot = np.ones_like(s)
+        sddot = np.zeros_like(s)
         if method.lower().startswith('l'):
             return s, sdot
         elif method.lower().startswith('c'):
@@ -189,7 +193,7 @@ class ScrewMotionPlanner(PlannerStrategy):
                                   s_axis: np.ndarray, 
                                   theta: float = np.pi/2,
                                   h: float = 0.0, 
-                                  steps: Optional[int] = 300,
+                                  Tf: Optional[float] = 3.0,
                                   tau: Optional[np.ndarray] = None,
                                   time_scaling: Optional[str] = 'q',
                                   output_type: Optional[str] = 'dq', 
@@ -208,8 +212,7 @@ class ScrewMotionPlanner(PlannerStrategy):
                 Total rotation angle (default: 90 degrees)
             h: float
                 Screw pitch (default: 0 = pure rotation)
-            steps: int
-                Number of waypoints to generate
+            Tf: Total time of the trajectory
             tau: array-like, shape (steps,)
                 Time scaling factor for each waypoint
             time_scaling: str
@@ -221,7 +224,7 @@ class ScrewMotionPlanner(PlannerStrategy):
         """
         
         if tau is None:
-            tau, _ = self.time_scaling(steps, time_scaling)
+            tau, _ = self.time_scaling(Tf, time_scaling)
         
         initial_pose = convert_pose(initial_pose, 'dq')
         screw_dq = pt.dual_quaternion_from_screw_parameters(q=q, s_axis=s_axis, h=h, theta=theta)
@@ -265,7 +268,7 @@ class ScrewMotionPlanner(PlannerStrategy):
                                   theta: float = np.pi/2,
                                   h: float = 0.0, 
                                   theta_dot: Optional[np.ndarray] = None,
-                                  steps: Optional[int] = 300,
+                                  Tf: Optional[float] = 3.0,
                                   time_scaling: Optional[str] = 'q', 
                                   body_coordinate: Optional[bool] = True,
                                   ) -> List[np.ndarray]:
@@ -284,8 +287,7 @@ class ScrewMotionPlanner(PlannerStrategy):
                 Total rotation angle (default: 90 degrees)
             h: float
                 Screw pitch (default: 0 = pure rotation)
-            steps: int
-                Number of waypoints to generate
+            Tf: Total time of the trajectory
             tau: array-like, shape (steps,)
                 Time scaling factor for each waypoint
             time_scaling: str
@@ -299,13 +301,14 @@ class ScrewMotionPlanner(PlannerStrategy):
 
         screw_s = pt.screw_axis_from_screw_parameters(q=q, s_axis=s_axis, h=h) # (omega, v)
         Stheta = pt.exponential_coordinates_from_screw_axis(screw_s, theta=theta)
-        taus, taus_dot = self.time_scaling(steps, time_scaling)
+        taus, taus_dot = self.time_scaling(Tf, time_scaling)
 
         twist_s = Stheta * theta_dot * taus_dot[..., None]
-
+        
 
 
         if body_coordinate:
+            
             Ad_bTs = pt.adjoint_from_transform(pt.invert_transform(body_pose))
             twist_b = np.einsum('ij,kj->ki', Ad_bTs, twist_s)
 
@@ -316,7 +319,63 @@ class ScrewMotionPlanner(PlannerStrategy):
 
         
         
+    def generate_twist_trajectory_dq(self, 
+                                  body_pose: tuple | torch.Tensor | np.ndarray,
+                                  q: np.ndarray, 
+                                  s_axis: np.ndarray, 
+                                  theta: float = np.pi/2,
+                                  h: float = 0.0, 
+                                  theta_dot: Optional[np.ndarray] = None,
+                                  Tf: Optional[float] = 3.0,
+                                  time_scaling: Optional[str] = 'q', 
+                                  body_coordinate: Optional[bool] = True,
+                                  ) -> List[np.ndarray]:
+
+        """
+        Generate trajectory waypoints using twist motion.
+
+        Args:
+            body_pose: array-like, shape (4, 4), (7,), (8,)
+                Initial pose of the body
+            q: array-like, shape (3,)
+                Point on screw axis
+            s_axis: array-like, shape (3,)
+                Unit vector along screw axis
+            theta: float
+                Total rotation angle (default: 90 degrees)
+            h: float
+                Screw pitch (default: 0 = pure rotation)
+            Tf: Total time of the trajectory
+            tau: array-like, shape (steps,)
+                Time scaling factor for each waypoint
+            time_scaling: str
+                Time scaling method (quintic, cubic, linear, etc.)
+            body_coordinate: bool
+                If True, the twist is in body coordinate, otherwise in space coordinate
         
+        Returns:
+            List of twists representing the trajectory
+        """
+
+
+        screw_s = pt.screw_axis_from_screw_parameters(q=q, s_axis=s_axis, h=h) # (omega, v)
+        Stheta = pt.exponential_coordinates_from_screw_axis(screw_s, theta=theta)
+        taus, taus_dot = self.time_scaling(Tf, time_scaling)
+
+        twist_s = Stheta * theta_dot * taus_dot[..., None] # (omega, v)
+        twist_dq_s = np.r_[0, twist_s[..., :3], 0, twist_s[..., 3:]] # (0, omega, 0, v)
+        twist_dq_s = pt.check_dual_quaternion(twist_dq_s)
+
+        if body_coordinate:
+            body_pose = convert_pose(body_pose, 'dq')
+            twist_dq_b = pt.concatenate_dual_quaternions(pt.concatenate_dual_quaternions(pt.dq_q_conj(body_pose), twist_dq_b), body_pose)
+            omega = twist_dq_b[..., 1:4]
+            v = twist_dq_b[..., 4:]
+            return np.hstack([v, omega])
+        
+        else:
+            return twist_s
+
         
 
     def compute_grasp(  self, 
@@ -428,7 +487,7 @@ class ScrewMotionPlanner(PlannerStrategy):
              s_axes: Optional[List[np.ndarray]] = None,
              theta: float = np.pi/2,
              h: float = 0.0,
-             steps: int = 300,
+             Tf: float = 3.0,
              time_scaling: str = 'q',
              output_type: str = 'pq') -> List[np.ndarray]:
         """
@@ -445,7 +504,7 @@ class ScrewMotionPlanner(PlannerStrategy):
             base_pos: Position to measure distance from when selecting screw axis (defaults to robot base)
             theta: Rotation angle in radians (default: π/2)
             h: Screw pitch for translation along axis (default: 0.0)
-            steps: Number of waypoints in trajectory (default: 100)
+            Tf: Total time of the trajectory (default: 3.0)
             time_scaling: Time scaling method ('q'=quintic, 'c'=cubic, 'l'=linear)
             output_type: Output format ('pq', 'dq', or 't' for transformation matrices)
             grasp_pose: Pre-computed grasp pose from compute_grasp
@@ -518,7 +577,7 @@ class ScrewMotionPlanner(PlannerStrategy):
                 s_axis=env_s_axis,
                 theta=theta,
                 h=h,
-                steps=steps,
+                Tf=Tf,
                 time_scaling=time_scaling,
                 output_type=output_type
             )

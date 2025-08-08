@@ -116,3 +116,70 @@ def create_virtual_panda(urdf_path: Union[str, None] = None) -> rtb.models.Panda
     panda_virtual.ets()
 
     return panda_virtual
+
+
+
+def plot_joint_trajectories(
+    time_history, 
+    data_history, 
+    n_joints, 
+    ylabel="Joint value", 
+    labels=None, 
+    ax=None, 
+    fig=None, 
+    lines=None, 
+    elapsed_time=None, 
+    animate=True, 
+    xlim_window=5, 
+    ylim=None
+):
+    """
+    Generic utility function to plot joint trajectories (positions, velocities, etc.).
+    
+    Args:
+        time_history: List or array of time points.
+        data_history: List or array of shape (steps, n_joints) with joint data.
+        n_joints: Number of joints.
+        ylabel: Y-axis label.
+        labels: List of labels for each joint (optional).
+        ax, fig, lines: Existing matplotlib objects for animation (optional).
+        elapsed_time: Current elapsed time (for animation).
+        animate: If True, updates plot in real time. If False, plots once.
+        xlim_window: Minimum x-axis window for animation.
+        ylim: Tuple (ymin, ymax) for y-axis limits (optional).
+    Returns:
+        fig, ax, lines: Matplotlib objects for further updates if needed.
+    """
+    import matplotlib.pyplot as plt
+    from IPython.display import display, clear_output
+
+    if fig is None or ax is None or lines is None:
+        fig, ax = plt.subplots()
+        if labels is None:
+            labels = [f'joint[{i+1}]' for i in range(n_joints)]
+        lines = [ax.plot([], [], label=labels[i], linewidth=1)[0] for i in range(n_joints)]
+        ax.set_xlabel('Elapsed time (s)')
+        ax.set_ylabel(ylabel)
+        ax.legend()
+        if ylim is not None:
+            ax.set_ylim(*ylim)
+        else:
+            ax.set_ylim(-2, 2)
+        ax.set_xlim(0, 20)
+        plt.ion()
+        plt.show()
+    for i, line in enumerate(lines):
+        line.set_data(time_history, [q[i] for q in data_history])
+    if animate:
+        if elapsed_time is not None:
+            ax.set_xlim(0, max(xlim_window, elapsed_time))
+        clear_output(wait=True)
+        display(fig)
+    else:
+        ax.set_xlim(0, max(time_history) if len(time_history) > 0 else xlim_window)
+        if ylim is not None:
+            ax.set_ylim(*ylim)
+        clear_output(wait=True)
+        display(fig)
+        plt.show()
+    return fig, ax, lines

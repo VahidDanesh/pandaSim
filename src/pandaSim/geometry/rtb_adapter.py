@@ -52,6 +52,11 @@ class RoboticsToolboxAdapter:
         """Get the underlying Swift environment for direct access"""
         return self.env
     
+    @property
+    def dt(self):
+        """Get the simulation time step"""
+        return 1/self.env.rate
+    
     def load(self, file_path: str) -> Any:
         """
         Load geometry data from file using Robotics Toolbox.

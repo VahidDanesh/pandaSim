@@ -87,6 +87,11 @@ class GenesisAdapter:
         """Get the underlying Genesis scene for direct access"""
         return self.scene
     
+    @property
+    def dt(self):
+        """Get the simulation time step"""
+        return self.scene.sim_options.dt
+    
     def load(self, file: str) -> Any:
         """
         Load data from file using Genesis AI.
