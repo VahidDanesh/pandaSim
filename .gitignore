@@ -11,3 +11,7 @@ assets/
 video/
 # Virtual environments
 .venv
+
+# Environment files
+.env
+*.env
