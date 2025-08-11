@@ -7,7 +7,7 @@ import time
 import numpy as np
 from typing import Any, Optional, Union, List, Literal
 import logging
-
+import roboticstoolbox as rtb
 from pandaSim.control.protocols import MotionController
 from pandaSim.control.config import ExecutionConfig
 from pandaSim.control.data_collector import DataCollector, ExecutionResult
@@ -126,34 +126,35 @@ class RobotExecutor:
     ) -> ExecutionResult:
         """Execute target approach in simulation only."""
         self.logger.info("Starting simulation approach to target")
-        
-        start_time = time.time()
-        collector.start_collection(start_time)
+
+
+        elapsed_time = 0.0
+        collector.start_collection(elapsed_time)
         
         arrived = False
         step = 0
-        max_steps = int(self.config.max_runtime / self.config.sim_dt)
+        dt = self.adapter.dt
         
-        while not arrived and step < max_steps:
+        while not arrived and elapsed_time < self.config.max_runtime:
             # Compute control
             qd, arrived = self.controller.compute_joint_velocities(
                 target_pose=target_pose,
                 optimization_type=optimization_type
             )
-            
+            qd = self.controller.smooth_velocity_ramp(qd_cmd=qd, elapsed_time=elapsed_time, method="quintic")
             # Apply to simulation
             self.adapter.control_joint_velocities(sim_robot, qd)
-            self.adapter.step_simulation(self.config.sim_dt)
+            self.adapter.step_simulation(dt)
             
             # Collect data
-            current_time = time.time()
+            elapsed_time += dt
             q = self.adapter.get_joint_positions(sim_robot)
-            collector.collect_step(qd, q, current_time - start_time)
+            collector.collect_step(qd, q, elapsed_time)
             
             step += 1
             
             # Safety timeout check
-            if (current_time - start_time) > self.config.safety_timeout:
+            if elapsed_time > self.config.safety_timeout:
                 self.logger.warning("Safety timeout reached in simulation")
                 break
         
@@ -163,55 +164,65 @@ class RobotExecutor:
     def _execute_real_approach(
         self,
         target_pose: np.ndarray,
-        sim_robot: Any,
-        real_robot: Any,
+        sim_robot: rtb.Robot,
+        real_robot: panda_py.Panda,
         optimization_type: str,
-        collector: DataCollector
+        collector: DataCollector,
+        ctrl: controllers = controllers.IntegratedVelocity()
     ) -> ExecutionResult:
-        """Execute target approach on real robot."""
+        """Execute target approach on real robot, keeping track of average optimization time."""
         self.logger.info("Starting real robot approach to target")
         
-        # Ensure robot is unlocked
-        if hasattr(real_robot, 'unlock'):
-            real_robot.unlock()
-        
-        # Setup controller
-        ctrl = controllers.IntegratedVelocity()
         real_robot.start_controller(ctrl)
-        real_robot.enable_logging(5000)
+        elapsed_time = ctrl.get_time()
+        buffer_size = int(self.config.max_runtime * 1000)
+        real_robot.enable_logging(buffer_size=buffer_size)
+
+        # For tracking optimization time
+        total_opt_time = 0.0
+        opt_count = 0
         
         try:
-            start_time = time.time()
-            collector.start_collection(start_time)
+            collector.start_collection(elapsed_time)
             arrived = False
             
             with real_robot.create_context(frequency=self.config.frequency, max_runtime=self.config.max_runtime) as ctx:
                 while ctx.ok() and not arrived:
                     # Sync simulation with real robot
-                    sim_robot.q[:sim_robot.n] = real_robot.q[:sim_robot.n]
+                    sim_robot.q[:7] = real_robot.q[:7]
                     
-                    # Compute control
+                    # Compute control with timing
+                    import time
+                    t0 = time.perf_counter()
                     qd, arrived = self.controller.compute_joint_velocities(
                         target_pose=target_pose,
                         optimization_type=optimization_type
                     )
-                    
+                    t1 = time.perf_counter()
+                    opt_time = t1 - t0
+                    total_opt_time += opt_time
+                    opt_count += 1
+
+                    qd = self.controller.smooth_velocity_ramp(qd_cmd=qd, elapsed_time=elapsed_time, method="quintic")
                     # Apply to real robot
-                    ctrl.set_control(qd[:sim_robot.n])
+                    ctrl.set_control(qd[:7])
                     
                     # Update simulation for visualization
                     self.adapter.control_joint_velocities(sim_robot, qd)
-                    self.adapter.step_simulation(self.config.sim_dt)
+                    self.adapter.step_simulation(self.adapter.dt)
                     
                     # Collect data
-                    current_time = ctrl.get_time()
-                    q = real_robot.q[:sim_robot.n]
-                    collector.collect_step(qd[:sim_robot.n], q, current_time)
+                    elapsed_time = ctrl.get_time()
+
+                    q = real_robot.q[:7]
+                    collector.collect_step(qd[:7], q, elapsed_time)
                     
         finally:
             real_robot.stop_controller()
             real_robot.disable_logging()
         
+        avg_opt_time = total_opt_time / opt_count if opt_count > 0 else 0.0
+        self.logger.info(f"Average optimization time per step: {avg_opt_time:.6f} seconds")
         self.logger.info(f"Real robot execution completed: arrived={arrived}")
         return collector.get_result(arrived)
     

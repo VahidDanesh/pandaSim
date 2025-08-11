@@ -16,7 +16,7 @@ class ExecutionConfig:
     """
     
     # Control loop parameters
-    frequency: float = 100.0  # Control frequency in Hz
+    frequency: float = 1000.0  # Control frequency in Hz
     max_runtime: float = 15.0  # Maximum execution time in seconds
     
     # Controller convergence

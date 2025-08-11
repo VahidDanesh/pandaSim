@@ -15,3 +15,4 @@ video/
 # Environment files
 .env
 *.env
+*.npz
