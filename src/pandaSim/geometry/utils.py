@@ -165,7 +165,7 @@ def plot_joint_trajectories(
             ax.set_ylim(*ylim)
         else:
             ax.set_ylim(-2, 2)
-        ax.set_xlim(0, 20)
+        ax.set_xlim(0, 5)
         plt.ion()
         plt.show()
     for i, line in enumerate(lines):
