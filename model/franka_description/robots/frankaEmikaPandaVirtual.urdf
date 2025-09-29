@@ -184,18 +184,18 @@
   <joint name="panda_finger_virtual_joint" type="revolute">
     <parent link="panda_link8"/>
     <child link="panda_finger_virtual"/>
-    <origin rpy="-1.57079632679 0 -0.785398163397" xyz="0 0 0.1034"/> <!-- Adjust the position as needed -->
-    <axis xyz="0 0 1"/> <!-- Rotation around the z-axis -->
+    <origin rpy="0 0 -0.785398163397" xyz="0 0 0.1034"/> <!-- Adjust the position as needed -->
+    <axis xyz="0 1 0"/> <!-- Rotation around the y-axis -->
     <limit effort="0" lower="-3.1416" upper="3.1416" velocity="2.610"/>
   </joint>
   
     <link name="panda_finger_virtual">
-    <visual>
-      <geometry>
-        <sphere radius="0.01"/> <!-- Small sphere to represent the virtual joint -->
-      </geometry>
-      <material name="panda_white"/>
-    </visual>
+    <!-- <visual> -->
+      <!-- <geometry> -->
+        <!-- <sphere radius="0.005"/> Small sphere to represent the virtual joint -->
+      <!-- </geometry> -->
+      <!-- <material name="panda_white"/> -->
+    <!-- </visual> -->
   </link>
 
 
