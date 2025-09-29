@@ -16,3 +16,6 @@ video/
 .env
 *.env
 *.npz
+Presentation/
+refs/
+*.pdf
