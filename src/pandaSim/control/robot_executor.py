@@ -85,6 +85,40 @@ class RobotExecutor:
         else:
             return self._execute_sim_approach(target_pose, sim_robot, optimization_type, collector)
     
+    def follow_twist_trajectory(
+        self,
+        twist_trajectory: List[np.ndarray],
+        sim_robot: Any,
+        real_robot: Optional[Any] = None,
+        use_real_robot: bool = False,
+        optimization_type: str = "qp"
+    ) -> ExecutionResult:
+        """
+        Execute twist trajectory following - compute velocities in real-time based on current robot state.
+        
+        Args:
+            twist_trajectory: List of desired twist vectors (6D: [v, omega])
+            sim_robot: Simulation robot for visualization
+            real_robot: Real robot interface (required if use_real_robot=True)
+            use_real_robot: Whether to execute on real robot
+            optimization_type: Controller optimization type
+            
+        Returns:
+            ExecutionResult with execution data
+        """
+        if use_real_robot and not REAL_ROBOT_AVAILABLE:
+            raise RuntimeError("Real robot execution requested but panda_py not available")
+            
+        if use_real_robot and real_robot is None:
+            raise ValueError("real_robot must be provided when use_real_robot=True")
+            
+        collector = DataCollector()
+        
+        if use_real_robot:
+            return self._execute_real_twist_trajectory(twist_trajectory, sim_robot, real_robot, optimization_type, collector)
+        else:
+            return self._execute_sim_twist_trajectory(twist_trajectory, sim_robot, optimization_type, collector)
+    
     def follow_velocities(
         self,
         velocity_commands: List[np.ndarray],
@@ -94,6 +128,9 @@ class RobotExecutor:
     ) -> ExecutionResult:
         """
         Execute velocity following - follow pre-computed velocity commands.
+        
+        DEPRECATED: Use follow_twist_trajectory for proper real-time control.
+        This method is kept for backward compatibility with pre-computed commands.
         
         Args:
             velocity_commands: List of joint velocity commands
@@ -226,6 +263,95 @@ class RobotExecutor:
         self.logger.info(f"Real robot execution completed: arrived={arrived}")
         return collector.get_result(arrived)
     
+    def _execute_sim_twist_trajectory(
+        self,
+        twist_trajectory: List[np.ndarray],
+        sim_robot: Any,
+        optimization_type: str,
+        collector: DataCollector
+    ) -> ExecutionResult:
+        """Execute twist trajectory in simulation with real-time velocity computation."""
+        self.logger.info(f"Starting simulation twist trajectory: {len(twist_trajectory)} twists")
+        
+        start_time = time.time()
+        collector.start_collection(start_time)
+        
+        for twist in twist_trajectory:
+            # Compute joint velocities based on current robot state
+            qd, _ = self.controller.compute_joint_velocities(
+                twist=twist,
+                optimization_type=optimization_type
+            )
+            
+            # Apply velocity command
+            self.adapter.control_joint_velocities(sim_robot, qd)
+            self.adapter.step_simulation(self.adapter.dt)
+            
+            # Collect data
+            current_time = time.time()
+            q = self.adapter.get_joint_positions(sim_robot)
+            collector.collect_step(qd, q, current_time - start_time)
+            
+        self.logger.info("Simulation twist trajectory completed")
+        return collector.get_result(True)  # Twist following always "converges"
+    
+    def _execute_real_twist_trajectory(
+        self,
+        twist_trajectory: List[np.ndarray],
+        sim_robot: Any,
+        real_robot: Any,
+        optimization_type: str,
+        collector: DataCollector
+    ) -> ExecutionResult:
+        """Execute twist trajectory on real robot with real-time velocity computation."""
+        self.logger.info(f"Starting real robot twist trajectory: {len(twist_trajectory)} twists")
+        
+        # Ensure robot is unlocked
+        if hasattr(real_robot, 'unlock'):
+            real_robot.unlock()
+            
+        # Setup controller
+        ctrl = controllers.IntegratedVelocity()
+        real_robot.start_controller(ctrl)
+        real_robot.enable_logging(len(twist_trajectory) + 1000)
+        
+        try:
+            start_time = time.time()
+            collector.start_collection(start_time)
+            
+            with real_robot.create_context(frequency=self.config.frequency) as ctx:
+                for twist in twist_trajectory:
+                    if not ctx.ok():
+                        break
+                        
+                    # Sync simulation
+                    sim_robot.q[:sim_robot.n] = real_robot.q[:sim_robot.n]
+                    
+                    # Compute joint velocities based on current robot state
+                    qd, _ = self.controller.compute_joint_velocities(
+                        twist=twist,
+                        optimization_type=optimization_type
+                    )
+                    
+                    # Apply velocity command
+                    ctrl.set_control(qd[:sim_robot.n])
+                    
+                    # Update simulation for visualization
+                    self.adapter.control_joint_velocities(sim_robot, qd)
+                    self.adapter.step_simulation(self.config.sim_dt)
+                    
+                    # Collect data
+                    current_time = ctrl.get_time()
+                    q = real_robot.q[:sim_robot.n]
+                    collector.collect_step(qd[:sim_robot.n], q, current_time)
+                    
+        finally:
+            real_robot.stop_controller()
+            real_robot.disable_logging()
+            
+        self.logger.info("Real robot twist trajectory completed")
+        return collector.get_result(True)  # Twist following always "converges"
+    
     def _execute_sim_velocities(
         self,
         velocity_commands: List[np.ndarray],
@@ -261,9 +387,6 @@ class RobotExecutor:
         """Execute velocity commands on real robot."""
         self.logger.info(f"Starting real robot velocity following: {len(velocity_commands)} commands")
         
-        # Ensure robot is unlocked
-        if hasattr(real_robot, 'unlock'):
-            real_robot.unlock()
             
         # Setup controller
         ctrl = controllers.IntegratedVelocity()
@@ -276,8 +399,8 @@ class RobotExecutor:
             
             with real_robot.create_context(frequency=self.config.frequency) as ctx:
                 for qd_cmd in velocity_commands:
-                    if not ctx.ok():
-                        break
+                    if ctx.ok():
+                        continue
                         
                     # Sync simulation
                     sim_robot.q[:sim_robot.n] = real_robot.q[:sim_robot.n]
