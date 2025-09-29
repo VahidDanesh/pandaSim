@@ -162,7 +162,8 @@ class ScrewMotionPlanner(PlannerStrategy):
     
     def time_scaling (self,
                       Tf: float = 3.0,
-                      method: str = 'quintic') -> np.ndarray:
+                      method: str = 'quintic',
+                      frequency: Optional[int] = 100) -> np.ndarray:
         """
         Generate time scaling for trajectory.
         
@@ -173,17 +174,20 @@ class ScrewMotionPlanner(PlannerStrategy):
         Returns:
             tau: Time scaling factor for each waypoint
         """
-        steps = int(Tf / self.adapter.dt)
+        if frequency is None:
+            frequency = 1 / self.adapter.dt
+            
+        steps = int(Tf * frequency)
         t = np.linspace(0, Tf, steps)
         s = t/Tf
         sdot = np.ones_like(s)
         sddot = np.zeros_like(s)
         if method.lower().startswith('l'):
-            return s, sdot
+            return s, sdot / Tf
         elif method.lower().startswith('c'):
-            return 3*s**2 - 2*s**3, 6*s - 6*s**2
+            return 3*s**2 - 2*s**3, (6*s - 6*s**2) / Tf
         elif method.lower().startswith('q'):
-            return 10*s**3 - 15*s**4 + 6*s**5, 30*s**2 - 60*s**3 + 30*s**4
+            return 10*s**3 - 15*s**4 + 6*s**5, (30*s**2 - 60*s**3 + 30*s**4) / Tf
         else:
             raise ValueError(f"Invalid time scaling method: {method}, choose from q, c, l")
 
@@ -267,9 +271,9 @@ class ScrewMotionPlanner(PlannerStrategy):
                                   s_axis: np.ndarray, 
                                   theta: float = np.pi/2,
                                   h: float = 0.0, 
-                                  theta_dot: Optional[np.ndarray] = None,
                                   Tf: Optional[float] = 3.0,
                                   time_scaling: Optional[str] = 'q', 
+                                  frequency: Optional[int] = 100,
                                   body_coordinate: Optional[bool] = True,
                                   ) -> List[np.ndarray]:
 
@@ -292,6 +296,8 @@ class ScrewMotionPlanner(PlannerStrategy):
                 Time scaling factor for each waypoint
             time_scaling: str
                 Time scaling method (quintic, cubic, linear, etc.)
+            frequency: int
+                Frequency of the trajectory
             body_coordinate: bool
                 If True, the twist is in body coordinate, otherwise in space coordinate
         
@@ -301,9 +307,10 @@ class ScrewMotionPlanner(PlannerStrategy):
 
         screw_s = pt.screw_axis_from_screw_parameters(q=q, s_axis=s_axis, h=h) # (omega, v)
         Stheta = pt.exponential_coordinates_from_screw_axis(screw_s, theta=theta)
-        taus, taus_dot = self.time_scaling(Tf, time_scaling)
+        
+        taus, taus_dot = self.time_scaling(Tf, time_scaling, frequency)
 
-        twist_s = Stheta * theta_dot * taus_dot[..., None]
+        twist_s = Stheta  * taus_dot[..., None]
         
 
 
