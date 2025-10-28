@@ -156,12 +156,7 @@ class QPController(MotionController):
             s = 1.0
         
         qd = self.adapter.get_joint_velocities(self.robot)
-        # Compute scaled command
-        if np.linalg.norm(qd) < 1e-6:  # Assume zero if small
-            qd_scaled = s * qd_cmd
-        else:
-            # qd_scaled = (1 - s) * qd + s * qd_cmd  # continuous with current joint velocity
-            qd_scaled = s * qd_cmd
+        qd_scaled = s * qd_cmd
         
         return qd_scaled
 
