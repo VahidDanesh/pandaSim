@@ -28,7 +28,7 @@ class RobotController:
         gs.init(backend=gs.gpu)
         gs.set_random_seed(seed=42)
         self.adapter = GenesisAdapter()
-        self.planner = ScrewMotionPlanner()
+        self.planner = ScrewMotionPlanner(adapter=self.adapter)
         self.scene = self.adapter.scene
         self.franka = None
         self.target_entity = None
