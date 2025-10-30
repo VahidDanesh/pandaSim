@@ -108,7 +108,7 @@ class QPController(MotionController):
             target_pose = target_pose.A
             
         if method.startswith("t"):
-            bTd = mr.TransInv(current_pose) @ target_pose
+            bTd = np.linalg.inv(current_pose) @ target_pose
             ang_axis = mr.se3ToVec(mr.MatrixLog6(bTd)) 
             axis_ang = np.concatenate([ang_axis[3:], ang_axis[:3]])
             v = k @ axis_ang

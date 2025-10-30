@@ -298,8 +298,8 @@ class RobotExecutor:
     def _execute_real_twist_trajectory(
         self,
         twist_trajectory: List[np.ndarray],
-        sim_robot: Any,
-        real_robot: Any,
+        sim_robot: rtb.Robot,
+        real_robot: panda_py.Panda,
         optimization_type: str,
         collector: DataCollector
     ) -> ExecutionResult:
@@ -313,7 +313,11 @@ class RobotExecutor:
         # Setup controller
         ctrl = controllers.IntegratedVelocity()
         real_robot.start_controller(ctrl)
+        elapsed_time = ctrl.get_time()
         real_robot.enable_logging(len(twist_trajectory) + 1000)
+
+        total_opt_time = 0.0
+        opt_count = 0
         
         try:
             start_time = time.time()
@@ -325,31 +329,38 @@ class RobotExecutor:
                         break
                         
                     # Sync simulation
-                    sim_robot.q[:sim_robot.n] = real_robot.q[:sim_robot.n]
+                    sim_robot.q[:7] = real_robot.q[:7]
                     
+                    t0 = time.perf_counter()
                     # Compute joint velocities based on current robot state
                     qd, _ = self.controller.compute_joint_velocities(
                         twist=twist,
                         optimization_type=optimization_type
                     )
-                    
+                    t1 = time.perf_counter()
+                    opt_time = t1 - t0
+                    total_opt_time += opt_time
+                    opt_count += 1
+
                     # Apply velocity command
-                    ctrl.set_control(qd[:sim_robot.n])
+                    ctrl.set_control(qd[:7])
                     
                     # Update simulation for visualization
                     self.adapter.control_joint_velocities(sim_robot, qd)
-                    self.adapter.step_simulation(self.config.sim_dt)
+                    self.adapter.step_simulation(self.adapter.dt)
                     
                     # Collect data
                     current_time = ctrl.get_time()
-                    q = real_robot.q[:sim_robot.n]
-                    collector.collect_step(qd[:sim_robot.n], q, current_time)
+                    q = real_robot.q[:7]
+                    collector.collect_step(qd[:7], q, current_time)
                     
         finally:
             real_robot.stop_controller()
             real_robot.disable_logging()
             
         self.logger.info("Real robot twist trajectory completed")
+        avg_opt_time = total_opt_time / opt_count if opt_count > 0 else 0.0
+        self.logger.info(f"Average optimization time per step: {avg_opt_time:.6f} seconds")
         return collector.get_result(True)  # Twist following always "converges"
     
     def _execute_sim_velocities(
