@@ -1,0 +1,28 @@
+diff --git a/src/motion/generators.cpp b/src/motion/generators.cpp
+index 93b73f4..254b0f1 100644
+--- a/src/motion/generators.cpp
++++ b/src/motion/generators.cpp
+@@ -61,8 +61,11 @@ JointTrajectory::JointTrajectory(const std::vector<Vector7d>& waypoints,
+     }
+   }
+ 
++  // Held for the rest of the constructor: gil_scoped_release below calls
++  // PyEval_SaveThread(), which is only legal while the GIL is held, and the
++  // Panda::moveTo* bindings enter here with the GIL already released.
++  py::gil_scoped_acquire acquire;
+   {
+-    py::gil_scoped_acquire acquire;
+     py::object logging = py::module_::import("logging");
+     logger_ = logging.attr("getLogger")("motion");
+   }
+@@ -154,8 +157,9 @@ void CartesianTrajectory::_init(
+     }
+   }
+ 
++  // See the comment in JointTrajectory: the acquire has to outlive the release.
++  py::gil_scoped_acquire acquire;
+   {
+-    py::gil_scoped_acquire acquire;
+     py::object logging = py::module_::import("logging");
+     logger_ = logging.attr("getLogger")("motion");
+   }
