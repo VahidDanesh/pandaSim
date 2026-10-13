@@ -3,6 +3,8 @@ Robot execution utilities for clean control loop management.
 
 This module provides clean interfaces for executing robot control tasks.
 """
+from __future__ import annotations
+
 import time
 import numpy as np
 from typing import Any, Optional, Union, List, Literal
@@ -205,11 +207,13 @@ class RobotExecutor:
         real_robot: panda_py.Panda,
         optimization_type: str,
         collector: DataCollector,
-        ctrl: controllers = controllers.IntegratedVelocity()
+        ctrl: Optional[Any] = None
     ) -> ExecutionResult:
         """Execute target approach on real robot, keeping track of average optimization time."""
         self.logger.info("Starting real robot approach to target")
-        
+
+        if ctrl is None:
+            ctrl = controllers.IntegratedVelocity()
         real_robot.start_controller(ctrl)
         elapsed_time = ctrl.get_time()
         buffer_size = int(self.config.max_runtime * 1000)
@@ -410,8 +414,8 @@ class RobotExecutor:
             
             with real_robot.create_context(frequency=self.config.frequency) as ctx:
                 for qd_cmd in velocity_commands:
-                    if ctx.ok():
-                        continue
+                    if not ctx.ok():
+                        break
                         
                     # Sync simulation
                     sim_robot.q[:sim_robot.n] = real_robot.q[:sim_robot.n]
