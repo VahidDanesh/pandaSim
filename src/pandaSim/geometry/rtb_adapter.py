@@ -8,7 +8,6 @@ import numpy as np
 import roboticstoolbox as rtb
 import spatialgeometry as sg
 import spatialmath as sm
-from swift import Swift
 from pathlib import Path
 import trimesh
 from pytransform3d import (
@@ -19,6 +18,31 @@ from pytransform3d import (
     plot_utils as ppu
 )
 from pandaSim.geometry.utils import convert_pose
+
+
+class HeadlessEnv:
+    """
+    Stand-in for the Swift environment when no viewer is requested.
+
+    Integrates the joint positions of added robots with their commanded
+    velocities, without rendering or realtime pacing.
+    """
+
+    def __init__(self, rate: float = 100):
+        self.rate = rate
+        self.sim_time = 0.0
+        self.objects = []
+
+    def add(self, obj: Any, **kwargs) -> int:
+        self.objects.append(obj)
+        return len(self.objects) - 1
+
+    def step(self, dt: float = 0.05, render: bool = True) -> None:
+        for obj in self.objects:
+            if hasattr(obj, 'q') and hasattr(obj, 'qd'):
+                obj.q = np.asarray(obj.q) + np.asarray(obj.qd) * dt
+        self.sim_time += dt
+
 
 class RoboticsToolboxAdapter:
     """
@@ -32,17 +56,22 @@ class RoboticsToolboxAdapter:
         Initialize Robotics Toolbox adapter.
         
         Args:
-            config: Optional configuration parameters
+            config: Optional configuration parameters. "viewer" selects the
+                environment: "swift" (default) or None for headless integration.
         """
         self.config = config or {}
         
-        # Create Swift environment for visualization
-        self.env = Swift()
-        self.env.launch(
-            realtime=self.config.get("realtime", True),
-            rate=self.config.get("rate", 100),
-            browser=self.config.get("browser", "notebook")
-        )
+        if self.config.get("viewer", "swift") is None:
+            self.env = HeadlessEnv(rate=self.config.get("rate", 100))
+        else:
+            # Create Swift environment for visualization
+            from swift import Swift
+            self.env = Swift()
+            self.env.launch(
+                realtime=self.config.get("realtime", True),
+                rate=self.config.get("rate", 100),
+                browser=self.config.get("browser", "notebook")
+            )
         
         # Store loaded entities
         self.entities = {}
