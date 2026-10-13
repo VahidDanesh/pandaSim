@@ -3,10 +3,13 @@ Protocols for geometry adapters.
 
 These protocols define the interface that any geometry backend adapter must implement.
 """
-from typing import Protocol, Any, List, Tuple, Optional, Dict, Union, runtime_checkable
+from __future__ import annotations
+
+from typing import Protocol, Any, List, Tuple, Optional, Dict, Union, runtime_checkable, TYPE_CHECKING
 import numpy as np
-import torch
-import genesis as gs
+
+if TYPE_CHECKING:
+    import torch
 
 @runtime_checkable
 class GeometryAdapter(Protocol):

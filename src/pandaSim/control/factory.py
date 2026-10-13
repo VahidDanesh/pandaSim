@@ -4,8 +4,6 @@ Factory for creating motion controllers.
 from typing import Any, Dict, Optional
 
 from pandaSim.control.protocols import MotionController
-from pandaSim.control.resolved_rate import ResolvedRateController
-from pandaSim.control.qp import QPController
 from pandaSim.geometry.protocols import GeometryAdapter
 
 
@@ -40,8 +38,10 @@ class MotionControllerFactory:
         controller_params = config or {}
         
         if controller_type.lower() == "resolved_rate":
+            from pandaSim.control.resolved_rate import ResolvedRateController
             return ResolvedRateController(adapter=adapter, **controller_params)
         elif controller_type.lower() == "qp":
+            from pandaSim.control.qp import QPController
             return QPController(adapter=adapter, **controller_params)
         else:
             raise ValueError(f"Unsupported controller type: {controller_type}") 

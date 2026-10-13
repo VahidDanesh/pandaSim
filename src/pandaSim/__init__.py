@@ -15,9 +15,21 @@ except ImportError:
     __version__ = "0.0.0"  # Fallback for Python < 3.8
 
 
-from pandaSim.core.upright_task import UprightTask
-from pandaSim.core.config import SimulationConfig
-from pandaSim.control.resolved_rate import ResolvedRateController
-from pandaSim.control.qp import QPController
+# Imported on first access, so that `import pandaSim` does not pull in Genesis or torch
+_LAZY = {
+    "UprightTask": "pandaSim.core.upright_task",
+    "SimulationConfig": "pandaSim.core.config",
+    "ResolvedRateController": "pandaSim.control.resolved_rate",
+    "QPController": "pandaSim.control.qp",
+}
 
 __all__ = ["UprightTask", "SimulationConfig", "ResolvedRateController", "QPController"]
+
+
+def __getattr__(name):
+    if name in _LAZY:
+        from importlib import import_module
+        value = getattr(import_module(_LAZY[name]), name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

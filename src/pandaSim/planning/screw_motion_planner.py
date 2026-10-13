@@ -3,10 +3,11 @@ Screw motion planner implementation.
 
 This module implements planning for object reorientation using screw motion.
 """
+from __future__ import annotations
+
 import numpy as np
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Any, Optional, TYPE_CHECKING
 import numpy.linalg as LA
-import torch
 from pytransform3d import (
     transformations as pt,
     rotations as pr,
@@ -18,6 +19,9 @@ from pytransform3d import (
 from pandaSim.planning.protocols import PlannerStrategy
 from pandaSim.geometry.protocols import GeometryAdapter
 from pandaSim.geometry.utils import convert_pose
+
+if TYPE_CHECKING:
+    import torch
 
 
 class ScrewMotionPlanner(PlannerStrategy):
