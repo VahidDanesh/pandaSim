@@ -25,6 +25,26 @@ dependencies     = [
 ]
 
 [project.optional-dependencies]
+sim  = [
+    "roboticstoolbox-python>=1.4",
+    "spatialmath-python",
+    "spatialgeometry",
+    "swift-sim>=2.0",
+    "qpsolvers[quadprog]",
+    "pytransform3d",
+    "modern_robotics",
+    "trimesh",
+    "pyyaml",
+]
+genesis = [
+    "torch",
+    "genesis-world",
+]
+# The panda-python build must match the robot's libfranka version (0.8.0 for the
+# lab FER); install that wheel from the panda-py release page, not from PyPI.
+robot = [
+    "panda-python>=1.1.1",
+]
 dev  = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -49,6 +69,9 @@ email = "vahid.danesh@stonybrook.edu"
 [[project.authors]]
 name  = "Maede Boroji"
 email = "maede.boroji@stonybrook.edu"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
 
 [tool.setuptools]
 package-dir = { "" = "src" }
