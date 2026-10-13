@@ -1,9 +1,10 @@
 """
 Geometry utility functions for conversions between different representations.
 """
-from typing import Any, Optional, Dict, Tuple, Union
+from __future__ import annotations
+
+from typing import Any, Optional, Dict, Tuple, Union, TYPE_CHECKING
 import numpy as np
-import torch
 from pytransform3d import (
     transformations as pt,
     rotations as pr,
@@ -15,6 +16,14 @@ import roboticstoolbox as rtb
 import os
 from pathlib import Path
 import spatialmath as sm
+
+if TYPE_CHECKING:
+    import torch
+
+
+def _is_tensor(x: Any) -> bool:
+    """True for torch tensors, without importing torch."""
+    return type(x).__module__.split('.')[0] == 'torch'
 
 
 PANDA_VIRTUAL = '../../../model/franka_description/robots/frankaEmikaPandaVirtual.urdf'
@@ -41,15 +50,15 @@ def convert_pose(transformation: tuple | torch.Tensor | np.ndarray | sm.SE3, out
     # Convert from tuple (pos, quat)
     if isinstance(transformation, tuple):
         pos, quat = transformation
-        if isinstance(pos, torch.Tensor):
+        if _is_tensor(pos):
             pos = pos.cpu().numpy()
-        if isinstance(quat, torch.Tensor):
+        if _is_tensor(quat):
             quat = quat.cpu().numpy()
 
         pq = np.hstack([pos, quat])
     # Convert from tensor/array formats
-    elif isinstance(transformation, (torch.Tensor, np.ndarray)):
-        if isinstance(transformation, torch.Tensor):
+    elif _is_tensor(transformation) or isinstance(transformation, np.ndarray):
+        if _is_tensor(transformation):
             input_np = transformation.cpu().numpy()
         else:
             input_np = transformation
@@ -82,6 +91,41 @@ def convert_pose(transformation: tuple | torch.Tensor | np.ndarray | sm.SE3, out
     
 
 
+def manipulability_jacobian(J: np.ndarray, H: np.ndarray) -> np.ndarray:
+    """
+    Gradient of the Yoshikawa manipulability w = sqrt(det(J J^T)) w.r.t. the joints.
+
+    Replaces rtb ``Robot.jacobm(J=, H=)``, whose shape check rejects the Hessian
+    returned by ``hessiane``/``hessian0``.
+
+    Args:
+        J: Manipulator Jacobian, shape (6, n).
+        H: Manipulator Hessian in the same frame as J, shape (n, 6, n).
+
+    Returns:
+        Manipulability Jacobian, shape (n,).
+    """
+    JJt = J @ J.T
+    w = np.sqrt(max(np.linalg.det(JJt), 0.0))
+    return w * np.einsum('jk,ilk,jl->i', J, H, np.linalg.inv(JJt))
+
+
+def _load_urdf_robot(urdf_path: str, gripper: str) -> rtb.Robot:
+    """Load a URDF robot with either Robotics Toolbox API (<= 1.1 or >= 1.4)."""
+    try:
+        from roboticstoolbox.models.URDF.URDFRobot import URDF_file
+    except ImportError:
+        return rtb.Robot.URDF(file_path=urdf_path, gripper=gripper)
+
+    # rtb >= 1.4 resolves package:// mesh paths through xacrodoc, and the model
+    # folder has no package.xml to be discovered by
+    from xacrodoc import packages
+    packages.update_package_cache({'franka_description': str(Path(urdf_path).parents[1])})
+    elinks, name, _ = URDF_file(urdf_path)
+    gripper_link = next(link for link in elinks if link.name == gripper)
+    return rtb.Robot(elinks, name=name, gripper_links=gripper_link)
+
+
 def create_virtual_panda(urdf_path: Union[str, None] = None) -> rtb.models.Panda:
     """
     Attaches a virtual finger link to a Panda robot model and returns the modified Panda.
@@ -97,9 +141,11 @@ def create_virtual_panda(urdf_path: Union[str, None] = None) -> rtb.models.Panda
         urdf_path = os.path.abspath(os.path.join(current_dir, PANDA_VIRTUAL))
     else:
         urdf_path = os.path.abspath(urdf_path)
+    if not os.path.isfile(urdf_path):
+        raise FileNotFoundError(f"Virtual Panda URDF not found: {urdf_path} (pass urdf_path explicitly)")
 
     panda = rtb.models.Panda()
-    panda_virtual = rtb.Robot.URDF(file_path=urdf_path, gripper='panda_hand')
+    panda_virtual = _load_urdf_robot(urdf_path, gripper='panda_hand')
 
     panda_virtual.addconfiguration('qr', np.append(panda.qr, 0))
     panda_virtual.addconfiguration('qz', np.append(panda.qz, 0))

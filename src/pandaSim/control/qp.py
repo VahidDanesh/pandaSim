@@ -16,7 +16,7 @@ import modern_robotics as mr
 
 from pandaSim.control.protocols import MotionController
 from pandaSim.geometry.protocols import GeometryAdapter
-from pandaSim.geometry.utils import convert_pose
+from pandaSim.geometry.utils import convert_pose, manipulability_jacobian
 
 
 class QPController(MotionController):
@@ -247,18 +247,8 @@ class QPController(MotionController):
 
 
         
-        # Get manipulability Jacobian J_m using RTB jacobm
-        try:
-            # Try to get RTB robot object from adapter
-            if hasattr(self.robot, 'jacobm'):
-                J_m = self.robot.jacobm(J=Je, H=He, end=self.end_effector_link, axes='all')
-            else:
-                print("Warning: Could not compute manipulability Jacobian, using zero")
-                J_m = np.zeros(n)
-        except:
-            # Final fallback: zero manipulability gradient
-            print("Warning: Could not compute manipulability Jacobian, using zero")
-            J_m = np.zeros(n)
+        # Get manipulability Jacobian J_m
+        J_m = manipulability_jacobian(Je, He)
         
         ### QP Formulation ###
         
