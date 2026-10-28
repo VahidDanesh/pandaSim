@@ -13,6 +13,8 @@ SIM_MODULES = [
     "pandaSim.geometry.rtb_adapter",
     "pandaSim.planning.screw_motion_planner",
     "pandaSim.control.qp",
+    "pandaSim.control.contact_qp",
+    "pandaSim.planning.primitives",
     "pandaSim.control.robot_executor",
     "pandaSim.control.data_collector",
     "pandaSim.control.config",
