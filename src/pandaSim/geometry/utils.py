@@ -16,6 +16,8 @@ import roboticstoolbox as rtb
 import os
 from pathlib import Path
 import spatialmath as sm
+from roboticstoolbox.models.URDF.URDFRobot import URDF_file
+from xacrodoc import packages
 
 if TYPE_CHECKING:
     import torch
@@ -110,22 +112,6 @@ def manipulability_jacobian(J: np.ndarray, H: np.ndarray) -> np.ndarray:
     return w * np.einsum('jk,ilk,jl->i', J, H, np.linalg.inv(JJt))
 
 
-def _load_urdf_robot(urdf_path: str, gripper: str) -> rtb.Robot:
-    """Load a URDF robot with either Robotics Toolbox API (<= 1.1 or >= 1.4)."""
-    try:
-        from roboticstoolbox.models.URDF.URDFRobot import URDF_file
-    except ImportError:
-        return rtb.Robot.URDF(file_path=urdf_path, gripper=gripper)
-
-    # rtb >= 1.4 resolves package:// mesh paths through xacrodoc, and the model
-    # folder has no package.xml to be discovered by
-    from xacrodoc import packages
-    packages.update_package_cache({'franka_description': str(Path(urdf_path).parents[1])})
-    elinks, name, _ = URDF_file(urdf_path)
-    gripper_link = next(link for link in elinks if link.name == gripper)
-    return rtb.Robot(elinks, name=name, gripper_links=gripper_link)
-
-
 def create_virtual_panda(urdf_path: Union[str, None] = None) -> rtb.models.Panda:
     """
     Attaches a virtual finger link to a Panda robot model and returns the modified Panda.
@@ -141,11 +127,15 @@ def create_virtual_panda(urdf_path: Union[str, None] = None) -> rtb.models.Panda
         urdf_path = os.path.abspath(os.path.join(current_dir, PANDA_VIRTUAL))
     else:
         urdf_path = os.path.abspath(urdf_path)
-    if not os.path.isfile(urdf_path):
-        raise FileNotFoundError(f"Virtual Panda URDF not found: {urdf_path} (pass urdf_path explicitly)")
+
+    # rtb resolves package:// mesh paths through xacrodoc, and the model folder
+    # has no package.xml to be discovered by
+    packages.update_package_cache({'franka_description': str(Path(urdf_path).parents[1])})
+    elinks, name, _ = URDF_file(urdf_path)
+    hand = next(link for link in elinks if link.name == 'panda_hand')
 
     panda = rtb.models.Panda()
-    panda_virtual = _load_urdf_robot(urdf_path, gripper='panda_hand')
+    panda_virtual = rtb.Robot(elinks, name=name, gripper_links=hand)
 
     panda_virtual.addconfiguration('qr', np.append(panda.qr, 0))
     panda_virtual.addconfiguration('qz', np.append(panda.qz, 0))

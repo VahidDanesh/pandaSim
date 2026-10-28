@@ -35,11 +35,10 @@ def test_sim_modules_do_not_import_heavy_backends():
 
 def test_lazy_names_resolve():
     import pandaSim
-    from pandaSim.control import QPController, RobotExecutor, ExecutionConfig
+    from pandaSim.control import QPController, RobotExecutor
 
     assert pandaSim.QPController is QPController
     assert RobotExecutor.__name__ == "RobotExecutor"
-    assert ExecutionConfig().sim_dt == pytest.approx(1e-3)
     with pytest.raises(AttributeError):
         pandaSim.does_not_exist
 

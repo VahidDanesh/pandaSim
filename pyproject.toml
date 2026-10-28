@@ -40,11 +40,9 @@ genesis = [
     "torch",
     "genesis-world",
 ]
-# The panda-python build must match the robot's libfranka version (0.8.0 for the
-# lab FER); install that wheel from the panda-py release page, not from PyPI.
-robot = [
-    "panda-python>=1.1.1",
-]
+# Real robot: panda-python must match the robot's libfranka version (0.8.0 for the
+# lab FER). Install that wheel from https://github.com/JeanElsner/panda-py/releases;
+# the PyPI wheel bundles libfranka 0.9.2.
 dev  = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
