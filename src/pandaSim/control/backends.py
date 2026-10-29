@@ -56,12 +56,13 @@ class PandaBackend:
 
     `panda` is a connected panda_py.Panda, `gripper` a panda_py.libfranka.Gripper (or None).
     Gripper calls block; the controller holds the arm meanwhile (send zeros first).
+    The robot state is read once per tick; theta() and wrench() use that same state.
     """
 
     def __init__(self, panda, gripper=None, frequency: float = 1000.0, stiffness=None, damping=None):
         self.panda, self.gripper, self.frequency = panda, gripper, frequency
         self._gains = {k: v for k, v in (("stiffness", stiffness), ("damping", damping)) if v is not None}
-        self.ctrl = self.ctx = None
+        self.ctrl = self.ctx = self._state = None
 
     def start(self):
         from panda_py import controllers
@@ -78,19 +79,23 @@ class PandaBackend:
             self.panda.stop_controller()
 
     def tick(self) -> bool:
-        return self.ctx.ok()          # waits for the next period; raises on a robot error
+        ok = self.ctx.ok()            # waits for the next period; raises on a robot error
+        self._state = self.panda.get_state()
+        return ok
 
     def time(self) -> float:
         return self.ctrl.get_time()
 
     def theta(self) -> np.ndarray:
-        return np.asarray(self.panda.q, float)
+        if self._state is None:       # before the first tick
+            self._state = self.panda.get_state()
+        return np.asarray(self._state.q, float)
 
     def command(self, qd7):
         self.ctrl.set_control(np.asarray(qd7, float))
 
     def wrench(self):
-        s = self.panda.get_state()
+        s = self._state
         return np.asarray(s.O_F_ext_hat_K, float), np.asarray(s.tau_ext_hat_filtered, float)
 
     def grasp(self, width: float, force: float, speed: float = 0.05, epsilon: float = 0.01) -> bool:

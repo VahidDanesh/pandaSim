@@ -9,6 +9,8 @@ fields used by the safety stop, TCP pose from our model, state read time.
 from __future__ import annotations
 
 import argparse
+import os
+import resource
 import time
 
 import numpy as np
@@ -56,13 +58,17 @@ def main():
 
     from pandaSim.geometry.utils import create_virtual_panda
 
-    try:
-        panda = panda_py.Panda(args.hostname, realtime_config=libfranka.RealtimeConfig.kEnforce)
-        print("realtime               enforced (OK)")
-    except RuntimeError as e:
-        print(f"realtime               NOT available ({e}); connecting with kIgnore")
-        panda = panda_py.Panda(args.hostname)
-    gripper = None if args.no_gripper else libfranka.Gripper(args.hostname)
+    # panda-py only warns at connection when realtime is missing, so check the limit itself
+    rt_ok = os.geteuid() == 0 or resource.getrlimit(resource.RLIMIT_RTPRIO)[0] > 0
+    print(f"realtime               {'available' if rt_ok else 'NOT available (rtprio limit is 0)'}")
+    rt = libfranka.RealtimeConfig.kEnforce if rt_ok else libfranka.RealtimeConfig.kIgnore
+    panda = panda_py.Panda(args.hostname, realtime_config=rt)
+    gripper = None
+    if not args.no_gripper:
+        try:
+            gripper = libfranka.Gripper(args.hostname)
+        except RuntimeError as e:
+            print(f"gripper                not reachable ({e})")
     robot = create_virtual_panda()
     robot.base = sm.SE3(0, 0, args.base_z)
     report(panda, gripper, robot)

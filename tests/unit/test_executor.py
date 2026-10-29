@@ -156,8 +156,9 @@ class FakePanda:
         return FakeCtx(self, self.fail_after)
 
     def get_state(self):
+        self.calls.append("get_state") if not self.calls or self.calls[-1] != "get_state" else None
         class S:
-            O_F_ext_hat_K, tau_ext_hat_filtered = np.zeros(6), np.zeros(7)
+            q, O_F_ext_hat_K, tau_ext_hat_filtered = self.q, np.zeros(6), np.zeros(7)
         return S()
 
 
@@ -186,7 +187,7 @@ def test_panda_backend_stops_controller_on_robot_error(scene, fake_controllers):
     panda = FakePanda(r.qr[:7], fail_after=50)
     log = run_pivot(PandaBackend(panda, FakeGripper()), r, scene["T_wd"], scene["pivot"], grasp=dict(width=0.065))
     assert log.segments[0]["cause"].startswith("robot error")
-    assert panda.calls == ["start", "stop"]
+    assert [c for c in panda.calls if c != "get_state"] == ["start", "stop"]
     assert len(panda.ctrl.commands) > 40 and np.all(panda.ctrl.commands[-1] == 0)
 
 
@@ -199,7 +200,7 @@ def test_failed_grasp_aborts_before_pivot(scene, fake_controllers, monkeypatch):
     monkeypatch.setattr("pandaSim.control.primitive_executor.pose_error_twist", lambda a, b: np.zeros(6))
     log = run_pivot(PandaBackend(panda, gripper), r, scene["T_wd"], scene["pivot"], grasp=dict(width=0.065))
     assert [s["name"] for s in log.segments] == ["approach"]
-    assert gripper.calls == ["move", "grasp"] and panda.calls == ["start", "stop"]
+    assert gripper.calls == ["move", "grasp"] and [c for c in panda.calls if c != "get_state"] == ["start", "stop"]
 
 
 # --- viewer plumbing (no Swift: a stand-in target in the child process) ---
