@@ -1,10 +1,12 @@
-"""Read-only connection check of the FER: connects, reads state and gripper, sends NO commands.
+"""Read-only connection check of the FER: connects, reads state and gripper, sends NO motion
+commands, then locks the brakes through Desk.
 
-    python experiments/check_connection.py <robot-ip> [--base-z 0.013] [--no-gripper]
+    python experiments/check_connection.py <robot-ip> [--base-z 0.013] [--no-gripper] [--no-lock]
 
-Checks: libfranka version match and FCI (connection), realtime setup (kEnforce),
+Checks: libfranka version match and FCI (connection), realtime permission (rtprio),
 joint positions inside the model limits, robot mode and errors, external wrench
 fields used by the safety stop, TCP pose from our model, state read time.
+Desk credentials come from PANDA_USER / PANDA_PASS (environment or the repo's .env).
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ import argparse
 import os
 import resource
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -45,11 +48,32 @@ def report(panda, gripper, robot, n_reads=200):
     return out
 
 
+def desk_credentials(env_file=Path(__file__).parents[1] / ".env"):
+    """PANDA_USER / PANDA_PASS from the environment, else from .env; None if missing."""
+    env = {}
+    if env_file.exists():
+        env = dict(line.strip().split("=", 1) for line in env_file.read_text().splitlines()
+                   if "=" in line and not line.lstrip().startswith("#"))
+    user = os.environ.get("PANDA_USER", env.get("PANDA_USER"))
+    password = os.environ.get("PANDA_PASS", env.get("PANDA_PASS"))
+    return (user, password) if user and password else None
+
+
+def lock_brakes(desk):
+    """Take Desk control, lock the brakes, give control back."""
+    desk.take_control()
+    try:
+        desk.lock()
+    finally:
+        desk.release_control()
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("hostname")
     p.add_argument("--base-z", type=float, default=0.0, help="robot base height above the object table (m)")
     p.add_argument("--no-gripper", action="store_true")
+    p.add_argument("--no-lock", action="store_true", help="leave the brakes as they are")
     args = p.parse_args()
 
     import panda_py
@@ -72,6 +96,15 @@ def main():
     robot = create_virtual_panda()
     robot.base = sm.SE3(0, 0, args.base_z)
     report(panda, gripper, robot)
+
+    if args.no_lock:
+        return
+    creds = desk_credentials()
+    if creds is None:
+        print("brakes                 not locked: PANDA_USER / PANDA_PASS not set")
+        return
+    lock_brakes(panda_py.Desk(args.hostname, *creds, platform="panda"))
+    print("brakes                 locked")
 
 
 if __name__ == "__main__":

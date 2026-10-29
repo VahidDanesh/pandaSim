@@ -254,3 +254,27 @@ def test_connection_report_is_read_only(scene):
 
     out = report(ReadOnlyPanda(), G(), scene["robot"])
     assert out["q_inside_limits"] and out["gripper_width"] == 0.08
+
+
+def test_connection_check_locks_and_releases_desk_control(tmp_path, monkeypatch):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parents[2] / "experiments"))
+    from check_connection import desk_credentials, lock_brakes
+
+    env = tmp_path / ".env"
+    env.write_text("# comment\nPANDA_HOST=1.2.3.4\nPANDA_USER=u\nPANDA_PASS=p=w\n")
+    monkeypatch.delenv("PANDA_USER", raising=False)
+    monkeypatch.delenv("PANDA_PASS", raising=False)
+    assert desk_credentials(env) == ("u", "p=w")
+    assert desk_credentials(tmp_path / "missing") is None
+
+    class FakeDesk:
+        calls = []
+        def take_control(self): self.calls.append("take")
+        def lock(self): self.calls.append("lock")
+        def release_control(self): self.calls.append("release")
+
+    lock_brakes(FakeDesk())
+    assert FakeDesk.calls == ["take", "lock", "release"]
