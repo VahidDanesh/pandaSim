@@ -132,8 +132,8 @@ def run_pivot(backend, robot, T_wd, pivot, free_rotation=True, qp=None, approach
     """Open gripper, approach {c} to the grasp pose T_wd, grasp, pivot, release.
 
     pivot: dict(q, s_axis, theta, Tf, method="quintic"), axis in the world frame.
-    The approach always uses the free-rotation model (shared approach); the pivot uses
-    free_rotation. qp: ContactQP kwargs; approach: approach_reference kwargs plus tol;
+    The approach always uses the free-rotation model without slack (shared by all modes);
+    the pivot uses free_rotation and qp as given. qp: ContactQP kwargs; approach: approach_reference kwargs plus tol;
     grasp: dict(width, force); safety: run_segment kwargs (f_max, tau_max, settle).
     viewer: LiveViewer or None; T_w_obj: object pose (world), so the viewer can carry it.
     The object is released only after a successful pivot.
@@ -154,15 +154,15 @@ def run_pivot(backend, robot, T_wd, pivot, free_rotation=True, qp=None, approach
         if not gripper("open", backend.open):
             return log
         # approach, free model, phi_hat starts at 0
-        free_qp = ContactQP(robot, free_rotation=True, **qp)
+        approach_qp = ContactQP(robot, free_rotation=True, **{k: v for k, v in qp.items() if k != "slack"})
         q = np.r_[backend.theta(), 0.0]
         ref, Tf = approach_reference(fk, fk(q), T_wd, **approach)
         done = lambda q: np.linalg.norm(pose_error_twist(fk(q), T_wd)) < tol
-        ok, phi = run_segment(backend, free_qp, ref, Tf, log, "approach", phi=0.0, done=done, viewer=viewer, **safety)
+        ok, phi = run_segment(backend, approach_qp, ref, Tf, log, "approach", phi=0.0, done=done, viewer=viewer, **safety)
         if not ok or not gripper("grasp", backend.grasp, grasp["width"], grasp.get("force", 20.0)):
             return log
         # pivot from the reached frame: {c} (free) or {E} (rigid)
-        ctrl = free_qp if free_rotation else ContactQP(robot, free_rotation=False, **qp)
+        ctrl = ContactQP(robot, free_rotation=free_rotation, **qp)
         q = np.r_[backend.theta(), phi] if free_rotation else backend.theta()
         if viewer is not None and T_w_obj is not None:
             viewer.attach(np.linalg.inv(fk(q)) @ T_w_obj)
