@@ -79,13 +79,29 @@ def test_damper_limits_approach_to_joint_limit(robot):
     assert np.allclose(ctrl.jacobian(q) @ qd, V, atol=1e-8)
 
 
-def test_phi_is_unbounded_and_free(robot):
-    ctrl = ContactQP(robot)
+def test_phi_is_unbounded_and_free_without_the_bound(robot):
+    ctrl = ContactQP(robot, phi_max=None)
     q = q_test(robot, phi=3.1)                                            # beyond the URDF's +-pi soon
     V = 5.0 * ctrl.jacobian(q)[:, 7]                                      # spin about n faster than any joint
     qd = ctrl.solve(q, V)
     assert qd[7] > 4.5                                                    # theta moves a little (centering)
     assert np.allclose(ctrl.jacobian(q) @ qd, V, atol=1e-8)
+
+
+def test_phi_bound_moves_the_rotation_to_the_arm(robot):
+    ctrl = ContactQP(robot, eta=1.0, rho_e=0.3, rho_s=0.05)               # phi_max = 2.3 by default
+    assert ctrl.phi_max == 2.3 and ContactQP(robot, free_rotation=False).phi_max is None
+    for sign in (1.0, -1.0):
+        q = q_test(robot, phi=sign * 1.0)                                 # far from the bound: phi takes the spin
+        V = sign * 0.5 * ctrl.jacobian(q)[:, 7]
+        assert sign * ctrl.solve(q, V)[7] > 0.4
+        q = q_test(robot, phi=sign * 2.2)                                 # 0.1 rad from the bound
+        V = sign * 0.5 * ctrl.jacobian(q)[:, 7]
+        qd = ctrl.solve(q, V)
+        assert sign * qd[7] <= 1.0 * (0.1 - 0.05) / (0.3 - 0.05) + 1e-9   # same damper as the joints
+        assert np.linalg.norm(qd[:7]) > 0.2                               # the arm turns the hand instead
+        assert np.allclose(ctrl.jacobian(q) @ qd, V, atol=1e-8)           # the twist is still tracked exactly
+        assert sign * ctrl.solve(q, -V)[7] < -0.4                         # moving away from the bound is free
 
 
 def test_infeasible_and_slack(robot):

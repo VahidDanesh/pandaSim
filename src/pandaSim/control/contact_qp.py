@@ -5,6 +5,9 @@
          S theta_dot <= eta (rho - rho_s) / (rho_e - rho_s)                    (eq:qp_c)
          -theta_dot_max <= theta_dot <= theta_dot_max                          (eq:qp_d)
 
+The damper of eq:qp_c also acts on phi with the limits +-phi_max, so the hand cannot turn about n
+far enough to reach the object (phi_max=None gives the QP without this bound).
+
 Twists are ordered (omega, v) as in the manuscript; RTB Jacobians are (v, omega)
 and are converted here only. With M_Ec = I_4, J_c^aug is the body Jacobian of
 the virtual 8-DOF model at the virtual link, whose last column is B_c = (n, 0).
@@ -54,13 +57,18 @@ class ContactQP:
     free_rotation=True:  solve(q=(theta, phi)) -> (theta_dot, phi_dot), J = J_c^aug
     free_rotation=False: solve(q=theta)        -> theta_dot,            J = J_E ({c} = {E}, rigid grasp)
 
+    phi_max: bound on |phi| (rad), the rotation of the hand about n relative to the grasp frame on the
+    object. Turning the hand about n with an opposite phi_dot leaves {c} unchanged, so the cost terms use
+    this motion freely; without a bound the hand can turn into the object (about 2.6 rad for the box
+    grasps used here). The bearing itself is not limited: the bound only shapes theta_dot. None: no bound.
+
     slack=None keeps eq:qp_b as a hard equality (returns None when infeasible).
     slack=beta relaxes it to J q_dot + delta = V_c with cost beta/2 ||delta||^2;
     the slack used is then V_c - J q_dot.
     """
 
     def __init__(self, robot, free_rotation=True, K=0.2, lam=0.2, nu=1e-3,
-                 rho_e=0.3, rho_s=0.05, eta=1.0, qd_scale=0.8, theta_ctr=None, slack=None):
+                 rho_e=0.3, rho_s=0.05, eta=1.0, qd_scale=0.8, theta_ctr=None, slack=None, phi_max=2.3):
         if not rho_e > rho_s > 0:
             raise ValueError(f"need rho_e > rho_s > 0, got rho_e={rho_e}, rho_s={rho_s}")
         self.ets = robot.ets(end=EE)
@@ -72,6 +80,7 @@ class ContactQP:
         self.lam, self.rho_e, self.rho_s, self.eta = lam, rho_e, rho_s, eta
         self.qd_max = qd_scale * FER_QD_MAX
         self.slack = slack
+        self.phi_max = phi_max if free_rotation else None
 
         nx = self.n + (6 if slack else 0)
         self.Q = np.eye(nx)
@@ -108,6 +117,13 @@ class ContactQP:
         G_damp = np.zeros((near.sum(), len(self.Q)))
         G_damp[np.arange(near.sum()), np.flatnonzero(near)] = np.sign(theta - self.mid)[near]
         h_damp = self.eta * (rho[near] - self.rho_s) / (self.rho_e - self.rho_s)
+
+        # the same damper on phi, limits +-phi_max
+        if self.phi_max is not None and self.phi_max - abs(q8[7]) < self.rho_e:
+            row = np.zeros((1, len(self.Q)))
+            row[0, 7] = np.sign(q8[7])
+            G_damp = np.vstack([G_damp, row])
+            h_damp = np.r_[h_damp, self.eta * (self.phi_max - abs(q8[7]) - self.rho_s) / (self.rho_e - self.rho_s)]
 
         # eq:qp_d
         G = np.vstack([G_damp, self.bounds])
