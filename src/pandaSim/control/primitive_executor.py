@@ -211,14 +211,16 @@ class JointMove:
 
 
 def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, qp=None, approach=None, pivot=None,
-             ready=None, grasp=None, safety=None, lift=0.10, viewer=None):
+             ready=None, grasp=None, safety=None, lift=0.10, viewer=None, approach_free=True):
     """Execute planner steps (sequencer.Step: kind, plan.T_grasp, plan.screws, plan.width) in order.
 
     Each step starts and ends at the ready configuration q_ready (default robot.qr):
         pre (above the grasp) -> approach -> close -> pivot | slide -> open -> retreat (straight up) -> ready
     Pivot: approach with the free-rotation model (phi_hat starts at 0 at every grasp), then the pivot screw
     with free_rotation as given, feed-forward only (as run_pivot). phi stays within plan.phi_lim, the interval
-    in which the palm is clear of the object (qp["phi_lim"] replaces it; None: no limits). Slide: rigid model throughout, the hand
+    in which the palm is clear of the object (qp["phi_lim"] replaces it; None: no limits).
+    approach_free=False: the hand reaches plan.T_grasp as planned, without turning about the finger axis
+    (a rigid grasp with a prescribed hand orientation; used by experiments/ablation.py). Slide: rigid model throughout, the hand
     stays as planned; each planar screw is tracked with pose feedback. Retreat and ready use the rigid model.
 
     qp: ContactQP kwargs (slack only applies to pivots); approach: approach_reference kwargs plus tol, used for
@@ -277,7 +279,7 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
             pl, is_pivot = st.plan, st.kind == "pivot"
             log.steps.append(dict(kind=st.kind, ok=False, T_obj=T_w_obj))
             lim = {"phi_lim": getattr(pl, "phi_lim", None)}        # palm clear of the object; qp can override it
-            ctrl = ContactQP(robot, free_rotation=True, **{**lim, **qp_hard}) if is_pivot else rigid
+            ctrl = ContactQP(robot, free_rotation=True, **{**lim, **qp_hard}) if is_pivot and approach_free else rigid
             phi = 0.0
             for name, T_d in (("pre", up(pl.T_grasp)), ("approach", pl.T_grasp)):
                 ok, phi = move(ctrl, T_d, name, phi)
