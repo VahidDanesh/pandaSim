@@ -1,6 +1,7 @@
-"""One pivot experiment, identical in simulation and on the FER.
+"""Pivot and slide experiments, identical in simulation and on the FER.
 
-Sequence: open gripper -> approach the grasp -> grasp -> pivot -> release.
+run_pivot: open gripper -> approach the grasp -> grasp -> pivot -> release.
+run_plan:  a sequence of planner steps (pivots and slides), each from the ready configuration.
 Every segment is the same loop: read theta, build q, reference twist V_c (omega, v)
 in {c}, ContactQP -> joint velocities, send theta_dot, integrate phi_hat (free mode).
 Both references are constant screw motions with time scaling, so they start and
@@ -14,7 +15,7 @@ import numpy as np
 from pytransform3d import transformations as pt
 
 from pandaSim.control.contact_qp import EE, FER_QD_MAX, ContactQP
-from pandaSim.planning.primitives import pivot_twist, pose_error_twist, time_scaling
+from pandaSim.planning.primitives import pivot_twist, pose_error_twist, screw_twist, time_scaling
 
 PEAK_SDOT = {"q": 1.875, "c": 1.5, "l": 1.0}   # max of s_dot * Tf per time scaling
 
@@ -58,8 +59,9 @@ class Log:
 
     def __init__(self):
         self.rows = {k: [] for k in self.FIELDS}
-        self.segments = []      # dicts: name, ok, cause, t0, t_end, Tf
+        self.segments = []      # dicts: name, ok, cause, t0, t_end, Tf (run_plan adds step)
         self.events = []        # (name, t, ok)
+        self.steps = []         # run_plan: dicts kind, ok, T_obj (object pose after the step)
 
     def record(self, **row):
         for k in self.FIELDS:
@@ -74,7 +76,7 @@ class Log:
 
     def save(self, path, **meta):
         np.savez(path, **self.arrays(), segments=np.array(self.segments, dtype=object),
-                 events=np.array(self.events, dtype=object), **meta)
+                 events=np.array(self.events, dtype=object), steps=np.array(self.steps, dtype=object), **meta)
 
 
 def run_segment(backend, ctrl, ref, Tf, log, name, phi=0.0, done=None, settle=2.0, f_max=30.0, tau_max=15.0,
@@ -175,6 +177,131 @@ def run_pivot(backend, robot, T_wd, pivot, free_rotation=True, qp=None, approach
             if viewer is not None:
                 viewer.detach()
         return log
+    finally:
+        backend.stop()
+
+
+class JointMove:
+    """Joint-space move theta0 -> theta_goal, with the controller interface of run_segment (rigid model):
+    theta_dot = s_dot (theta_goal - theta0) + K (theta_plan(s) - theta). Tf makes the peak joint speed qd_max."""
+
+    n = 7
+
+    def __init__(self, theta0, theta_goal, qd_max=0.5, K=1.0, method="quintic", Tf_min=1.0, tol=1e-3):
+        self.theta0, self.goal = np.array(theta0, float), np.array(theta_goal, float)
+        self.d = self.goal - self.theta0
+        self.K, self.method, self.tol = K, method, tol
+        self.Tf = max(Tf_min, PEAK_SDOT[method[0].lower()] * np.abs(self.d).max() / qd_max)
+        self.s, self.sdot = 0.0, 0.0
+
+    def ref(self, t, q):
+        self.s, self.sdot = time_scaling(t, self.Tf, self.method)
+        return np.zeros(6)             # no task-space twist; solve() uses the time scaling stored here
+
+    def solve(self, q, V_c):
+        return self.sdot * self.d + self.K * (self.theta0 + self.s * self.d - q)
+
+    def done(self, q):
+        return np.abs(q - self.goal).max() < self.tol
+
+
+def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, qp=None, approach=None, pivot=None,
+             ready=None, grasp=None, safety=None, lift=0.10, viewer=None):
+    """Execute planner steps (sequencer.Step: kind, plan.T_grasp, plan.screws, plan.width) in order.
+
+    Each step starts and ends at the ready configuration q_ready (default robot.qr):
+        pre (above the grasp) -> approach -> close -> pivot | slide -> open -> retreat (straight up) -> ready
+    Pivot: approach with the free-rotation model (phi_hat starts at 0 at every grasp), then the pivot screw
+    with free_rotation as given, feed-forward only (as run_pivot). Slide: rigid model throughout, the hand
+    stays as planned; each planar screw is tracked with pose feedback. Retreat and ready use the rigid model.
+
+    qp: ContactQP kwargs (slack only applies to pivots); approach: approach_reference kwargs plus tol, used for
+    pre, approach, slide and retreat; pivot: dict(w_max, method, Tf_min); ready: JointMove kwargs;
+    grasp: dict(force); safety: run_segment kwargs. T_w_obj: object pose at the start (world).
+    The run stops at the first failed segment (the gripper is left as it is).
+    Returns (log, T_w_obj): the object pose after the last finished step, from the motion of the hand (open loop).
+    """
+    qp, approach, pivot, ready = dict(qp or {}), dict(approach or {}), dict(pivot or {}), dict(ready or {})
+    grasp, safety = dict(grasp or {}), dict(safety or {})
+    tol = approach.pop("tol", 1e-3)
+    qp_hard = {k: v for k, v in qp.items() if k != "slack"}
+    q_ready = np.asarray(robot.qr if q_ready is None else q_ready, float)[:7]
+    T_w_obj = np.array(T_w_obj, float)
+    fk = lambda q: contact_pose(robot, q)
+    log = Log()
+    step = -1
+
+    def segment(ctrl, ref, Tf, name, phi=0.0, done=None):
+        ok, phi = run_segment(backend, ctrl, ref, Tf, log, name, phi=phi, done=done, viewer=viewer, **safety)
+        log.segments[-1]["step"] = step
+        return ok, phi
+
+    def move(ctrl, T_d, name, phi=0.0):
+        """Screw motion of the controlled frame to T_d with pose feedback."""
+        q = np.r_[backend.theta(), phi] if ctrl.n == 8 else backend.theta()
+        ref, Tf = approach_reference(fk, fk(q), T_d, **approach)
+        return segment(ctrl, ref, Tf, name, phi, lambda q: np.linalg.norm(pose_error_twist(fk(q), T_d)) < tol)
+
+    def to_ready():
+        jm = JointMove(backend.theta(), q_ready, **ready)
+        return segment(jm, jm.ref, jm.Tf, "ready", done=jm.done)[0]
+
+    def gripper(name, call, *args):
+        backend.command(np.zeros(7))
+        ok = call(*args)
+        log.events.append((name, backend.time(), bool(ok)))
+        return ok
+
+    def up(T):
+        T = T.copy()
+        T[2, 3] += lift
+        return T
+
+    rigid = ContactQP(robot, free_rotation=False, **qp_hard)
+    backend.start()
+    try:
+        if not gripper("open", backend.open):
+            return log, T_w_obj
+        if np.abs(backend.theta() - q_ready).max() > 1e-4 and not to_ready():
+            return log, T_w_obj
+        for step, st in enumerate(steps):
+            pl, is_pivot = st.plan, st.kind == "pivot"
+            log.steps.append(dict(kind=st.kind, ok=False, T_obj=T_w_obj))
+            ctrl = ContactQP(robot, free_rotation=True, **qp_hard) if is_pivot else rigid
+            phi = 0.0
+            for name, T_d in (("pre", up(pl.T_grasp)), ("approach", pl.T_grasp)):
+                ok, phi = move(ctrl, T_d, name, phi)
+                if not ok:
+                    return log, T_w_obj
+            if not gripper("grasp", backend.grasp, pl.width, grasp.get("force", 20.0)):
+                return log, T_w_obj
+            # the object moves with the controlled frame: {c} (free) or {E} (rigid)
+            if is_pivot:
+                ctrl = ContactQP(robot, free_rotation=free_rotation, **qp)
+            q_now = lambda: np.r_[backend.theta(), phi] if ctrl.n == 8 else backend.theta()
+            T_c_obj = np.linalg.inv(fk(q_now())) @ T_w_obj
+            if viewer is not None:
+                viewer.attach(T_c_obj)
+            for S, theta in pl.screws:
+                T_c = fk(q_now())
+                if is_pivot:
+                    method = pivot.get("method", "quintic")
+                    Tf = max(pivot.get("Tf_min", 1.0), PEAK_SDOT[method[0].lower()] * abs(theta) / pivot.get("w_max", 0.3))
+                    ok, phi = segment(ctrl, pivot_reference(screw_twist(S, theta, T_c), Tf, method), Tf, "pivot", phi)
+                else:
+                    ok, phi = move(ctrl, pt.transform_from_exponential_coordinates(np.asarray(S) * theta) @ T_c, "slide")
+                if not ok:
+                    return log, fk(q_now()) @ T_c_obj
+            T_w_obj = fk(q_now()) @ T_c_obj
+            if not gripper("release", backend.open):
+                return log, T_w_obj
+            if viewer is not None:
+                viewer.detach()
+            log.steps[-1].update(T_obj=T_w_obj)
+            if not move(rigid, up(fk(backend.theta())), "retreat")[0] or not to_ready():
+                return log, T_w_obj
+            log.steps[-1].update(ok=True)
+        return log, T_w_obj
     finally:
         backend.stop()
 

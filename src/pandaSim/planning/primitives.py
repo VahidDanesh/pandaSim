@@ -58,3 +58,11 @@ def planned_pose(q: np.ndarray, s_axis: np.ndarray, theta: float, T0: np.ndarray
 def pose_error_twist(T_wc: np.ndarray, T_wd: np.ndarray) -> np.ndarray:
     """Body twist log(T_wc^-1 T_wd) that moves {c} to the target in unit time (approach phase)."""
     return pt.exponential_coordinates_from_transform(pt.invert_transform(T_wc, check=False) @ T_wd, check=False)
+
+
+def screw_twist(S: np.ndarray, theta: float, T_wc0: np.ndarray) -> np.ndarray:
+    """Body twist of frame {c} for s_dot = 1 when it moves with the world-frame screw (S, theta):
+    V_c = Ad(T_wc0^-1) S theta, with (omega, v) ordering. For a pure rotation this is pivot_twist."""
+    R, p = T_wc0[:3, :3], T_wc0[:3, 3]
+    w, v = np.asarray(S[:3], float) * theta, np.asarray(S[3:], float) * theta
+    return np.r_[R.T @ w, R.T @ (v + np.cross(w, p))]
