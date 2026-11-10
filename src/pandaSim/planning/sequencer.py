@@ -120,7 +120,7 @@ def drop_noops(steps, tol_p=3e-3, tol_r=math.radians(2.0)):
 
 class Sequencer:
     """kin: object with T_ready (4x4, {c} at the ready configuration) and
-    check(paths) -> (feasible, joint_margin) per path; see feasibility.Kinematics.
+    check(step) -> (feasible, joint_margin); see feasibility.Rollout.
     Without kin (y_ref given) only candidates() can be used."""
 
     def __init__(self, kin=None, y_ref=None, staging=None, max_pivots=3, max_kin_checks=12, base_xy=(0.0, 0.0)):
@@ -350,7 +350,7 @@ class Sequencer:
         """Feasibility and joint margin of candidates top[lo:hi]."""
         feasible, margin = [], []
         for _, steps in top[lo:hi]:
-            res = [self.kin.check(s.plan) for s in steps]
+            res = [self.kin.check(s) for s in steps]
             ok = all(r[0] for r in res)
             feasible.append(ok)
             margin.append(min((r[1] for r in res), default=0.0) if ok else 0.0)
