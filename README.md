@@ -21,6 +21,24 @@ uv run pytest
 
 Run scripts with `uv run python ...` or `.venv/bin/python ...`.
 
+## Box planner in simulation
+
+Plan a sequence of pivots and slides that brings a box from a start pose to a goal pose, execute it
+on the simulated arm and check the result. Tasks and parameters are in
+`experiments/configs/box_plan.yaml`.
+
+```bash
+.venv/bin/python experiments/run_plan.py --task all                 # all tasks, no viewer
+.venv/bin/python experiments/run_plan.py --task slide_pivot --viewer  # replay in Swift (browser tab)
+.venv/bin/python experiments/run_plan.py --task all --rigid         # rigid grasp instead of free rotation
+.venv/bin/python experiments/run_plan.py --task all --rigid --plan-free-rotation  # rigid execution of free-rotation plans
+```
+
+`--free-rotation / --rigid` sets the execution model of the pivots, `--plan-free-rotation / --plan-rigid`
+the model of the planner's feasibility check (default: the same as execution). The logs go to
+`experiments/runs/`. `experiments/plan_box.ipynb` does the same step by step with plots.
+The viewer runs on the machine that runs the script (ports 52000 and 53000).
+
 ## Project Structure
 
 ```
