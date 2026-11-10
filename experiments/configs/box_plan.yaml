@@ -1,0 +1,49 @@
+# Box tasks for the planner, executed in simulation (experiments/run_plan.py).
+# World frame = table frame (z up, table surface at z = 0). Lengths in metres, angles in degrees.
+
+box:
+  size: [0.15, 0.06, 0.25]      # along the object x, y, z axes; the fingers can only span the 0.06 side
+  mass: 5.0                     # kg  (used for the tipping margin of a slide)
+  mu: 0.5                       # box-table friction
+
+robot:
+  base: [0.0, 0.0, 0.013]       # robot base in the table frame
+  q_ready: [0.0, -0.3, 0.0, -2.2, 0.0, 2.0, 0.7854]   # every step starts and ends here
+
+# Ablation switches.
+free_rotation: true             # execution: the box may rotate about the finger axis during a pivot
+plan_free_rotation: null        # model used by the planner's feasibility check; null = same as free_rotation
+
+planner:
+  max_pivots: 3                 # longest plan considered: slide, then up to 3 x (pivot, slide)
+  max_kin_checks: 12            # cheapest candidates rolled out before giving up
+  dt: 0.01                      # time step of the feasibility rollouts [s]
+
+execution:
+  dt: 0.001                     # control period [s]
+  lift: 0.10                    # height above the grasp for the approach and the retreat [m]
+  pivot: {w_max: 0.3}           # peak rotation speed of the box [rad/s]
+  grasp: {force: 20.0}          # [N]
+  qp: {}                        # ContactQP options, e.g. {lam: 0.2, rho_s: 0.05}
+
+tolerance: {position: 0.003, rotation_deg: 2.0}   # final object pose, up to the box symmetry
+
+# Poses: centre xy on the table and roll-pitch-yaw (R = Rz(yaw) Ry(pitch) Rx(roll)); the height follows
+# from the face that is down. pitch -90: lying on the 0.06 x 0.25 face; pitch 0: standing, 0.25 up.
+task: slide_pivot               # default for --task
+tasks:
+  slide:
+    start: {xy: [0.50, 0.00], rpy: [0, -90, 0]}
+    goal:  {xy: [0.55, 0.12], rpy: [0, -90, 40]}
+  pivot:                        # the goal is where one pivot about the box's end edge puts it
+    start: {xy: [0.50, 0.20], rpy: [0, -90, 90]}
+    goal:  {xy: [0.50, 0.00], rpy: [0, 0, 90]}
+  slide_pivot:
+    start: {xy: [0.50, 0.00], rpy: [0, -90, 0]}
+    goal:  {xy: [0.45, -0.15], rpy: [0, 0, 60]}
+  symmetric:                    # the goal is the start orientation turned upside down: a slide is enough
+    start: {xy: [0.50, 0.00], rpy: [0, -90, 0]}
+    goal:  {xy: [0.60, 0.10], rpy: [0, 90, 20]}
+  pivot_far_side:               # mirror image of "pivot": a plan exists only with free rotation
+    start: {xy: [0.50, -0.20], rpy: [0, -90, 90]}
+    goal:  {xy: [0.50, 0.00], rpy: [0, 0, 90]}
