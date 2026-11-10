@@ -15,8 +15,9 @@ on the mode (base keep-out, reach of the grasp point). Every pivot is then execu
 tasks: start and goal poses are drawn in a smaller region; each task is planned and executed with the rigid
 model and with free rotation (planner and execution use the same model).
 
-A run counts as a success if every segment finishes (the QP stays feasible), the box ends at its goal, and the
-palm never touches the box or the table. Results: experiments/results/ablation_<name>.json; the same seed gives
+A run counts as a success if every segment finishes (the QP stays feasible), the box ends at its goal, the
+palm stays 2 mm clear of the box and the table, and no link of the arm or the hand comes closer than 2 mm
+to the box or the table (planning/collision.py, coal). Results: experiments/results/ablation_<name>.json; the same seed gives
 the same trials. Figures and tables: experiments/ablation_figures.py.
 """
 import argparse
@@ -35,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_plan as rp  # noqa: E402
 
 from pandaSim.control.backends import SimBackend  # noqa: E402
+from pandaSim.planning.collision import ArmCollision
 from pandaSim.control.contact_qp import EE  # noqa: E402
 from pandaSim.control.primitive_executor import check_clearance, check_profile, run_plan  # noqa: E402
 from pandaSim.planning import se3  # noqa: E402
@@ -67,12 +69,21 @@ def random_pose(rng, box, region):
     return spec, rp.box_pose(box, spec)
 
 
+_arm = {}
+
+
+def c_arm(robot, box):
+    if "a" not in _arm:
+        _arm["a"] = ArmCollision(robot, box.size)
+    return _arm["a"]
+
+
 def summarize(log, robot, cfg, box, T0, T_end, T_goal):
     """What one execution did: success, where it failed, and how close the arm came to its limits."""
     a = log.arrays()
     ep, er = pose_error(T_end, T_goal)
     tol = cfg["tolerance"]
-    clear = check_clearance(log, robot, T0, box.size)
+    clear = check_clearance(log, robot, T0, box.size, arm=c_arm(robot, box))
     names = [s["name"] for s in log.segments]
     held = np.isin(a["segment"], [j for j, n in enumerate(names) if n in ("pivot", "slide")])
     grasp = np.isin(a["segment"], [j for j, n in enumerate(names) if n == "approach"])
@@ -84,8 +95,9 @@ def summarize(log, robot, cfg, box, T0, T_end, T_goal):
     failed = next((s for s in log.segments if not s["ok"]), None)
     reached = ep < tol["position"] and er < math.radians(tol["rotation_deg"])
     return dict(
-        success=bool(log.ok and reached and clear["box_ok"] and clear["table_ok"]),
-        completed=bool(log.ok), at_goal=bool(reached), palm_clear=bool(clear["box_ok"]), table_clear=clear["table_ok"],
+        success=bool(log.ok and reached and clear["box_ok"] and clear["table_ok"] and clear["arm_ok"]),
+        completed=bool(log.ok), at_goal=bool(reached), palm_clear=bool(clear["box_ok"]), table_clear=clear["table_ok"], arm_clear=bool(clear["arm_ok"]),
+        arm_min=clear["arm_min"], arm_link=(clear["arm_hits"][0][2] if clear["arm_hits"] else None),
         failed_segment=failed and failed["name"], cause=failed and failed["cause"],
         failed_at=failed and float((failed["t_end"] - failed["t0"]) / failed["Tf"]),     # fraction of the segment
         err_pos=ep, err_rot=er, duration=float(a["t"][-1]),
@@ -192,6 +204,7 @@ def pivot_summary(trials):
                 qp_infeasible=sum(x["cause"] == "infeasible QP" for x in r),
                 other_failure=sum(not x["completed"] and x["cause"] != "infeasible QP" for x in r),
                 palm_contact=sum(x["completed"] and not (x["palm_clear"] and x["table_clear"]) for x in r),
+                arm_contact=sum(x["completed"] and x["palm_clear"] and x["table_clear"] and not x["arm_clear"] for x in r),
                 joint_margin_median=float(np.median([x["joint_margin_held"] for x in r if x["completed"]] or [math.nan])),
             )
         out[kind]["rigid_per_tilt"] = {f"{a:g}": sum(t["rigid_tilt"]["per_tilt"][i]["success"] for t in rows)
@@ -228,7 +241,7 @@ def print_summary(name, s):
                 r = row[m]
                 print(f"  {m:13s} success {r['success']:4d} ({100 * r['success'] / max(row['n'], 1):5.1f} %)   "
                       f"QP infeasible {r['qp_infeasible']:4d}   other {r['other_failure']:3d}   "
-                      f"palm contact {r['palm_contact']:4d}   median joint margin {r['joint_margin_median']:.2f} rad")
+                      f"palm contact {r['palm_contact']:4d}   other link {r['arm_contact']:3d}   median joint margin {r['joint_margin_median']:.2f} rad")
             print(f"  rigid, successes per prescribed tilt [deg]: {row['rigid_per_tilt']}")
     else:
         for m in TASK_MODES:

@@ -189,7 +189,7 @@
   "rigid": {
    "planned": 52,
    "success": 52,
-   "planning_s_median": 4.433606384001905,
+   "planning_s_median": 7.443983691498943,
    "steps_mean": 2.3461538461538463,
    "pivots_mean": 0.8269230769230769,
    "duration_mean": 57.39142307694733,
@@ -198,7 +198,7 @@
   "free": {
    "planned": 92,
    "success": 92,
-   "planning_s_median": 1.4016386514977057,
+   "planning_s_median": 2.26778525050031,
    "steps_mean": 2.7065217391304346,
    "pivots_mean": 1.1956521739130435,
    "duration_mean": 60.73917391305677,
@@ -241,7 +241,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 1.284235114002513,
+    "planning_s": 1.9264446359993599,
     "cost": 11.003173411291824,
     "steps": [
      "slide",
@@ -252,6 +252,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742012784734255,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -268,7 +271,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.922603770999558,
+    "planning_s": 1.3942280509982083,
     "cost": 11.003173411291824,
     "steps": [
      "slide",
@@ -279,6 +282,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742012784734255,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -320,14 +326,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 8.270689021999715,
+    "planning_s": 12.711796470997797,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.9773129070017603,
+    "planning_s": 3.220489549999911,
     "cost": 9.573440917911196,
     "steps": [
      "pivot",
@@ -340,6 +346,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009078930444391582,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -381,14 +390,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 15.379962638999132,
+    "planning_s": 22.724893041999167,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 2.4416763310000533,
+    "planning_s": 3.750888999999006,
     "cost": 18.098619672626917,
     "steps": [
      "slide",
@@ -402,6 +411,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009110236938934015,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -443,14 +455,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 7.374077108997881,
+    "planning_s": 11.114773377998063,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.4724137230004999,
+    "planning_s": 2.4023796090004907,
     "cost": 12.833062520308134,
     "steps": [
      "pivot",
@@ -462,6 +474,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00911989814340045,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -503,14 +518,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 17.034618464000232,
+    "planning_s": 22.28743928900076,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.360353173000476,
+    "planning_s": 1.9763862869986042,
     "cost": 10.28619261372551,
     "steps": [
      "pivot",
@@ -522,6 +537,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009096140811261371,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -563,7 +581,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 13.795944661000249,
+    "planning_s": 22.803022903000965,
     "cost": 19.484871055034333,
     "steps": [
      "slide",
@@ -576,6 +594,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01048052262044796,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -592,7 +613,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.9207275490007305,
+    "planning_s": 3.197105710998585,
     "cost": 11.888138298150015,
     "steps": [
      "pivot",
@@ -605,6 +626,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009117280016527415,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -646,7 +670,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 7.447226084001159,
+    "planning_s": 11.686148344000685,
     "cost": 12.813735886238186,
     "steps": [
      "slide",
@@ -658,6 +682,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.013129235419901068,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -674,7 +701,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.41889547199753,
+    "planning_s": 2.326161568998941,
     "cost": 6.3811637967978125,
     "steps": [
      "pivot",
@@ -686,6 +713,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009141187484621905,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -727,7 +757,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 6.62479082000209,
+    "planning_s": 10.907372925998061,
     "cost": 12.206514422432353,
     "steps": [
      "slide"
@@ -737,6 +767,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420435280516695,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -753,7 +786,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 3.4825488880014746,
+    "planning_s": 5.88885209900036,
     "cost": 8.328343566352094,
     "steps": [
      "slide",
@@ -766,6 +799,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00911115252608855,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -807,7 +843,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 10.134154966002825,
+    "planning_s": 12.523469203002605,
     "cost": 20.254502963238764,
     "steps": [
      "slide",
@@ -819,6 +855,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009175878693498805,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -835,7 +874,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 3.186376224999549,
+    "planning_s": 4.033415242000046,
     "cost": 11.354828777991376,
     "steps": [
      "slide",
@@ -847,6 +886,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009142144678591849,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -888,14 +930,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 4.341978929001925,
+    "planning_s": 8.710673263001809,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.1319366620009532,
+    "planning_s": 2.470357049998711,
     "cost": 8.390502303345675,
     "steps": [
      "pivot",
@@ -907,6 +949,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00910521505472605,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -948,7 +993,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 3.2745142210005724,
+    "planning_s": 5.653422257000784,
     "cost": 11.2679081806188,
     "steps": [
      "slide",
@@ -961,6 +1006,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01182412972739956,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -977,7 +1025,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 3.044390792998456,
+    "planning_s": 6.6929953590006335,
     "cost": 11.2679081806188,
     "steps": [
      "slide",
@@ -990,6 +1038,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009106465766535893,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1031,7 +1082,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.7842936880006164,
+    "planning_s": 1.6222634360019583,
     "cost": 7.857784384481537,
     "steps": [
      "slide"
@@ -1041,6 +1092,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420408755554735,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1057,7 +1111,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.5647767049995309,
+    "planning_s": 1.1303182349984127,
     "cost": 7.857784384481537,
     "steps": [
      "slide"
@@ -1067,6 +1121,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420408755554735,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1108,14 +1165,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 6.545464908002032,
+    "planning_s": 13.524314220001543,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 0.9391341939990525,
+    "planning_s": 2.059489310999197,
     "cost": 7.190230136747878,
     "steps": [
      "pivot",
@@ -1127,6 +1184,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009126748308229116,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1168,14 +1228,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 13.166763631001231,
+    "planning_s": 22.695609909998893,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 0.92981452100139,
+    "planning_s": 1.8684444020000228,
     "cost": 9.249027562602214,
     "steps": [
      "slide",
@@ -1186,6 +1246,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009133177657932017,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1227,7 +1290,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 1.033747642999515,
+    "planning_s": 1.0398721099991235,
     "cost": 2.0896153568885607,
     "steps": [
      "slide"
@@ -1237,6 +1300,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742013130975072,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1253,7 +1319,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.7088663799986534,
+    "planning_s": 0.694890533999569,
     "cost": 2.0896153568885607,
     "steps": [
      "slide"
@@ -1263,6 +1329,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742013130975072,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1304,14 +1373,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 20.06590618899645,
+    "planning_s": 26.55902167000022,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 7.533569430997886,
+    "planning_s": 5.669795866997447,
     "cost": 8.619244017049414,
     "steps": [
      "slide",
@@ -1323,6 +1392,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009140446827473458,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1364,14 +1436,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 12.341439403997356,
+    "planning_s": 18.65963612700216,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.146845677998499,
+    "planning_s": 1.73075942700234,
     "cost": 10.837775969343047,
     "steps": [
      "slide",
@@ -1383,6 +1455,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009128476947276146,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1424,14 +1499,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 0.47687081699768896,
+    "planning_s": 0.3306130800010578,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": false,
-    "planning_s": 0.16367154999898048,
+    "planning_s": 0.11788964299921645,
     "cost": null,
     "steps": [],
     "success": false
@@ -1463,7 +1538,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.8075982539994584,
+    "planning_s": 0.940007004999643,
     "cost": 5.747592678435427,
     "steps": [
      "slide"
@@ -1473,6 +1548,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742025405624413,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1489,7 +1567,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.7590991000033682,
+    "planning_s": 0.7720766620004724,
     "cost": 5.747592678435427,
     "steps": [
      "slide"
@@ -1499,6 +1577,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742025405624413,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1540,7 +1621,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.682944898999267,
+    "planning_s": 0.9433235940014129,
     "cost": 10.523318366571555,
     "steps": [
      "slide"
@@ -1550,6 +1631,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420552175694305,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1566,7 +1650,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.7453206009995483,
+    "planning_s": 0.9367012740003702,
     "cost": 10.523318366571555,
     "steps": [
      "slide"
@@ -1576,6 +1660,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420552175694305,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1617,14 +1704,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 22.779491474997485,
+    "planning_s": 22.263633730999572,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 10.33548687000075,
+    "planning_s": 8.392037368001183,
     "cost": 8.81554082098356,
     "steps": [
      "slide",
@@ -1636,6 +1723,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009141067857546831,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1677,7 +1767,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 7.011980778999714,
+    "planning_s": 11.578053186000034,
     "cost": 14.8292291911694,
     "steps": [
      "slide",
@@ -1690,6 +1780,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.010716774835367631,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1706,7 +1799,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.3562548000008974,
+    "planning_s": 2.23342531399976,
     "cost": 10.103325047419036,
     "steps": [
      "pivot",
@@ -1718,6 +1811,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009111528661316818,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1759,14 +1855,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 11.069132635002461,
+    "planning_s": 17.040039093000814,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 3.4846360240007925,
+    "planning_s": 5.697423435998644,
     "cost": 12.756491562340713,
     "steps": [
      "slide",
@@ -1780,6 +1876,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00913000736317189,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1821,14 +1920,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 17.912242888996843,
+    "planning_s": 28.847739725999418,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.4193111919994408,
+    "planning_s": 2.113944042001094,
     "cost": 11.828840917614505,
     "steps": [
      "slide",
@@ -1839,6 +1938,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009131352378595161,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1880,14 +1982,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 10.391541617002076,
+    "planning_s": 17.332554130000062,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.1337700160001987,
+    "planning_s": 2.5447916089979117,
     "cost": 11.096755154007147,
     "steps": [
      "pivot",
@@ -1899,6 +2001,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009141060820309545,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -1940,14 +2045,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 4.525233839001885,
+    "planning_s": 6.807652190000226,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 2.851199163000274,
+    "planning_s": 4.848455575000116,
     "cost": 11.286732362706106,
     "steps": [
      "slide",
@@ -1960,6 +2065,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00910869233446413,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2001,7 +2109,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 14.569915649000905,
+    "planning_s": 24.328015545997914,
     "cost": 14.602805290334825,
     "steps": [
      "slide",
@@ -2013,6 +2121,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.013133886251027242,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2029,7 +2140,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 4.114976263001154,
+    "planning_s": 4.731876836001902,
     "cost": 6.589915442365992,
     "steps": [
      "slide",
@@ -2041,6 +2152,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009133639510906079,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2082,14 +2196,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 4.867136165001284,
+    "planning_s": 4.330562805000227,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": false,
-    "planning_s": 6.505343930999516,
+    "planning_s": 7.835175720003463,
     "cost": null,
     "steps": [],
     "success": false
@@ -2121,7 +2235,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 3.909874059001595,
+    "planning_s": 8.81936847200268,
     "cost": 14.405319858504622,
     "steps": [
      "slide",
@@ -2135,6 +2249,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01288538502349227,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2151,7 +2268,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.0885316699968826,
+    "planning_s": 2.3718052680014807,
     "cost": 12.47015749035989,
     "steps": [
      "pivot",
@@ -2163,6 +2280,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009135282384384656,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2204,7 +2324,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 3.942797632997099,
+    "planning_s": 5.099282107999898,
     "cost": 9.275907730408985,
     "steps": [
      "slide",
@@ -2217,6 +2337,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00999917822449408,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2233,7 +2356,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 2.9086880309987464,
+    "planning_s": 4.929259109001578,
     "cost": 9.275907730408985,
     "steps": [
      "slide",
@@ -2246,6 +2369,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009076663406804788,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2287,14 +2413,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 0.9521362810010032,
+    "planning_s": 1.3623647249987698,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": false,
-    "planning_s": 0.9088555730013468,
+    "planning_s": 1.4708457769993402,
     "cost": null,
     "steps": [],
     "success": false
@@ -2326,7 +2452,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 1.3981404709993512,
+    "planning_s": 2.9312720020025154,
     "cost": 18.420357573385736,
     "steps": [
      "slide",
@@ -2338,6 +2464,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01635474249176247,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2354,7 +2483,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.7393646929995157,
+    "planning_s": 2.8777337559986336,
     "cost": 18.420357573385736,
     "steps": [
      "slide",
@@ -2366,6 +2495,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009147830621060242,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2407,7 +2539,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 1.7901234029995976,
+    "planning_s": 2.7973504289984703,
     "cost": 7.925355192940673,
     "steps": [
      "pivot",
@@ -2419,6 +2551,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01732593312907639,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2435,7 +2570,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.7048138410027605,
+    "planning_s": 2.6595274770006654,
     "cost": 7.925355192940673,
     "steps": [
      "pivot",
@@ -2447,6 +2582,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009143085308406199,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2488,14 +2626,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 3.5273143899976276,
+    "planning_s": 6.423248063001665,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 2.7095378789999813,
+    "planning_s": 6.132025839000562,
     "cost": 12.560211129042841,
     "steps": [
      "slide",
@@ -2508,6 +2646,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009112396054109642,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2549,7 +2690,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 3.1070292910007993,
+    "planning_s": 4.042966646000423,
     "cost": 10.046582141187873,
     "steps": [
      "slide",
@@ -2561,6 +2702,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.016530875280210786,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2577,7 +2721,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 3.0457483419995697,
+    "planning_s": 3.893562342000223,
     "cost": 10.046582141187873,
     "steps": [
      "slide",
@@ -2589,6 +2733,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00914141221444736,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2630,14 +2777,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 12.417369319999125,
+    "planning_s": 19.062686532000953,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.0639328219986055,
+    "planning_s": 1.5480602499992528,
     "cost": 6.877762261269503,
     "steps": [
      "slide",
@@ -2648,6 +2795,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009141731858010475,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2689,7 +2839,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.7205197740004223,
+    "planning_s": 0.7872385679984291,
     "cost": 12.932910285962912,
     "steps": [
      "slide"
@@ -2699,6 +2849,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742037083743305,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2715,7 +2868,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.7215114070022537,
+    "planning_s": 0.7964673240021511,
     "cost": 12.932910285962912,
     "steps": [
      "slide"
@@ -2725,6 +2878,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742037083743305,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2766,14 +2922,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 13.956004168001527,
+    "planning_s": 28.862851732999843,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.7461565880003036,
+    "planning_s": 3.271988273001625,
     "cost": 12.426751351322428,
     "steps": [
      "pivot",
@@ -2785,6 +2941,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009142246581498115,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2826,14 +2985,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 14.452582608999364,
+    "planning_s": 23.327600029999303,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 3.242748581000342,
+    "planning_s": 5.474753577000229,
     "cost": 11.741818347383726,
     "steps": [
      "slide",
@@ -2845,6 +3004,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009142129916931297,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2886,14 +3048,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 17.181557596999482,
+    "planning_s": 19.717849881999427,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.3439797630016983,
+    "planning_s": 1.4215416959996219,
     "cost": 12.980649219398858,
     "steps": [
      "slide",
@@ -2904,6 +3066,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009139659988047668,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2945,7 +3110,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 8.63001549099863,
+    "planning_s": 10.83055620900268,
     "cost": 17.59634796938257,
     "steps": [
      "slide",
@@ -2958,6 +3123,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.013036793101666555,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -2974,7 +3142,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 2.9944081979992916,
+    "planning_s": 4.927387407999049,
     "cost": 9.803859358522741,
     "steps": [
      "slide",
@@ -2987,6 +3155,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009111905520558582,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3028,14 +3199,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 1.5050317220011493,
+    "planning_s": 0.9952220470004249,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": false,
-    "planning_s": 1.4980439909995766,
+    "planning_s": 1.02678642599858,
     "cost": null,
     "steps": [],
     "success": false
@@ -3067,7 +3238,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 5.087617601999227,
+    "planning_s": 7.524130359000992,
     "cost": 15.809142405864188,
     "steps": [
      "slide",
@@ -3079,6 +3250,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.011700508789916624,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3095,7 +3269,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 2.189248538998072,
+    "planning_s": 3.483537990003242,
     "cost": 7.8057964893504455,
     "steps": [
      "slide",
@@ -3107,6 +3281,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009144096591308054,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3148,14 +3325,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 17.65313668700037,
+    "planning_s": 27.178634098003386,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.5369818830004078,
+    "planning_s": 2.237560444002156,
     "cost": 18.274521541709273,
     "steps": [
      "slide",
@@ -3166,6 +3343,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009136904047514391,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3207,7 +3387,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 2.6073186380017432,
+    "planning_s": 4.16569083700233,
     "cost": 10.006459498098183,
     "steps": [
      "slide",
@@ -3219,6 +3399,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.016101441042851574,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3235,7 +3418,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.075377868997748,
+    "planning_s": 1.2048473649992957,
     "cost": 5.942533091116866,
     "steps": [
      "pivot",
@@ -3246,6 +3429,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009142245114939985,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3287,7 +3473,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.7533308769998257,
+    "planning_s": 1.0875686019971909,
     "cost": 9.313284291588706,
     "steps": [
      "slide"
@@ -3297,6 +3483,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420451756107094,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3313,7 +3502,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.7561400550002872,
+    "planning_s": 1.0889539509989845,
     "cost": 9.313284291588706,
     "steps": [
      "slide"
@@ -3323,6 +3512,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420451756107094,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3364,14 +3556,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 13.561242711002706,
+    "planning_s": 19.99022676799723,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.2315325909985404,
+    "planning_s": 2.3476105449990428,
     "cost": 9.693851831511918,
     "steps": [
      "slide",
@@ -3382,6 +3574,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009154745638251117,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3423,14 +3618,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 2.7058591269997123,
+    "planning_s": 4.022681366001052,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": false,
-    "planning_s": 2.6406912689999444,
+    "planning_s": 4.018232443002489,
     "cost": null,
     "steps": [],
     "success": false
@@ -3462,14 +3657,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 0.7519039679973503,
+    "planning_s": 0.7528526720016089,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": false,
-    "planning_s": 0.7546738220007683,
+    "planning_s": 0.7544152810005471,
     "cost": null,
     "steps": [],
     "success": false
@@ -3501,7 +3696,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.609226922999369,
+    "planning_s": 1.2160119809996104,
     "cost": 6.42047497545274,
     "steps": [
      "slide"
@@ -3511,6 +3706,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742020368007034,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3527,7 +3725,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.6096430789984879,
+    "planning_s": 1.2165296410021256,
     "cost": 6.42047497545274,
     "steps": [
      "slide"
@@ -3537,6 +3735,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742020368007034,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3578,7 +3779,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 4.3159277089980606,
+    "planning_s": 8.919950939998671,
     "cost": 18.907815175602256,
     "steps": [
      "slide",
@@ -3590,6 +3791,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.010559825237697988,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3606,7 +3810,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 3.3409447340018232,
+    "planning_s": 7.207831581999926,
     "cost": 17.957816414747516,
     "steps": [
      "slide",
@@ -3620,6 +3824,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009107868471415892,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3661,7 +3868,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.5748284990004322,
+    "planning_s": 1.0562510090021533,
     "cost": 4.17870610003096,
     "steps": [
      "slide"
@@ -3671,6 +3878,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742038829886755,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3687,7 +3897,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.5462664389997371,
+    "planning_s": 1.0557922139996663,
     "cost": 4.17870610003096,
     "steps": [
      "slide"
@@ -3697,6 +3907,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742038829886755,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3738,14 +3951,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 26.142460538001615,
+    "planning_s": 28.565271504998236,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 7.409578430000693,
+    "planning_s": 6.149992186001327,
     "cost": 13.975221295682916,
     "steps": [
      "slide",
@@ -3758,6 +3971,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009148956756136199,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3799,14 +4015,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 15.488369274000434,
+    "planning_s": 19.10992448000252,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 2.3718507740013592,
+    "planning_s": 2.6988018179981736,
     "cost": 8.682216527262177,
     "steps": [
      "pivot",
@@ -3819,6 +4035,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009109445611000912,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3860,7 +4079,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 2.9388688060025743,
+    "planning_s": 3.4699796899985813,
     "cost": 10.963109593061171,
     "steps": [
      "pivot",
@@ -3872,6 +4091,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.011592685544929402,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3888,7 +4110,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 2.941972127002373,
+    "planning_s": 3.4387977339974896,
     "cost": 10.963109593061171,
     "steps": [
      "pivot",
@@ -3900,6 +4122,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009142797567401686,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3941,7 +4166,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.5782425399993372,
+    "planning_s": 1.1412057929992443,
     "cost": 7.495769378759656,
     "steps": [
      "slide"
@@ -3951,6 +4176,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420408103753882,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -3967,7 +4195,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.5781713719989057,
+    "planning_s": 1.1385156100004679,
     "cost": 7.495769378759656,
     "steps": [
      "slide"
@@ -3977,6 +4205,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420408103753882,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4018,7 +4249,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 8.864261362999969,
+    "planning_s": 18.783307289999357,
     "cost": 20.06418282554373,
     "steps": [
      "pivot",
@@ -4031,6 +4262,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.013048023570598524,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4047,7 +4281,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.4598251740026171,
+    "planning_s": 3.144966170999396,
     "cost": 13.371252504751032,
     "steps": [
      "pivot",
@@ -4059,6 +4293,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009119028533055679,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4100,14 +4337,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 5.882181118999142,
+    "planning_s": 3.870589515001484,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": false,
-    "planning_s": 5.867307204000099,
+    "planning_s": 3.8622170490016288,
     "cost": null,
     "steps": [],
     "success": false
@@ -4139,7 +4376,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.4759959049988538,
+    "planning_s": 0.677745157998288,
     "cost": 7.504982337845676,
     "steps": [
      "slide"
@@ -4149,6 +4386,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420005756965815,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4165,7 +4405,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.47355504900042433,
+    "planning_s": 0.6748176639994199,
     "cost": 7.504982337845676,
     "steps": [
      "slide"
@@ -4175,6 +4415,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420005756965815,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4216,14 +4459,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 18.28266093899947,
+    "planning_s": 28.695115452999744,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.5877110180008458,
+    "planning_s": 2.180967889002204,
     "cost": 5.815401291194281,
     "steps": [
      "slide",
@@ -4234,6 +4477,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009147268332137361,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4275,14 +4521,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 12.524050646999967,
+    "planning_s": 20.218670189999102,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.1625850210002682,
+    "planning_s": 1.6484582999983104,
     "cost": 12.783794002846676,
     "steps": [
      "slide",
@@ -4293,6 +4539,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009133307456834563,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4334,7 +4583,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 8.878602061002312,
+    "planning_s": 9.883235418001277,
     "cost": 12.422268878609268,
     "steps": [
      "slide",
@@ -4346,6 +4595,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.013162248341051756,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4362,7 +4614,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 9.021669219000614,
+    "planning_s": 10.010746003998065,
     "cost": 12.422268878609268,
     "steps": [
      "slide",
@@ -4374,6 +4626,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009144592543673034,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4415,7 +4670,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 1.1373732069987454,
+    "planning_s": 2.4916615580004873,
     "cost": 6.333789231964344,
     "steps": [
      "pivot",
@@ -4427,6 +4682,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.010327938885630637,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4443,7 +4701,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.1400471790002484,
+    "planning_s": 2.4850070740030787,
     "cost": 6.333789231964344,
     "steps": [
      "pivot",
@@ -4455,6 +4713,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009142785944728563,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4496,14 +4757,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 18.646498989000975,
+    "planning_s": 22.328531913000916,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 5.014187200002198,
+    "planning_s": 6.772926862999157,
     "cost": 16.93946412745122,
     "steps": [
      "slide",
@@ -4517,6 +4778,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009102455672980748,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4558,14 +4822,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 14.699532720998832,
+    "planning_s": 22.875564932000998,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.6240246160014067,
+    "planning_s": 2.266377410000132,
     "cost": 7.518920107726407,
     "steps": [
      "slide",
@@ -4576,6 +4840,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009145025732117633,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4617,7 +4884,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.7597850579986698,
+    "planning_s": 1.2697757429996273,
     "cost": 8.790387681159057,
     "steps": [
      "pivot",
@@ -4628,6 +4895,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017200065905427542,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4644,7 +4914,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.7941156030028651,
+    "planning_s": 1.1746713029970124,
     "cost": 8.790387681159057,
     "steps": [
      "pivot",
@@ -4655,6 +4925,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009141606572192453,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4696,7 +4969,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 1.358643638999638,
+    "planning_s": 2.2248732700027176,
     "cost": 17.626260641581176,
     "steps": [
      "slide",
@@ -4708,6 +4981,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.015645128724930422,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4724,7 +5000,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.3365299639990553,
+    "planning_s": 2.1055776510002033,
     "cost": 17.626260641581176,
     "steps": [
      "slide",
@@ -4736,6 +5012,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009134453434251745,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4777,7 +5056,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.9203654310003913,
+    "planning_s": 1.3608452850021422,
     "cost": 8.554853929656288,
     "steps": [
      "slide"
@@ -4787,6 +5066,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420153765616328,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4803,7 +5085,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.9208985730001586,
+    "planning_s": 1.3272617560032813,
     "cost": 8.554853929656288,
     "steps": [
      "slide"
@@ -4813,6 +5095,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420153765616328,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4854,7 +5139,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.9463059110021277,
+    "planning_s": 1.2803662620026444,
     "cost": 7.86533253159945,
     "steps": [
      "slide"
@@ -4864,6 +5149,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742044435081624,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4880,7 +5168,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.6795593490023748,
+    "planning_s": 1.2826246910008194,
     "cost": 7.86533253159945,
     "steps": [
      "slide"
@@ -4890,6 +5178,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742044435081624,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4931,14 +5222,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 16.9133942389999,
+    "planning_s": 26.00334707899674,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 6.5149752409997745,
+    "planning_s": 7.843085233998863,
     "cost": 17.922365912471708,
     "steps": [
      "slide",
@@ -4952,6 +5243,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009108424048210393,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -4993,14 +5287,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 15.224485741000535,
+    "planning_s": 24.265764911000588,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.099376784000924,
+    "planning_s": 1.5966262879992428,
     "cost": 6.363539673460581,
     "steps": [
      "slide",
@@ -5011,6 +5305,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009132291153369332,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5052,14 +5349,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 13.847353989000112,
+    "planning_s": 21.61232829399887,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.1661873690027278,
+    "planning_s": 1.671491771001456,
     "cost": 8.449249067514524,
     "steps": [
      "slide",
@@ -5070,6 +5367,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009144158242291775,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5111,14 +5411,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 0.11107854600049905,
+    "planning_s": 0.1118180730009044,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": false,
-    "planning_s": 0.11141959800079348,
+    "planning_s": 0.11102693200155045,
     "cost": null,
     "steps": [],
     "success": false
@@ -5150,7 +5450,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 2.0667174059999525,
+    "planning_s": 2.367269367001427,
     "cost": 12.705623623023891,
     "steps": [
      "slide",
@@ -5162,6 +5462,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.013131596772753364,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5178,7 +5481,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 2.0689045669969346,
+    "planning_s": 3.1310805399989476,
     "cost": 12.705623623023891,
     "steps": [
      "slide",
@@ -5190,6 +5493,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009142036595283488,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5231,7 +5537,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.7526914500012936,
+    "planning_s": 1.2097413960000267,
     "cost": 4.105025683601329,
     "steps": [
      "pivot",
@@ -5242,6 +5548,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.013804313392055253,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5258,7 +5567,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.7352897320015472,
+    "planning_s": 1.1359494879980048,
     "cost": 4.105025683601329,
     "steps": [
      "pivot",
@@ -5269,6 +5578,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009141498414646326,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5310,7 +5622,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.5905984500022896,
+    "planning_s": 1.1468134589995316,
     "cost": 6.8827338044514645,
     "steps": [
      "slide"
@@ -5320,6 +5632,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420203694313293,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5336,7 +5651,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.5920886299973063,
+    "planning_s": 1.1493658760009566,
     "cost": 6.8827338044514645,
     "steps": [
      "slide"
@@ -5346,6 +5661,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420203694313293,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5387,14 +5705,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 10.934263559996907,
+    "planning_s": 23.30773280699941,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 0.8820741640010965,
+    "planning_s": 1.8878186970032402,
     "cost": 9.661806386288683,
     "steps": [
      "pivot",
@@ -5405,6 +5723,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009143061780288654,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5446,7 +5767,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.5678172970001469,
+    "planning_s": 0.7713534149988845,
     "cost": 4.410383912111931,
     "steps": [
      "slide"
@@ -5456,6 +5777,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742026236226234,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5472,7 +5796,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.567482098002074,
+    "planning_s": 0.8921081269982096,
     "cost": 4.410383912111931,
     "steps": [
      "slide"
@@ -5482,6 +5806,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742026236226234,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5523,7 +5850,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 1.0978266420024738,
+    "planning_s": 1.8064128029982385,
     "cost": 10.44783966736742,
     "steps": [
      "pivot",
@@ -5535,6 +5862,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009939047068407288,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5551,7 +5881,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.0909601409985044,
+    "planning_s": 1.77163668600042,
     "cost": 10.44783966736742,
     "steps": [
      "pivot",
@@ -5563,6 +5893,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009125675623890522,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5604,7 +5937,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 2.9520999119995395,
+    "planning_s": 4.006161598001199,
     "cost": 8.775303871993732,
     "steps": [
      "pivot",
@@ -5616,6 +5949,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009276310586303098,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5632,7 +5968,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 2.0332323750008072,
+    "planning_s": 2.6378032569991774,
     "cost": 8.544026114364561,
     "steps": [
      "pivot",
@@ -5643,6 +5979,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009144734952294863,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5684,7 +6023,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.8502328799986572,
+    "planning_s": 1.8718606149996049,
     "cost": 10.674885282894525,
     "steps": [
      "pivot",
@@ -5695,6 +6034,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017309910239889034,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5711,7 +6053,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.8301634829986142,
+    "planning_s": 1.728499599998031,
     "cost": 10.674885282894525,
     "steps": [
      "pivot",
@@ -5722,6 +6064,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009142196618788422,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5763,7 +6108,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.7529107119989931,
+    "planning_s": 1.2577990319987293,
     "cost": 9.315935308527974,
     "steps": [
      "slide"
@@ -5773,6 +6118,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017419355604487388,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5789,7 +6137,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.7468411599984393,
+    "planning_s": 0.9506111369992141,
     "cost": 9.315935308527974,
     "steps": [
      "slide"
@@ -5799,6 +6147,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017419355604487388,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5840,7 +6191,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 1.8194096660008654,
+    "planning_s": 2.4442829940016964,
     "cost": 7.834298182200698,
     "steps": [
      "slide",
@@ -5851,6 +6202,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.013241801458827345,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5867,7 +6221,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.8129383250015962,
+    "planning_s": 2.484640227001364,
     "cost": 7.834298182200698,
     "steps": [
      "slide",
@@ -5878,6 +6232,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009141929990116758,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5919,14 +6276,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 20.255209697999817,
+    "planning_s": 28.000998696999886,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 2.2959312810016854,
+    "planning_s": 2.695566313002928,
     "cost": 15.956061542800708,
     "steps": [
      "pivot",
@@ -5939,6 +6296,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009105659810314519,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -5980,7 +6340,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 10.01069369200195,
+    "planning_s": 16.949045451998245,
     "cost": 22.02372347555332,
     "steps": [
      "slide",
@@ -5993,6 +6353,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009346356043985106,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6009,7 +6372,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.1858239600005618,
+    "planning_s": 1.9369074499991257,
     "cost": 10.274925218158543,
     "steps": [
      "pivot",
@@ -6021,6 +6384,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00912301636000046,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6062,7 +6428,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 1.7279118500009645,
+    "planning_s": 2.8361649379985465,
     "cost": 7.288184000144721,
     "steps": [
      "slide",
@@ -6074,6 +6440,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.010312699448939292,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6090,7 +6459,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.6559922380001808,
+    "planning_s": 2.7521669960005966,
     "cost": 7.288184000144721,
     "steps": [
      "slide",
@@ -6102,6 +6471,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00910500903661721,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6143,14 +6515,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 3.529548489001172,
+    "planning_s": 4.880472621000081,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 2.7480769110006804,
+    "planning_s": 4.678093081998668,
     "cost": 14.348626994881364,
     "steps": [
      "slide",
@@ -6163,6 +6535,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009106365467020344,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6204,14 +6579,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 7.707396302001143,
+    "planning_s": 12.00843543800147,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 0.8367844340027659,
+    "planning_s": 1.3053866980008024,
     "cost": 5.56744223023712,
     "steps": [
      "pivot",
@@ -6222,6 +6597,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009145023233107728,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6263,7 +6641,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.9195098880009027,
+    "planning_s": 1.9410421020002104,
     "cost": 4.43459765297792,
     "steps": [
      "pivot",
@@ -6274,6 +6652,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.013201229809948803,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6290,7 +6671,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.2395598319999408,
+    "planning_s": 1.938898465999955,
     "cost": 4.43459765297792,
     "steps": [
      "pivot",
@@ -6301,6 +6682,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00914239562673189,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6342,7 +6726,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 1.158529249001731,
+    "planning_s": 1.42706095000176,
     "cost": 8.824428072171669,
     "steps": [
      "pivot",
@@ -6353,6 +6737,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.015846916665006396,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6369,7 +6756,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.150690749000205,
+    "planning_s": 1.3366487599996617,
     "cost": 8.824428072171669,
     "steps": [
      "pivot",
@@ -6380,6 +6767,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00914237319029899,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6421,7 +6811,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.5951353939999535,
+    "planning_s": 1.1118227869992552,
     "cost": 5.01764569027847,
     "steps": [
      "slide"
@@ -6431,6 +6821,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017419942585903896,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6447,7 +6840,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.6321932880018721,
+    "planning_s": 1.11606759300048,
     "cost": 5.01764569027847,
     "steps": [
      "slide"
@@ -6457,6 +6850,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017419942585903896,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6498,14 +6894,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 14.390903122002783,
+    "planning_s": 29.889566068999557,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 2.761251309999352,
+    "planning_s": 4.961655848001101,
     "cost": 17.78075081816024,
     "steps": [
      "slide",
@@ -6519,6 +6915,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009132273762155824,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6560,14 +6959,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 14.463852902001236,
+    "planning_s": 27.987846261999948,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 3.389805154998612,
+    "planning_s": 5.522828065000795,
     "cost": 17.049819832362633,
     "steps": [
      "slide",
@@ -6582,6 +6981,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009085334952251377,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6623,14 +7025,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 15.323357429002499,
+    "planning_s": 19.237476190999587,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.3843818309978815,
+    "planning_s": 2.030246944999817,
     "cost": 10.365080794048177,
     "steps": [
      "pivot",
@@ -6642,6 +7044,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009143895085805083,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6683,14 +7088,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 14.606603776999691,
+    "planning_s": 21.715633646999777,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.5424684039971908,
+    "planning_s": 2.2691930910004885,
     "cost": 11.877920862821906,
     "steps": [
      "slide",
@@ -6702,6 +7107,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00914106325168038,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6743,7 +7151,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 2.1346291360023315,
+    "planning_s": 3.150471811997704,
     "cost": 10.614745677068699,
     "steps": [
      "slide"
@@ -6753,6 +7161,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.01742045552449507,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6769,7 +7180,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 1.8619628320011543,
+    "planning_s": 2.876613955999346,
     "cost": 9.818620553047943,
     "steps": [
      "pivot",
@@ -6781,6 +7192,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.00914161774437488,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6822,14 +7236,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 9.733890390998567,
+    "planning_s": 17.798901862999628,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 2.538351507999323,
+    "planning_s": 4.226069672000449,
     "cost": 9.221049517701786,
     "steps": [
      "slide",
@@ -6841,6 +7255,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009141722273267462,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6882,14 +7299,14 @@
    },
    "rigid": {
     "found": false,
-    "planning_s": 11.840410044998862,
+    "planning_s": 18.36660977700012,
     "cost": null,
     "steps": [],
     "success": false
    },
    "free": {
     "found": true,
-    "planning_s": 1.382401363000099,
+    "planning_s": 2.246852435000619,
     "cost": 8.760212279110489,
     "steps": [
      "pivot",
@@ -6901,6 +7318,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009143189672509775,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6942,7 +7362,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 3.8520455459984078,
+    "planning_s": 7.3638370239968935,
     "cost": 14.064734360808778,
     "steps": [
      "slide",
@@ -6956,6 +7376,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.013130573809548539,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -6972,7 +7395,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 3.8087523650028743,
+    "planning_s": 6.204193868998118,
     "cost": 14.064734360808778,
     "steps": [
      "slide",
@@ -6986,6 +7409,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.009112495066156419,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -7027,7 +7453,7 @@
    },
    "rigid": {
     "found": true,
-    "planning_s": 0.8979527139999846,
+    "planning_s": 1.2603919549983402,
     "cost": 8.210881115167005,
     "steps": [
      "slide"
@@ -7037,6 +7463,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420457801443707,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,
@@ -7053,7 +7482,7 @@
    },
    "free": {
     "found": true,
-    "planning_s": 0.6643407000010484,
+    "planning_s": 1.2542963759988197,
     "cost": 8.210881115167005,
     "steps": [
      "slide"
@@ -7063,6 +7492,9 @@
     "at_goal": true,
     "palm_clear": true,
     "table_clear": true,
+    "arm_clear": true,
+    "arm_min": 0.017420457801443707,
+    "arm_link": null,
     "failed_segment": null,
     "cause": null,
     "failed_at": null,

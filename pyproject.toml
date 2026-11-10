@@ -34,6 +34,7 @@ sim  = [
     "pytransform3d",
     "modern_robotics",
     "trimesh",
+    "coal",          # collision checking of the arm (planning/collision.py)
     "pyyaml",
 ]
 genesis = [

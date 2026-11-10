@@ -332,16 +332,20 @@ def check_profile(log, qd_scale=0.8):
                 acc_ok=bool(np.all(acc_ratio <= 1)), acc_ratio=acc_ratio)
 
 
-def check_clearance(log, robot, T_w_obj, size, period=0.01, clearance=0.002):
+def check_clearance(log, robot, T_w_obj, size, period=0.01, clearance=0.002, arm=None, arm_every=2):
     """Palm of the hand against the box and the table over a run_plan log (the planner and the QP do not
     check collisions of the arm; this is the check after the fact). T_w_obj: box pose at the start.
     The box pose at each sample follows from the log: at rest between the steps, moving with {c} while held.
     The palm must stay `clearance` [m] away from the box and above the table (the samples are `period` s apart,
-    at most 3 mm of hand motion at the speeds used). Returns dict(box_ok, table_ok, hits): hits lists (t, segment name) of the samples with contact."""
+    at most 3 mm of hand motion at the speeds used). Returns dict(box_ok, table_ok, hits): hits lists (t, segment name) of the samples with contact.
+    arm: planning.collision.ArmCollision; if given, every `arm_every`-th sample also tests all arm links and the
+    hand against the box and the table (distance >= arm.margin) and the result has arm_ok, arm_hits
+    (t, segment, link) and arm_min (smallest distance)."""
     a = log.arrays()
     seg, theta, phi, t = a["segment"], a["theta"], a["phi"], a["t"]
     T_rest = [np.asarray(T_w_obj, float)] + [np.asarray(st["T_obj"], float) for st in log.steps]   # before step i, after it
     hits, table_ok = [], True
+    arm_hits, arm_min, count = [], np.inf, 0
     T_c_obj = {}
     for j, sg in enumerate(log.segments):
         idx = np.flatnonzero(seg == j)
@@ -360,4 +364,11 @@ def check_clearance(log, robot, T_w_obj, size, period=0.01, clearance=0.002):
             table_ok &= palm_lowest(T_E) > clearance
             if palm_hits_box(T_E, T_obj, size, clearance):
                 hits.append((float(t[k]), sg["name"]))
-    return dict(box_ok=not hits, table_ok=bool(table_ok), hits=hits)
+            if arm is not None and count % arm_every == 0:
+                ok, who, d = arm.ok(theta[k], T_obj, phi[k])
+                arm_min = min(arm_min, d)
+                if not ok:
+                    arm_hits.append((float(t[k]), sg["name"], who))
+            count += 1
+    return dict(box_ok=not hits, table_ok=bool(table_ok), hits=hits, arm_ok=not arm_hits, arm_hits=arm_hits,
+                arm_min=float(arm_min))

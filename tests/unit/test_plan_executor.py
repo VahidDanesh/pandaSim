@@ -150,3 +150,33 @@ def test_no_feasible_candidate_gives_empty_plan():
 
     plan = Sequencer(Never()).plan(BOX, T0, TG)
     assert not plan.found and plan.steps == []
+
+
+def test_arm_collision_sees_every_link(robot):
+    """ArmCollision (coal): a clear box, the box in the hand, and an arm link near the table."""
+    pytest.importorskip("coal")
+    from pandaSim.planning.collision import ArmCollision
+
+    ac = ArmCollision(robot, BOX.size)
+    q = robot.qr[:7]
+    T_far = pose(0.5, 0.0, 0.0, -math.pi / 2)
+    assert ac.ok(q, T_far)[0]
+    T_E = contact_pose(robot, q)
+    T_hit = T_far.copy()
+    T_hit[:3, 3] = T_E[:3, 3] + np.array([0.0, 0.0, 0.12])        # the box where the hand is
+    ok, who, d = ac.ok(q, T_hit)
+    assert not ok and d < 0
+    q_low = np.array([0.0, 1.7, 0.0, -0.5, 0.0, 2.0, 0.7854])      # the hand in the table
+    ok, who, d = ac.ok(q_low, pose(-0.6, 0.0, 0.0, -math.pi / 2))
+    assert not ok and d < 0
+
+
+def test_planned_runs_are_clear_of_the_box_with_the_arm(robot, plans):
+    pytest.importorskip("coal")
+    from pandaSim.planning.collision import ArmCollision
+
+    plan = plans[True]
+    backend = SimBackend(robot.qr[:7], dt=DT)
+    log, _ = run_plan(backend, robot, plan.steps, T0, free_rotation=True)
+    c = check_clearance(log, robot, T0, BOX.size, arm=ArmCollision(robot, BOX.size))
+    assert c["arm_ok"] and c["arm_min"] > 0.002

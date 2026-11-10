@@ -13,14 +13,20 @@ import numpy as np
 class Rollout:
     """`kin` of sequencer.Sequencer. check(step) -> (feasible, smallest distance to a joint limit [rad]).
 
-    size: box dimensions; if given, a step is also infeasible if the palm of the hand touches the box or the
-    table at any time of the rollout (primitive_executor.check_clearance)."""
+    size: box dimensions; if given, a step is also infeasible if the palm of the hand, any link of the arm or the
+    hand comes within `margin` of the box or the table at any time of the rollout
+    (primitive_executor.check_clearance, planning.collision.ArmCollision)."""
 
-    def __init__(self, robot, free_rotation=True, q_ready=None, dt=0.01, size=None, **run_kwargs):
+    def __init__(self, robot, free_rotation=True, q_ready=None, dt=0.01, size=None, margin=0.002, **run_kwargs):
         from pandaSim.control.primitive_executor import contact_pose
 
         self.robot, self.free_rotation, self.dt, self.run_kwargs = robot, free_rotation, dt, run_kwargs
         self.size = None if size is None else np.asarray(size, float)
+        self.arm = None
+        if size is not None:
+            from pandaSim.planning.collision import ArmCollision
+
+            self.arm = ArmCollision(robot, size, margin)
         self.q_ready = np.asarray(robot.qr if q_ready is None else q_ready, float)[:7]
         self.T_ready = contact_pose(robot, self.q_ready)
         self._cache = {}
@@ -43,8 +49,8 @@ class Rollout:
         if self.size is not None:
             from pandaSim.control.primitive_executor import check_clearance
 
-            c = check_clearance(log, self.robot, step.T_before, self.size, period=0.02)
-            if not (c["box_ok"] and c["table_ok"]):
+            c = check_clearance(log, self.robot, step.T_before, self.size, period=0.02, arm=self.arm)
+            if not (c["box_ok"] and c["table_ok"] and c["arm_ok"]):
                 return False, 0.0
         theta = log.arrays()["theta"]
         lb, ub = self.robot.qlim[0, :7], self.robot.qlim[1, :7]

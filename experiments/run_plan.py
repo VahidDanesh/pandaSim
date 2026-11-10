@@ -19,6 +19,7 @@ import yaml
 from pandaSim.control.backends import SimBackend
 from pandaSim.control.primitive_executor import check_clearance, check_profile, run_plan
 from pandaSim.planning import se3
+from pandaSim.planning.collision import ArmCollision
 from pandaSim.planning.feasibility import Rollout
 from pandaSim.planning.sequencer import Box, Sequencer, pose_error, snap_stable
 
@@ -91,7 +92,7 @@ def run_task(cfg, robot, name, planner=None):
     log, T_end = run_plan(backend, robot, plan.steps, T0, free_rotation=cfg["free_rotation"], **kw)
     ep, er = pose_error(T_end, Tg)
     prof, tol = check_profile(log), cfg["tolerance"]
-    clear = check_clearance(log, robot, T0, box.size)
+    clear = check_clearance(log, robot, T0, box.size, arm=ArmCollision(robot, box.size))
     res.update(log=log, T_end=T_end, err_pos=ep, err_rot=er, profile=prof, clearance=clear,
                wall_s=time.perf_counter() - t0)
     res["checks"].update({
@@ -101,6 +102,7 @@ def run_task(cfg, robot, name, planner=None):
         "object at the goal": ep < tol["position"] and er < math.radians(tol["rotation_deg"]),
         "arm back at ready": bool(np.abs(backend.theta() - kw["q_ready"]).max() < 1e-3),
         "palm clear of the box and the table": clear["box_ok"] and clear["table_ok"],
+        "arm and hand clear of the box and the table": clear["arm_ok"],
     })
     return res
 
