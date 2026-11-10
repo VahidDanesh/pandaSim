@@ -103,23 +103,36 @@ class LiveViewer:
         self.close()
 
 
+def grasp_intervals(t, q, events, T_w_obj, fk):
+    """When the object moves with the hand in a logged run: list of (k0, k1, T_c_obj, T_after).
+    For samples k0 <= k < k1 the object is at fk(q[k]) T_c_obj, afterwards it rests at T_after.
+    events: (name, time, ok) as in Log.events; T_w_obj: object pose at the start."""
+    out, k0, T_obj = [], None, np.asarray(T_w_obj, float)
+    for name, t_ev, ok in list(events) + [("end", np.inf, True)]:
+        k = int(np.searchsorted(t, t_ev))          # the arm stands still during gripper calls
+        if name == "grasp" and ok and k < len(t):
+            k0 = k
+        elif name in ("release", "end") and k0 is not None and k > k0:
+            T_c_obj = np.linalg.inv(fk(q[k0])) @ T_obj
+            T_obj = fk(q[k - 1]) @ T_c_obj
+            out.append((k0, k, T_c_obj, T_obj))
+            k0 = None
+    return out
+
+
 def replay(path, base, objects=(), speed=1.0, rate=30.0):
-    """Play a saved run (Log.save) back in Swift; the first object follows {c} between grasp and release."""
+    """Play a saved run (Log.save) back in Swift; the first object follows {c} between each grasp and release."""
     from pandaSim.control.primitive_executor import contact_pose
 
     d = np.load(path, allow_pickle=True)
-    t, theta, phi = d["t"], d["theta"], d["phi"]
-    events = {name: time_ for name, time_, ok in d["events"] if ok}
-    q = np.c_[theta, phi]
+    t, q = d["t"], np.c_[d["theta"], d["phi"]]
     env, robot, obj = _scene(base, objects, q[0])
-    T_c_obj = None
+    fk = lambda q: contact_pose(robot, q)
+    held = grasp_intervals(t, q, d["events"], objects[0]["pose"], fk) if obj is not None else []
     for k in np.searchsorted(t, np.arange(t[0], t[-1], speed / rate)):
         robot.q = q[k]
-        T_wc = contact_pose(robot, q[k])
-        grasped = "grasp" in events and t[k] >= events["grasp"] and t[k] < events.get("release", np.inf)
-        if obj is not None and grasped:
-            if T_c_obj is None:
-                T_c_obj = np.linalg.inv(T_wc) @ np.asarray(objects[0]["pose"])
-            obj.T = T_wc @ T_c_obj
+        for k0, k1, T_c_obj, T_after in held:
+            if k >= k0:
+                obj.T = fk(q[k]) @ T_c_obj if k < k1 else T_after
         env.step(1.0 / rate)
     return env
