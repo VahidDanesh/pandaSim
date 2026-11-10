@@ -34,7 +34,7 @@ def _make_shape(spec):
     raise ValueError(f"unknown object type {spec['type']!r}")
 
 
-def _scene(base, objects, q0):
+def _scene(base, objects, q0, **launch):
     import spatialmath as sm
     import swift
 
@@ -44,7 +44,7 @@ def _scene(base, objects, q0):
     robot.base = sm.SE3(np.asarray(base), check=False)
     robot.q = q0
     env = swift.Swift()
-    env.launch(realtime=True)
+    env.launch(**{"realtime": True, **launch})
     env.add(robot)
     shapes = [_make_shape(o) for o in objects]
     for s in shapes:
@@ -120,13 +120,14 @@ def grasp_intervals(t, q, events, T_w_obj, fk):
     return out
 
 
-def replay(path, base, objects=(), speed=1.0, rate=30.0):
-    """Play a saved run (Log.save) back in Swift; the first object follows {c} between each grasp and release."""
+def replay(path, base, objects=(), speed=1.0, rate=30.0, **launch):
+    """Play a saved run (Log.save) back in Swift; the first object follows {c} between each grasp and release.
+    launch: options of swift.Swift.launch, e.g. notebook=True."""
     from pandaSim.control.primitive_executor import contact_pose
 
     d = np.load(path, allow_pickle=True)
     t, q = d["t"], np.c_[d["theta"], d["phi"]]
-    env, robot, obj = _scene(base, objects, q[0])
+    env, robot, obj = _scene(base, objects, q[0], **launch)
     fk = lambda q: contact_pose(robot, q)
     held = grasp_intervals(t, q, d["events"], objects[0]["pose"], fk) if obj is not None else []
     for k in np.searchsorted(t, np.arange(t[0], t[-1], speed / rate)):
