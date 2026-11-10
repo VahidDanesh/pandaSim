@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import numpy as np
 
+OPEN_WIDTH = 0.08        # fully open Franka hand (m)
+
 
 class SimBackend:
     """Kinematic stand-in for the robot: theta += theta_dot * dt per tick, time = ticks * dt."""
@@ -46,7 +48,7 @@ class SimBackend:
         self.gripper_events.append(("grasp", self._t, width, force))
         return True
 
-    def open(self, width: float = 0.08, speed: float = 0.05) -> bool:
+    def open(self, width: float = OPEN_WIDTH, speed: float = 0.05) -> bool:
         self.gripper_events.append(("open", self._t, width))
         return True
 
@@ -101,5 +103,5 @@ class PandaBackend:
     def grasp(self, width: float, force: float, speed: float = 0.05, epsilon: float = 0.01) -> bool:
         return self.gripper.grasp(width, speed, force, epsilon, epsilon)
 
-    def open(self, width: float = 0.08, speed: float = 0.05) -> bool:
+    def open(self, width: float = OPEN_WIDTH, speed: float = 0.05) -> bool:
         return self.gripper.move(width, speed)

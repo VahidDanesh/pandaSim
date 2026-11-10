@@ -8,7 +8,7 @@ import spatialmath as sm
 from pandaSim.control.backends import SimBackend
 from pandaSim.control.contact_qp import FER_QD_MAX
 from pandaSim.control.primitive_executor import JointMove, Log, check_profile, contact_pose, run_plan, run_segment
-from pandaSim.control.viewer import grasp_intervals
+from pandaSim.control.viewer import finger_widths, grasp_intervals
 from pandaSim.planning import se3
 from pandaSim.planning.feasibility import Rollout
 from pandaSim.planning.primitives import pivot_twist, screw_twist
@@ -90,6 +90,12 @@ def test_planned_slide_and_pivot_run(robot, plans, free):
     # replay bookkeeping gives the same final object pose
     held = grasp_intervals(a["t"], np.c_[a["theta"], a["phi"]], log.events, T0, lambda q: contact_pose(robot, q))
     assert len(held) == 2 and np.allclose(held[-1][3], T_end, atol=1e-4)
+    # the viewer shows the fingers at the object width between grasp and release, open otherwise
+    w = finger_widths(a["t"], log.events)
+    for (k0, k1, _, _), st in zip(held, plan.steps):
+        assert np.allclose(w[k0:k1], st.plan.width) and st.plan.width < 0.08
+    assert w[0] == 0.08 and w[-1] == 0.08
+    assert np.all(finger_widths(a["t"], [e[:3] for e in log.events]) == 0.08)   # logs without widths
 
 
 def test_unreachable_step_fails_safely_and_is_cached(robot):

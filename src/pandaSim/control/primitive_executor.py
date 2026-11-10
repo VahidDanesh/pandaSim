@@ -14,6 +14,7 @@ import time
 import numpy as np
 from pytransform3d import transformations as pt
 
+from pandaSim.control.backends import OPEN_WIDTH
 from pandaSim.control.contact_qp import EE, FER_QD_MAX, ContactQP
 from pandaSim.planning.primitives import pivot_twist, pose_error_twist, screw_twist, time_scaling
 
@@ -60,7 +61,7 @@ class Log:
     def __init__(self):
         self.rows = {k: [] for k in self.FIELDS}
         self.segments = []      # dicts: name, ok, cause, t0, t_end, Tf (run_plan adds step)
-        self.events = []        # (name, t, ok)
+        self.events = []        # (name, t, ok, width): gripper calls and the finger opening they command
         self.steps = []         # run_plan: dicts kind, ok, T_obj (object pose after the step)
 
     def record(self, **row):
@@ -148,7 +149,10 @@ def run_pivot(backend, robot, T_wd, pivot, free_rotation=True, qp=None, approach
     def gripper(name, call, *args):
         backend.command(np.zeros(7))
         ok = call(*args)
-        log.events.append((name, backend.time(), bool(ok)))
+        width = args[0] if args else OPEN_WIDTH        # finger opening after the call
+        log.events.append((name, backend.time(), bool(ok), float(width)))
+        if ok and viewer is not None:
+            viewer.fingers(width)
         return ok
 
     backend.start()
@@ -249,7 +253,10 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
     def gripper(name, call, *args):
         backend.command(np.zeros(7))
         ok = call(*args)
-        log.events.append((name, backend.time(), bool(ok)))
+        width = args[0] if args else OPEN_WIDTH        # finger opening after the call
+        log.events.append((name, backend.time(), bool(ok), float(width)))
+        if ok and viewer is not None:
+            viewer.fingers(width)
         return ok
 
     def up(T):
