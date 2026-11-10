@@ -38,8 +38,9 @@ on the simulated arm and check the result. Tasks and parameters are in
 the model of the planner's feasibility check (default: the same as execution). The logs go to
 `experiments/runs/`. `experiments/plan_box.ipynb` does the same step by step with plots.
 The viewer runs on the machine that runs the script (ports 52000 and 53000).
-In free-rotation mode the bearing angle is kept within |phi| <= `phi_max` (2.3 rad, `execution.qp` in the
-config), so the arm does not turn the hand into the box.
+In a pivot the hand may turn about the finger axis only as far as its palm stays clear of the box: the
+limits of the bearing angle phi follow from the grasp geometry (`planning/clearance.py`) and are enforced by
+the QP.
 
 ## Project Structure
 

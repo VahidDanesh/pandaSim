@@ -7,9 +7,10 @@ import spatialmath as sm
 
 from pandaSim.control.backends import SimBackend
 from pandaSim.control.contact_qp import FER_QD_MAX
-from pandaSim.control.primitive_executor import JointMove, Log, check_profile, contact_pose, run_plan, run_segment
+from pandaSim.control.primitive_executor import (JointMove, Log, check_clearance, check_profile, contact_pose, run_plan,
+                                                  run_segment)
 from pandaSim.control.viewer import finger_widths, grasp_intervals
-from pandaSim.planning import se3
+from pandaSim.planning import clearance, se3
 from pandaSim.planning.feasibility import Rollout
 from pandaSim.planning.primitives import pivot_twist, screw_twist
 from pandaSim.planning.sequencer import Box, Sequencer, Step, pose_error, snap_stable
@@ -86,6 +87,10 @@ def test_planned_slide_and_pivot_run(robot, plans, free):
     assert np.all(a["phi"][slide] == 0.0)                                # slides use the rigid model
     prof = check_profile(log)
     assert prof["vel_ok"] and np.all(np.abs(a["qd"][:, :7]) <= 0.8 * FER_QD_MAX + 1e-9)
+    lo, hi = plan.steps[1].plan.phi_lim                                  # the palm stays clear of the box
+    assert lo + 0.05 - 1e-6 <= a["phi"][a["segment"] >= 5].min() and a["phi"][a["segment"] >= 5].max() <= hi - 0.05 + 1e-6
+    clear = check_clearance(log, robot, T0, BOX.size)
+    assert clear["box_ok"] and clear["table_ok"], clear["hits"][:3]
 
     # replay bookkeeping gives the same final object pose
     held = grasp_intervals(a["t"], np.c_[a["theta"], a["phi"]], log.events, T0, lambda q: contact_pose(robot, q))
@@ -96,6 +101,29 @@ def test_planned_slide_and_pivot_run(robot, plans, free):
         assert np.allclose(w[k0:k1], st.plan.width) and st.plan.width < 0.08
     assert w[0] == 0.08 and w[-1] == 0.08
     assert np.all(finger_widths(a["t"], [e[:3] for e in log.events]) == 0.08)   # logs without widths
+
+
+def test_phi_limits_keep_the_palm_clear_of_the_box(robot):
+    # pivot grasp: 0.02 m below the top face and 0.02 m inside the far side face
+    seq = Sequencer(y_ref=np.array([0.0, 1.0, 0.0]))
+    T = pose(0.5, 0.2, math.pi / 2, -math.pi / 2)
+    (_, pa), (_, pb) = seq._box_pivots(BOX, T)
+    T_c_obj = se3.inv(pa.T_grasp) @ T
+    lo, hi = clearance.phi_limits(T_c_obj, BOX.size, clearance=0.0)
+    # palm corner (0.0316, 0.0374) from the fingertips: over the top face at 25.7 deg, into the side face at 115.7 deg
+    assert sorted(np.degrees([abs(lo), abs(hi)])) == pytest.approx([25.7, 115.7], abs=0.5)
+    assert pa.phi_lim == clearance.phi_limits(T_c_obj, BOX.size) and pb.phi_lim == pytest.approx((-pa.phi_lim[1], -pa.phi_lim[0]))
+    assert lo < pa.phi_lim[0] < 0 < pa.phi_lim[1] < hi                   # 5 mm clearance narrows the interval
+    for phi, hit in ((0.0, False), (lo + 0.02, False), (lo - 0.02, True), (hi - 0.02, False), (hi + 0.02, True)):
+        T_E = pa.T_grasp @ se3.rp(se3.exp3(np.array([0.0, -phi, 0.0])), np.zeros(3))
+        assert clearance.palm_hits_box(T_E, T, BOX.size) == hit
+
+    # without the limits the QP turns the palm into the box; with them the same pivot is clean
+    step = Step("pivot", T, pa.T_goal, pa)
+    for qp, ok in ((None, True), ({"phi_lim": None}, False)):
+        log, _ = run_plan(SimBackend(robot.qr[:7], dt=DT), robot, [step], T, qp=qp)
+        assert log.ok
+        assert check_clearance(log, robot, T, BOX.size)["box_ok"] == ok
 
 
 def test_unreachable_step_fails_safely_and_is_cached(robot):

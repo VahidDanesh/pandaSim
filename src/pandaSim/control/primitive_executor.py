@@ -16,6 +16,7 @@ from pytransform3d import transformations as pt
 
 from pandaSim.control.backends import OPEN_WIDTH
 from pandaSim.control.contact_qp import EE, FER_QD_MAX, ContactQP
+from pandaSim.planning.clearance import palm_hits_box, palm_lowest
 from pandaSim.planning.primitives import pivot_twist, pose_error_twist, screw_twist, time_scaling
 
 PEAK_SDOT = {"q": 1.875, "c": 1.5, "l": 1.0}   # max of s_dot * Tf per time scaling
@@ -216,7 +217,8 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
     Each step starts and ends at the ready configuration q_ready (default robot.qr):
         pre (above the grasp) -> approach -> close -> pivot | slide -> open -> retreat (straight up) -> ready
     Pivot: approach with the free-rotation model (phi_hat starts at 0 at every grasp), then the pivot screw
-    with free_rotation as given, feed-forward only (as run_pivot). Slide: rigid model throughout, the hand
+    with free_rotation as given, feed-forward only (as run_pivot). phi stays within plan.phi_lim, the interval
+    in which the palm is clear of the object (qp["phi_lim"] replaces it; None: no limits). Slide: rigid model throughout, the hand
     stays as planned; each planar screw is tracked with pose feedback. Retreat and ready use the rigid model.
 
     qp: ContactQP kwargs (slack only applies to pivots); approach: approach_reference kwargs plus tol, used for
@@ -274,7 +276,8 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
         for step, st in enumerate(steps):
             pl, is_pivot = st.plan, st.kind == "pivot"
             log.steps.append(dict(kind=st.kind, ok=False, T_obj=T_w_obj))
-            ctrl = ContactQP(robot, free_rotation=True, **qp_hard) if is_pivot else rigid
+            lim = {"phi_lim": getattr(pl, "phi_lim", None)}        # palm clear of the object; qp can override it
+            ctrl = ContactQP(robot, free_rotation=True, **{**lim, **qp_hard}) if is_pivot else rigid
             phi = 0.0
             for name, T_d in (("pre", up(pl.T_grasp)), ("approach", pl.T_grasp)):
                 ok, phi = move(ctrl, T_d, name, phi)
@@ -284,7 +287,7 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
                 return log, T_w_obj
             # the object moves with the controlled frame: {c} (free) or {E} (rigid)
             if is_pivot:
-                ctrl = ContactQP(robot, free_rotation=free_rotation, **qp)
+                ctrl = ContactQP(robot, free_rotation=free_rotation, **{**lim, **qp})
             q_now = lambda: np.r_[backend.theta(), phi] if ctrl.n == 8 else backend.theta()
             T_c_obj = np.linalg.inv(fk(q_now())) @ T_w_obj
             if viewer is not None:
@@ -325,3 +328,33 @@ def check_profile(log, qd_scale=0.8):
     acc_ratio = (qdd.max(axis=0) if len(qdd) else np.zeros(7)) / FER_QDD_MAX
     return dict(vel_ok=bool(np.all(vel_ratio <= 1 + 1e-9)), vel_ratio=vel_ratio,
                 acc_ok=bool(np.all(acc_ratio <= 1)), acc_ratio=acc_ratio)
+
+
+def check_clearance(log, robot, T_w_obj, size, period=0.02):
+    """Palm of the hand against the box and the table over a run_plan log (the planner and the QP do not
+    check collisions of the arm; this is the check after the fact). T_w_obj: box pose at the start.
+    The box pose at each sample follows from the log: at rest between the steps, moving with {c} while held.
+    Returns dict(box_ok, table_ok, hits): hits lists (t, segment name) of the samples with contact."""
+    a = log.arrays()
+    seg, theta, phi, t = a["segment"], a["theta"], a["phi"], a["t"]
+    T_rest = [np.asarray(T_w_obj, float)] + [np.asarray(st["T_obj"], float) for st in log.steps]   # before step i, after it
+    hits, table_ok = [], True
+    T_c_obj = {}
+    for j, sg in enumerate(log.segments):
+        idx = np.flatnonzero(seg == j)
+        if not len(idx):
+            continue
+        i, held = sg.get("step", -1), sg["name"] in ("pivot", "slide")
+        if held and i not in T_c_obj:
+            T_c_obj[i] = np.linalg.inv(contact_pose(robot, np.r_[theta[idx[0]], phi[idx[0]]])) @ T_rest[i]
+        stride = max(1, int(round(period / max(np.median(np.diff(t[idx])) if len(idx) > 1 else period, 1e-9))))
+        for k in np.r_[idx[::stride], idx[-1]]:
+            if held:
+                T_obj = contact_pose(robot, np.r_[theta[k], phi[k]]) @ T_c_obj[i]
+            else:
+                T_obj = T_rest[max(i, 0) + (sg["name"] in ("retreat", "ready") and i >= 0)]
+            T_E = contact_pose(robot, theta[k])
+            table_ok &= palm_lowest(T_E) > 0.0
+            if palm_hits_box(T_E, T_obj, size):
+                hits.append((float(t[k]), sg["name"]))
+    return dict(box_ok=not hits, table_ok=bool(table_ok), hits=hits)

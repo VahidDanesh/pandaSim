@@ -21,6 +21,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from pandaSim.planning import se3
+from pandaSim.planning.clearance import phi_limits
 
 GRASP_INSET = 0.02     # m, pivot grasp: distance from the top face and from the far side face
 GRASP_DEPTH = 0.02     # m, slide grasp: distance below the top face
@@ -56,6 +57,7 @@ class PivotPlan:
     T_goal: np.ndarray     # object pose after the pivot
     T_start: np.ndarray    # object pose before the pivot
     width: float           # object extent between the fingers [m]
+    phi_lim: tuple = None  # (lo, hi) rad: rotation of the hand about the finger axis that keeps the palm clear of the box
 
     @property
     def screws(self):
@@ -102,8 +104,9 @@ def plan_box_pivot(T_wo, size, edge_dir_o, theta, y_ref=None):
     e = R @ e_o
     S = np.r_[e, -np.cross(e, q)]
     p_grasp = p + R @ (-d * (half - GRASP_INSET) + up_o * (half - GRASP_INSET))
-    return PivotPlan(S, theta, hand_frame(p_grasp, e, y_ref), se3.exp6(S * theta) @ T_wo, T_wo,
-                     float(2 * np.abs(e_o) @ half))
+    T_grasp = hand_frame(p_grasp, e, y_ref)
+    return PivotPlan(S, theta, T_grasp, se3.exp6(S * theta) @ T_wo, T_wo, float(2 * np.abs(e_o) @ half),
+                     phi_limits(se3.inv(T_grasp) @ T_wo, size))
 
 
 def planar_screw(T_from, T_to):

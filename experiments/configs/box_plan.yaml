@@ -24,8 +24,9 @@ execution:
   lift: 0.10                    # height above the grasp for the approach and the retreat [m]
   pivot: {w_max: 0.3}           # peak rotation speed of the box [rad/s]
   grasp: {force: 20.0}          # [N]
-  qp: {}                        # ContactQP options, e.g. {lam: 0.2, rho_s: 0.05, phi_max: 2.3}; phi_max [rad]
-                                # bounds the bearing angle so the hand does not turn into the box (null: no bound)
+  qp: {}                        # ContactQP options, e.g. {lam: 0.2, rho_s: 0.05}. In a pivot the hand turns about
+                                # the finger axis only as far as its palm stays clear of the box (limits from the
+                                # grasp geometry, planning/clearance.py); {phi_lim: null} removes these limits
 
 tolerance: {position: 0.003, rotation_deg: 2.0}   # final object pose, up to the box symmetry
 
