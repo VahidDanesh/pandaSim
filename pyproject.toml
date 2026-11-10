@@ -7,7 +7,7 @@ name             = "pandaSim"
 version          = "0.1.0"
 description      = "A SOLID-compliant, backend-agnostic framework for robotic simulation"
 readme           = "README.md"
-requires-python  = ">=3.10"
+requires-python  = ">=3.10,<3.11"
 
 
 classifiers      = [
@@ -41,11 +41,16 @@ genesis = [
     "genesis-world",
 ]
 # Real robot: panda-python must match the robot's libfranka version (0.8.0 for the
-# lab FER). Install that wheel from https://github.com/JeanElsner/panda-py/releases;
-# the PyPI wheel bundles libfranka 0.9.2.
+# lab FER). The PyPI wheel bundles libfranka 0.9.2, so the 0.8.0 build of 1.1.1 from
+# https://github.com/JeanElsner/panda-py/releases is kept in vendor/ (see [tool.uv.sources]).
+robot = [
+    "panda-python==1.1.1+libfranka.0.8.0",
+    "python-dotenv",
+]
 dev  = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "ipykernel",
     "black>=23.0.0",
     "isort>=5.10.0",
     "mypy>=1.0.0",
@@ -73,3 +78,6 @@ testpaths = ["tests/unit"]
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+
+[tool.uv.sources]
+panda-python = { path = "vendor/panda_python-1.1.1+libfranka.0.8.0-cp310-cp310-manylinux_2_28_x86_64.whl" }

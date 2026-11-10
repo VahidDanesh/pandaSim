@@ -1,40 +1,25 @@
 ## Installation
 
-First install **PyTorch**  following the [official instructions](https://pytorch.org/get-started/locally/).
-
-### Set up environment with uv
+The repository is self-contained: `uv.lock` pins every package and `vendor/` holds the
+panda-py build that matches the lab robot (libfranka 0.8.0; the PyPI wheel bundles 0.9.2).
+Linux x86-64, Python 3.10 (uv downloads it if missing).
 
 ```bash
-# Install uv if you don't have it (macOS and Linux)
+# Install uv if you don't have it
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Create and activate virtual environment
-uv venv panda
-source panda/bin/activate
-```
-### Install Pytransform3D
-```bash
-uv pip install 'pytransform3d[all]'
-```
-
-### Install Genesis
-
-Clone Genesis repository and install locally:
-```bash
-git clone https://github.com/Genesis-Embodied-AI/Genesis.git
-cd Genesis
-uv pip install .
-cd ..
-```
-
-### Install pandaSim package
-
-```bash
-# Clone the repository (if you haven't already)
 git clone https://github.com/VahidDanesh/pandaSim.git
 cd pandaSim
-uv pip install .
+unset PYTHONPATH                                   # a sourced ROS shadows the venv's numpy
+uv sync --extra sim --extra robot --extra dev      # creates .venv; add --extra genesis for the old Genesis notebooks
+uv run pytest
 ```
+
+- `sim`: Robotics Toolbox, Swift, the QP solver (kinematic simulation and planning).
+- `robot`: panda-py for the real Franka. Copy `.env.example` to `.env` and fill in the Desk credentials.
+- `dev`: pytest, Jupyter kernel.
+
+Run scripts with `uv run python ...` or `.venv/bin/python ...`.
 
 ## Project Structure
 
