@@ -69,7 +69,7 @@ def exec_kwargs(cfg):
 def make_planner(cfg, robot):
     """Sequencer whose feasibility check rolls each step out with the executor (model: plan_free_rotation)."""
     p = cfg["planner"]
-    kin = Rollout(robot, free_rotation=cfg["plan_free_rotation"], dt=p["dt"], **exec_kwargs(cfg))
+    kin = Rollout(robot, free_rotation=cfg["plan_free_rotation"], dt=p["dt"], size=make_box(cfg).size, **exec_kwargs(cfg))
     return Sequencer(kin, max_pivots=p["max_pivots"], max_kin_checks=p["max_kin_checks"],
                      base_xy=tuple(cfg["robot"]["base"][:2]))
 

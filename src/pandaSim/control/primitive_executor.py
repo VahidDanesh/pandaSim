@@ -332,11 +332,12 @@ def check_profile(log, qd_scale=0.8):
                 acc_ok=bool(np.all(acc_ratio <= 1)), acc_ratio=acc_ratio)
 
 
-def check_clearance(log, robot, T_w_obj, size, period=0.02):
+def check_clearance(log, robot, T_w_obj, size, period=0.01, clearance=0.002):
     """Palm of the hand against the box and the table over a run_plan log (the planner and the QP do not
     check collisions of the arm; this is the check after the fact). T_w_obj: box pose at the start.
     The box pose at each sample follows from the log: at rest between the steps, moving with {c} while held.
-    Returns dict(box_ok, table_ok, hits): hits lists (t, segment name) of the samples with contact."""
+    The palm must stay `clearance` [m] away from the box and above the table (the samples are `period` s apart,
+    at most 3 mm of hand motion at the speeds used). Returns dict(box_ok, table_ok, hits): hits lists (t, segment name) of the samples with contact."""
     a = log.arrays()
     seg, theta, phi, t = a["segment"], a["theta"], a["phi"], a["t"]
     T_rest = [np.asarray(T_w_obj, float)] + [np.asarray(st["T_obj"], float) for st in log.steps]   # before step i, after it
@@ -356,7 +357,7 @@ def check_clearance(log, robot, T_w_obj, size, period=0.02):
             else:
                 T_obj = T_rest[max(i, 0) + (sg["name"] in ("retreat", "ready") and i >= 0)]
             T_E = contact_pose(robot, theta[k])
-            table_ok &= palm_lowest(T_E) > 0.0
-            if palm_hits_box(T_E, T_obj, size):
+            table_ok &= palm_lowest(T_E) > clearance
+            if palm_hits_box(T_E, T_obj, size, clearance):
                 hits.append((float(t[k]), sg["name"]))
     return dict(box_ok=not hits, table_ok=bool(table_ok), hits=hits)

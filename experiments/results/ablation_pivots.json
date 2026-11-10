@@ -189,10 +189,10 @@
   "all": {
    "n": 300,
    "rigid": {
-    "success": 127,
+    "success": 126,
     "qp_infeasible": 165,
     "other_failure": 0,
-    "palm_contact": 8,
+    "palm_contact": 9,
     "joint_margin_median": 0.33864490638645117
    },
    "rigid_tilt": {
@@ -210,10 +210,10 @@
     "joint_margin_median": 0.5402718970613929
    },
    "free_nolimit": {
-    "success": 4,
+    "success": 1,
     "qp_infeasible": 0,
     "other_failure": 0,
-    "palm_contact": 296,
+    "palm_contact": 299,
     "joint_margin_median": 0.8536766836052738
    },
    "rigid_per_tilt": {
@@ -248,10 +248,10 @@
     "joint_margin_median": 0.520231853522291
    },
    "free_nolimit": {
-    "success": 2,
+    "success": 1,
     "qp_infeasible": 0,
     "other_failure": 0,
-    "palm_contact": 141,
+    "palm_contact": 142,
     "joint_margin_median": 0.8537847351409074
    },
    "rigid_per_tilt": {
@@ -265,10 +265,10 @@
   "tip down": {
    "n": 157,
    "rigid": {
-    "success": 66,
+    "success": 65,
     "qp_infeasible": 88,
     "other_failure": 0,
-    "palm_contact": 3,
+    "palm_contact": 4,
     "joint_margin_median": 0.3585984701002407
    },
    "rigid_tilt": {
@@ -286,10 +286,10 @@
     "joint_margin_median": 0.5519928060780446
    },
    "free_nolimit": {
-    "success": 2,
+    "success": 0,
     "qp_infeasible": 0,
     "other_failure": 0,
-    "palm_contact": 155,
+    "palm_contact": 157,
     "joint_margin_median": 0.8535686320696403
    },
    "rigid_per_tilt": {
@@ -3994,10 +3994,10 @@
     "vel_ratio": 0.26873706291532873
    },
    "free_nolimit": {
-    "success": true,
+    "success": false,
     "completed": true,
     "at_goal": true,
-    "palm_clear": true,
+    "palm_clear": false,
     "table_clear": true,
     "failed_segment": null,
     "cause": null,
@@ -11784,10 +11784,10 @@
     1.8718656227639185
    ],
    "rigid": {
-    "success": true,
+    "success": false,
     "completed": true,
     "at_goal": true,
-    "palm_clear": true,
+    "palm_clear": false,
     "table_clear": true,
     "failed_segment": null,
     "cause": null,
@@ -18639,10 +18639,10 @@
     "vel_ratio": 0.24524371082781482
    },
    "free_nolimit": {
-    "success": true,
+    "success": false,
     "completed": true,
     "at_goal": true,
-    "palm_clear": true,
+    "palm_clear": false,
     "table_clear": true,
     "failed_segment": null,
     "cause": null,
@@ -39374,10 +39374,10 @@
     "vel_ratio": 0.24524293153557783
    },
    "free_nolimit": {
-    "success": true,
+    "success": false,
     "completed": true,
     "at_goal": true,
-    "palm_clear": true,
+    "palm_clear": false,
     "table_clear": true,
     "failed_segment": null,
     "cause": null,
