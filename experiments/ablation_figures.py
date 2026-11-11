@@ -21,7 +21,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-INK, MUTED = "#1a1a1a", "#666666"
+INK = "#1a1a1a"
 BLUE, VERM, GREY, ORANGE = "#0072B2", "#D55E00", "#8c8c8c", "#E69F00"
 MODES = [("rigid", "Rigid"), ("rigid_tilt", "Rigid,\n5 tilts"), ("free", "Free,\nlimits"), ("free_nolimit", "Free,\nno limits")]
 
@@ -130,7 +130,7 @@ def main():
         hi = lim[1] if lim[1] > -lim[0] else lim[0]            # the wide side, in which the pivot turns the hand
         sg = 1.0 if hi > 0 else -1.0
         for mode, c, ls, lab in (("free_nolimit", ORANGE, "--", "No limits"), ("free", BLUE, "-", "With limits")):
-            t, phi, tp = h[mode]
+            t, phi, _ = h[mode]
             axC.plot(t, sg * phi, color=c, ls=ls, lw=1.3, label=lab)
         axC.axhline(abs(hi), color=VERM, lw=0.8)
         axC.axhspan(abs(hi), abs(hi) + 60, color=VERM, alpha=0.18, lw=0)
@@ -148,9 +148,6 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     fig.savefig(out / "ablation_pivots.pdf", bbox_inches="tight", pad_inches=0.02)
     fig.savefig(out / "ablation_pivots.png", dpi=600, bbox_inches="tight", pad_inches=0.02)
-    fig.savefig(out / "ablation_pivots_gray.png", dpi=150, bbox_inches="tight", pad_inches=0.02)  # converted to gray below
-    from PIL import Image
-    Image.open(out / "ablation_pivots_gray.png").convert("L").save(out / "ablation_pivots_gray.png")
     print("written to", out)
 
 

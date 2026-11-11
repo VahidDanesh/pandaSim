@@ -1,9 +1,13 @@
 """QP of manuscript Sec. 6 (eq:qp) for the fingertip bearing (free rotation phi about n).
 
-    min  1/2 ||theta_dot - K (theta_ctr - theta)||^2 - lam J_m^T theta_dot      (eq:qp_a)
+    min  1/2 ||theta_dot - K (theta_bar - theta)||^2 - lam J_m^T theta_dot      (eq:qp_a)
     s.t. J_c^aug(q) q_dot = V_c                                                (eq:qp_b)
          S theta_dot <= eta (rho - rho_s) / (rho_e - rho_s)                    (eq:qp_c)
          -theta_dot_max <= theta_dot <= theta_dot_max                          (eq:qp_d)
+
+theta_bar is the middle of the joint range, the same as in eq:damper_sign. phi_dot is not in eq:qp_a; the small
+weight nu on phi_dot (free rotation only) makes the quadratic term positive definite for the solver and discourages
+needless rotation of the bearing.
 
 The damper of eq:qp_c also acts on phi with the limits phi_lim = (lo, hi), so the hand cannot turn
 about n far enough to touch the object (phi_lim=None gives the QP without this bound).
@@ -63,33 +67,26 @@ class ContactQP:
     of the grasp (planning/clearance.phi_limits). The bearing itself is not limited: the limits only shape
     theta_dot. None: no limits.
 
-    slack=None keeps eq:qp_b as a hard equality (returns None when infeasible).
-    slack=beta relaxes it to J q_dot + delta = V_c with cost beta/2 ||delta||^2;
-    the slack used is then V_c - J q_dot.
+    eq:qp_b is a hard equality: solve returns None when the QP is infeasible.
     """
 
     def __init__(self, robot, free_rotation=True, K=0.2, lam=0.2, nu=1e-3,
-                 rho_e=0.3, rho_s=0.05, eta=1.0, qd_scale=0.8, theta_ctr=None, slack=None, phi_lim=None):
+                 rho_e=0.3, rho_s=0.05, eta=1.0, qd_scale=0.8, phi_lim=None):
         if not rho_e > rho_s > 0:
             raise ValueError(f"need rho_e > rho_s > 0, got rho_e={rho_e}, rho_s={rho_s}")
         self.ets = robot.ets(end=EE)
         self.n = 8 if free_rotation else 7
         self.lb, self.ub = robot.qlim[0, :7], robot.qlim[1, :7]
-        self.mid = (self.lb + self.ub) / 2
-        self.theta_ctr = self.mid if theta_ctr is None else np.asarray(theta_ctr)
+        self.mid = (self.lb + self.ub) / 2              # theta_bar
         self.K = np.broadcast_to(np.asarray(K, float), (7,))
         self.lam, self.rho_e, self.rho_s, self.eta = lam, rho_e, rho_s, eta
         self.qd_max = qd_scale * FER_QD_MAX
-        self.slack = slack
         self.phi_lim = tuple(phi_lim) if free_rotation and phi_lim is not None else None
 
-        nx = self.n + (6 if slack else 0)
-        self.Q = np.eye(nx)
+        self.Q = np.eye(self.n)
         if free_rotation:
             self.Q[7, 7] = nu
-        if slack:
-            self.Q[self.n:, self.n:] *= slack
-        self.bounds = np.vstack([np.eye(7, nx), -np.eye(7, nx)])
+        self.bounds = np.vstack([np.eye(7, self.n), -np.eye(7, self.n)])
 
     def jacobian(self, q):
         """J_c in (omega, v): 6 x 8 (free) or 6 x 7 (rigid)."""
@@ -106,16 +103,13 @@ class ContactQP:
 
         # eq:qp_a on theta only
         J_m = arm_manipulability_jacobian(self.ets, q8, Je)
-        c = np.zeros(len(self.Q))
-        c[:7] = self.K * (theta - self.theta_ctr) - self.lam * J_m
-
-        # eq:qp_b, optionally with slack delta
-        A_eq = np.hstack([J, np.eye(6)]) if self.slack else J
+        c = np.zeros(self.n)
+        c[:7] = self.K * (theta - self.mid) - self.lam * J_m
 
         # eq:rho, eq:damper_sign, eq:qp_c: rows only for joints within rho_e of a limit
         rho = np.minimum(self.ub - theta, theta - self.lb)
         near = rho < self.rho_e
-        G_damp = np.zeros((near.sum(), len(self.Q)))
+        G_damp = np.zeros((near.sum(), self.n))
         G_damp[np.arange(near.sum()), np.flatnonzero(near)] = np.sign(theta - self.mid)[near]
         h_damp = self.eta * (rho[near] - self.rho_s) / (self.rho_e - self.rho_s)
 
@@ -123,7 +117,7 @@ class ContactQP:
         if self.phi_lim is not None:
             for sign, rho_phi in ((-1.0, q8[7] - self.phi_lim[0]), (1.0, self.phi_lim[1] - q8[7])):
                 if rho_phi < self.rho_e:
-                    row = np.zeros((1, len(self.Q)))
+                    row = np.zeros((1, self.n))
                     row[0, 7] = sign
                     G_damp = np.vstack([G_damp, row])
                     h_damp = np.r_[h_damp, self.eta * (rho_phi - self.rho_s) / (self.rho_e - self.rho_s)]
@@ -132,5 +126,4 @@ class ContactQP:
         G = np.vstack([G_damp, self.bounds])
         h = np.r_[h_damp, self.qd_max, self.qd_max]
 
-        x = _qp(self.Q, c, A_eq, np.asarray(V_c, float), G, h)
-        return None if x is None else x[: self.n]
+        return _qp(self.Q, c, J, np.asarray(V_c, float), G, h)       # eq:qp_b

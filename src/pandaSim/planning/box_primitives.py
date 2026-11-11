@@ -33,11 +33,6 @@ Z = np.array([0.0, 0.0, 1.0])
 G = 9.81
 
 
-def quintic(k, n):
-    x = min(max(k / n, 0.0), 1.0)
-    return 10 * x**3 - 15 * x**4 + 6 * x**5
-
-
 def hand_frame(p, y_axis, y_ref=None):
     """Grasp frame at p: z down, y along +-y_axis (horizontal part), sign nearest y_ref."""
     z = -Z
@@ -234,20 +229,3 @@ def plan_keepout_ok(plan, size, base_xy=(0.0, 0.0)):
             return False
         To = se3.exp6(S * th) @ To
     return True
-
-
-def hand_path(plan, T_start, lift=0.10, n=(40, 20, 60, 15)):
-    """Waypoints of {c} for one primitive, for the kinematic check:
-    (approach: start -> above the grasp -> grasp;  motion with the object, then lift)."""
-    up = np.array([0.0, 0.0, lift])
-    T_pre = plan.T_grasp.copy()
-    T_pre[:3, 3] += up
-    approach = se3.sclerp(T_start, T_pre, n[0]) + se3.sclerp(T_pre, plan.T_grasp, n[1])
-    m = max(1, n[2] // len(plan.screws))
-    motion, T = [], plan.T_grasp
-    for S, th in plan.screws:
-        motion += [se3.exp6(S * th * quintic(k, m)) @ T for k in range(1, m + 1)]
-        T = motion[-1]
-    T_post = T.copy()
-    T_post[:3, 3] += up
-    return approach, motion, se3.sclerp(T, T_post, n[3])

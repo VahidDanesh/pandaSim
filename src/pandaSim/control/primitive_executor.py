@@ -136,7 +136,7 @@ def run_pivot(backend, robot, T_wd, pivot, free_rotation=True, qp=None, approach
     """Open gripper, approach {c} to the grasp pose T_wd, grasp, pivot, release.
 
     pivot: dict(q, s_axis, theta, Tf, method="quintic"), axis in the world frame.
-    The approach always uses the free-rotation model without slack (shared by all modes);
+    The approach always uses the free-rotation model (shared by all modes);
     the pivot uses free_rotation and qp as given. qp: ContactQP kwargs; approach: approach_reference kwargs plus tol;
     grasp: dict(width, force); safety: run_segment kwargs (f_max, tau_max, settle).
     viewer: LiveViewer or None; T_w_obj: object pose (world), so the viewer can carry it.
@@ -161,7 +161,7 @@ def run_pivot(backend, robot, T_wd, pivot, free_rotation=True, qp=None, approach
         if not gripper("open", backend.open):
             return log
         # approach, free model, phi_hat starts at 0
-        approach_qp = ContactQP(robot, free_rotation=True, **{k: v for k, v in qp.items() if k != "slack"})
+        approach_qp = ContactQP(robot, free_rotation=True, **qp)
         q = np.r_[backend.theta(), 0.0]
         ref, Tf = approach_reference(fk, fk(q), T_wd, **approach)
         done = lambda q: np.linalg.norm(pose_error_twist(fk(q), T_wd)) < tol
@@ -225,7 +225,7 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
     (a rigid grasp with a prescribed hand orientation; used by experiments/ablation.py). Slide: rigid model throughout, the hand
     stays as planned; each planar screw is tracked with pose feedback. Retreat and ready use the rigid model.
 
-    qp: ContactQP kwargs (slack only applies to pivots); approach: approach_reference kwargs plus tol, used for
+    qp: ContactQP kwargs; approach: approach_reference kwargs plus tol, used for
     pre, approach, slide and retreat; pivot: dict(w_max, method, Tf_min); ready: JointMove kwargs;
     grasp: dict(force); safety: run_segment kwargs. T_w_obj: object pose at the start (world).
     The run stops at the first failed segment (the gripper is left as it is).
@@ -234,7 +234,6 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
     qp, approach, pivot, ready = dict(qp or {}), dict(approach or {}), dict(pivot or {}), dict(ready or {})
     grasp, safety = dict(grasp or {}), dict(safety or {})
     tol = approach.pop("tol", 1e-3)
-    qp_hard = {k: v for k, v in qp.items() if k != "slack"}
     q_ready = np.asarray(robot.qr if q_ready is None else q_ready, float)[:7]
     T_w_obj = np.array(T_w_obj, float)
     fk = lambda q: contact_pose(robot, q)
@@ -270,7 +269,7 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
         T[2, 3] += lift
         return T
 
-    rigid = ContactQP(robot, free_rotation=False, **qp_hard)
+    rigid = ContactQP(robot, free_rotation=False, **qp)
     backend.start()
     try:
         if not gripper("open", backend.open):
@@ -281,7 +280,7 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
             pl, is_pivot = st.plan, st.kind == "pivot"
             log.steps.append(dict(kind=st.kind, ok=False, T_obj=T_w_obj))
             lim = {"phi_lim": getattr(pl, "phi_lim", None)}        # palm clear of the object; qp can override it
-            ctrl = ContactQP(robot, free_rotation=True, **{**lim, **qp_hard}) if is_pivot and approach_free else rigid
+            ctrl = ContactQP(robot, free_rotation=True, **{**lim, **qp}) if is_pivot and approach_free else rigid
             phi = 0.0
             for name, T_d in (("pre", up(pl.T_grasp)), ("approach", pl.T_grasp)):
                 ok, phi = move(ctrl, T_d, name, phi)

@@ -104,14 +104,9 @@ def test_phi_limits_move_the_rotation_to_the_arm(robot):
         assert sign * ctrl.solve(q, -V)[7] < -0.4                         # moving away from the limit is free
 
 
-def test_infeasible_and_slack(robot):
+def test_infeasible_twist_returns_none(robot):
     q, V = q_test(robot)[:7], np.array([3.0, 0, 0, 2.0, 0, 0])            # far beyond joint speed limits
-    assert ContactQP(robot, free_rotation=False).solve(q, V) is None
-    ctrl = ContactQP(robot, free_rotation=False, slack=100.0)
-    qd = ctrl.solve(q, V)
-    delta = V - ctrl.jacobian(q) @ qd
-    assert qd.shape == (7,) and np.all(np.abs(qd) <= ctrl.qd_max + 1e-9)
-    assert 0 < np.linalg.norm(delta) < np.linalg.norm(V)
+    assert ContactQP(robot, free_rotation=False).solve(q, V) is None      # eq:qp_b is a hard equality
 
 
 def test_rejects_bad_damper_distances(robot):
@@ -121,7 +116,7 @@ def test_rejects_bad_damper_distances(robot):
 
 # --- closed loop: pivot a cuboid by 90 deg from a grasp, Euler integration at 1 kHz ---
 
-def pivot_run(robot, free, slack=None, Tf=5.0, dt=1e-3):
+def pivot_run(robot, free, Tf=5.0, dt=1e-3):
     from pandaSim.geometry.rtb_adapter import RoboticsToolboxAdapter
     from pandaSim.planning.primitives import time_scaling
     from pandaSim.planning.screw_motion_planner import ScrewMotionPlanner
@@ -139,7 +134,7 @@ def pivot_run(robot, free, slack=None, Tf=5.0, dt=1e-3):
     assert sol.success, "IK to the grasp pose failed"
     q8 = np.asarray(sol.q)
     q = q8 if free else q8[:7]
-    ctrl = ContactQP(robot, free_rotation=free, slack=slack)
+    ctrl = ContactQP(robot, free_rotation=free)
     fk = lambda q: ets.eval(q if free else np.r_[q, 0.0])
 
     T_wc0 = fk(q)
@@ -161,6 +156,5 @@ def test_free_rotation_pivot_reaches_planned_pose(robot):
     assert r["ok"] and r["pos_err"] < 1e-3 and r["rot_err"] < 0.1 and r["margin"] > 0.05
 
 
-@pytest.mark.parametrize("slack", [None, 100.0])
-def test_rigid_pivot_outcome_is_reported(robot, slack):
-    print(f"rigid slack={slack}:", pivot_run(robot, free=False, slack=slack))
+def test_rigid_pivot_outcome_is_reported(robot):
+    print("rigid:", pivot_run(robot, free=False))

@@ -89,11 +89,5 @@ def axis_angle(V):
     return np.asarray(V, float) / max(theta, _EPS), theta
 
 
-def sclerp(T0, T1, n):
-    """n poses on the screw path T0 exp([X] s), X = log(T0^-1 T1), s = 1/n ... 1."""
-    X = log6(inv(T0) @ T1)
-    return [T0 @ exp6(X * k / n) for k in range(1, n + 1)]
-
-
 def angle_between(R1, R2):
     return float(np.linalg.norm(log3(R1.T @ R2)))

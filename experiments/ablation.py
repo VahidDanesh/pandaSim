@@ -39,8 +39,7 @@ from pandaSim.control.backends import SimBackend  # noqa: E402
 from pandaSim.planning.collision import ArmCollision
 from pandaSim.control.contact_qp import EE  # noqa: E402
 from pandaSim.control.primitive_executor import check_clearance, check_profile, run_plan  # noqa: E402
-from pandaSim.planning import se3  # noqa: E402
-from pandaSim.planning.sequencer import Sequencer, pose_error  # noqa: E402
+from pandaSim.planning.sequencer import pose_error  # noqa: E402
 
 RESULTS = rp.HERE / "results"
 PIVOT_MODES = ("rigid", "rigid_tilt", "free", "free_nolimit")
@@ -72,7 +71,7 @@ def random_pose(rng, box, region):
 _arm = {}
 
 
-def c_arm(robot, box):
+def arm_collision(robot, box):
     if "a" not in _arm:
         _arm["a"] = ArmCollision(robot, box.size)
     return _arm["a"]
@@ -83,7 +82,7 @@ def summarize(log, robot, cfg, box, T0, T_end, T_goal):
     a = log.arrays()
     ep, er = pose_error(T_end, T_goal)
     tol = cfg["tolerance"]
-    clear = check_clearance(log, robot, T0, box.size, arm=c_arm(robot, box))
+    clear = check_clearance(log, robot, T0, box.size, arm=arm_collision(robot, box))
     names = [s["name"] for s in log.segments]
     held = np.isin(a["segment"], [j for j, n in enumerate(names) if n in ("pivot", "slide")])
     grasp = np.isin(a["segment"], [j for j, n in enumerate(names) if n == "approach"])

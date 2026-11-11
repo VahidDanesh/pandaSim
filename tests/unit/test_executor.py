@@ -102,15 +102,6 @@ def test_rigid_run_stops_and_reports(scene):
         assert 0 < s < 1
 
 
-def test_slack_applies_to_the_pivot_only(scene):
-    r = scene["robot"]
-    log = run_pivot(SimBackend(r.qr[:7]), r, scene["T_wd"], scene["pivot"], free_rotation=False,
-                    qp=dict(slack=100.0), grasp=dict(width=0.065, force=20))
-    assert [s["name"] for s in log.segments] == ["approach", "pivot"]
-    assert log.segments[0]["ok"]                           # shared approach unaffected by slack
-    assert log.segments[1]["ok"]                           # slack never makes the pivot infeasible
-
-
 class WrenchBackend(SimBackend):
     def wrench(self):
         return (np.r_[0, 0, 50.0, 0, 0, 0] if self.time() > 0.2 else np.zeros(6)), np.zeros(7)

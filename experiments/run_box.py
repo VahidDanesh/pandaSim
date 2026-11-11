@@ -134,7 +134,7 @@ def compare(expected, real, T_end=None, T_goal=None):
     time, in rad; plus the largest wrench, the loop timing and the final object pose error."""
     ea, ra = expected.arrays(), real.arrays()
     segs = []
-    for j, (se, sr) in enumerate(zip(expected.segments, real.segments)):
+    for j, sr in enumerate(real.segments):
         ie, ir = np.flatnonzero(ea["segment"] == j), np.flatnonzero(ra["segment"] == j)
         if len(ie) < 2 or len(ir) < 2:
             continue
