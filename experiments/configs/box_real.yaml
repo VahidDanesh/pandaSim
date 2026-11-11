@@ -1,0 +1,35 @@
+# Box experiments on the real Panda (experiments/run_box.py). Same planner and executor as box_plan.yaml; differences:
+# a light box (the Panda carries 3 kg, the hand included, and part of the weight is on the arm in a pivot), a wider
+# gripper tolerance, and the safety thresholds written out. Lengths in metres, angles in degrees.
+# CHECK BEFORE THE FIRST RUN: box.size and box.mass of the real box, robot.base (height of the robot mount above the
+# table, 0.013 m measured in the lab), the table area in which the box can be placed (x 0.30 to 0.75, |y| < 0.35).
+
+box:
+  size: [0.15, 0.06, 0.25]      # along the object x, y, z axes; the fingers can only span the 0.06 side
+  mass: 1.0                     # kg  PLACEHOLDER: weigh the real box
+  mu: 0.5                       # box-table friction
+
+robot:
+  base: [0.0, 0.0, 0.013]
+  q_ready: [0.0, -0.3, 0.0, -2.2, 0.0, 2.0, 0.7854]   # every step starts and ends here
+
+free_rotation: true             # the fingertip bearing lets the box turn about the finger axis
+plan_free_rotation: null
+
+planner:
+  max_pivots: 3
+  max_kin_checks: 12
+  dt: 0.01
+
+execution:
+  dt: 0.001
+  lift: 0.10
+  pivot: {w_max: 0.3}
+  grasp: {force: 20.0, speed: 0.05, epsilon: 0.015}   # N, m/s, m: the box width may differ from the plan by 15 mm
+  qp: {}
+  safety: {f_max: 30.0, tau_max: 15.0, settle: 2.0}   # stop on |F_ext| > f_max N or |tau_ext| > tau_max Nm
+
+tolerance: {position: 0.003, rotation_deg: 2.0}
+
+task: custom
+tasks: {}                       # run_box.py adds the task given by --start and --goal

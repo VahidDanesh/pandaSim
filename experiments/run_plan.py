@@ -64,7 +64,18 @@ def box_pose(box, spec):
 def exec_kwargs(cfg):
     e = cfg["execution"]
     return dict(q_ready=np.array(cfg["robot"]["q_ready"], float), lift=e["lift"], pivot=e.get("pivot"),
-                grasp=e.get("grasp"), qp=e.get("qp") or None)
+                grasp=e.get("grasp"), qp=e.get("qp") or None, approach=e.get("approach"), ready=e.get("ready"),
+                safety=e.get("safety"))
+
+
+def scale_speed(cfg, factor):
+    """Slow the execution down by `factor` (0 < factor <= 1): approach, joint moves and pivots. The geometry of the
+    plan does not change; the rollouts of the planner run at the nominal speed (slower is never harder for the QP)."""
+    e = cfg["execution"]
+    e["pivot"] = {**(e.get("pivot") or {}), "w_max": 0.3 * factor}
+    e["approach"] = {**(e.get("approach") or {}), "v_max": 0.1 * factor, "w_max": 0.3 * factor}
+    e["ready"] = {**(e.get("ready") or {}), "qd_max": 0.5 * factor}
+    return cfg
 
 
 def make_planner(cfg, robot):

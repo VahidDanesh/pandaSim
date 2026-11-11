@@ -59,10 +59,12 @@ class PandaBackend:
     `panda` is a connected panda_py.Panda, `gripper` a panda_py.libfranka.Gripper (or None).
     Gripper calls block; the controller holds the arm meanwhile (send zeros first).
     The robot state is read once per tick; theta() and wrench() use that same state.
+    air=True: dry run without an object; "grasp" only closes the fingers to the object width (gripper.move), so
+    a missing object is not an error.
     """
 
-    def __init__(self, panda, gripper=None, frequency: float = 1000.0, stiffness=None, damping=None):
-        self.panda, self.gripper, self.frequency = panda, gripper, frequency
+    def __init__(self, panda, gripper=None, frequency: float = 1000.0, stiffness=None, damping=None, air: bool = False):
+        self.panda, self.gripper, self.frequency, self.air = panda, gripper, frequency, air
         self._gains = {k: v for k, v in (("stiffness", stiffness), ("damping", damping)) if v is not None}
         self.ctrl = self.ctx = self._state = None
 
@@ -101,6 +103,8 @@ class PandaBackend:
         return np.asarray(s.O_F_ext_hat_K, float), np.asarray(s.tau_ext_hat_filtered, float)
 
     def grasp(self, width: float, force: float, speed: float = 0.05, epsilon: float = 0.01) -> bool:
+        if self.air:
+            return self.gripper.move(width, speed)
         return self.gripper.grasp(width, speed, force, epsilon, epsilon)
 
     def open(self, width: float = OPEN_WIDTH, speed: float = 0.05) -> bool:

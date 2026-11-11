@@ -192,7 +192,8 @@ class JointMove:
 
     n = 7
 
-    def __init__(self, theta0, theta_goal, qd_max=0.5, K=1.0, method="quintic", Tf_min=1.0, tol=1e-3):
+    def __init__(self, theta0, theta_goal, qd_max=0.5, K=1.0, method="quintic", Tf_min=1.0, tol=1e-3, qd_scale=0.8):
+        self.qd_lim = qd_scale * FER_QD_MAX
         self.theta0, self.goal = np.array(theta0, float), np.array(theta_goal, float)
         self.d = self.goal - self.theta0
         self.K, self.method, self.tol = K, method, tol
@@ -204,7 +205,8 @@ class JointMove:
         return np.zeros(6)             # no task-space twist; solve() uses the time scaling stored here
 
     def solve(self, q, V_c):
-        return self.sdot * self.d + self.K * (self.theta0 + self.s * self.d - q)
+        qd = self.sdot * self.d + self.K * (self.theta0 + self.s * self.d - q)
+        return np.clip(qd, -self.qd_lim, self.qd_lim)      # the feedback term must not exceed the robot's limits
 
     def done(self, q):
         return np.abs(q - self.goal).max() < self.tol
@@ -285,7 +287,8 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
                 ok, phi = move(ctrl, T_d, name, phi)
                 if not ok:
                     return log, T_w_obj
-            if not gripper("grasp", backend.grasp, pl.width, grasp.get("force", 20.0)):
+            if not gripper("grasp", backend.grasp, pl.width, grasp.get("force", 20.0), grasp.get("speed", 0.05),
+                           grasp.get("epsilon", 0.01)):
                 return log, T_w_obj
             # the object moves with the controlled frame: {c} (free) or {E} (rigid)
             if is_pivot:
