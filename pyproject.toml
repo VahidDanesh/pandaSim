@@ -34,6 +34,7 @@ sim  = [
     "pytransform3d",
     "modern_robotics",
     "trimesh",
+    "xacrodoc",      # URDF packages (geometry/utils.py); also a dependency of roboticstoolbox
     "coal",          # collision checking of the arm (planning/collision.py)
     "pyyaml",
 ]

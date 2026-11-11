@@ -93,3 +93,23 @@ def test_headless_adapter_integrates_joint_velocities(panda):
         adapter.step_simulation(adapter.dt)
     assert np.allclose(panda.q, q0 + qd * 10 * adapter.dt)
     panda.q, panda.qd = q0, np.zeros(panda.n)
+
+
+def test_model_folder_is_found_and_missing_folder_is_reported(monkeypatch):
+    from pandaSim.geometry import utils
+
+    assert utils._find_panda_virtual().endswith("frankaEmikaPandaVirtual.urdf")
+    monkeypatch.setattr(utils, "__file__", "/nonexistent/a/b/c/utils.py")       # not a source checkout
+    monkeypatch.delenv("PANDASIM_MODEL_DIR", raising=False)
+    with pytest.raises(FileNotFoundError, match="PANDASIM_MODEL_DIR"):
+        utils._find_panda_virtual()
+    monkeypatch.setenv("PANDASIM_MODEL_DIR", str(__import__("pathlib").Path(__file__).resolve().parents[2] / "model"))
+    assert utils._find_panda_virtual().endswith("frankaEmikaPandaVirtual.urdf")
+
+
+def test_real_robot_executor_needs_panda_py(monkeypatch):
+    from pandaSim.control import robot_executor
+
+    monkeypatch.setattr(robot_executor, "REAL_ROBOT_AVAILABLE", False)
+    with pytest.raises(RuntimeError, match="panda-py"):
+        robot_executor._require_panda_py()

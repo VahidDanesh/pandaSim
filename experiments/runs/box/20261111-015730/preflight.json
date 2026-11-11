@@ -1,0 +1,98 @@
+[
+ {
+  "name": "start pose inside the table area",
+  "ok": true,
+  "detail": "x 0.50, y 0.00; area {'x': (0.3, 0.75), 'y': (-0.35, 0.35)}",
+  "hard": true
+ },
+ {
+  "name": "goal pose inside the table area",
+  "ok": true,
+  "detail": "x 0.45, y -0.15; area {'x': (0.3, 0.75), 'y': (-0.35, 0.35)}",
+  "hard": true
+ },
+ {
+  "name": "plan found",
+  "ok": true,
+  "detail": "",
+  "hard": true
+ },
+ {
+  "name": "start and goal differ",
+  "ok": true,
+  "detail": "",
+  "hard": true
+ },
+ {
+  "name": "simulation: all segments completed",
+  "ok": true,
+  "detail": "",
+  "hard": true
+ },
+ {
+  "name": "simulation: QP always feasible",
+  "ok": true,
+  "detail": "",
+  "hard": true
+ },
+ {
+  "name": "simulation: joint speeds within limits",
+  "ok": true,
+  "detail": "",
+  "hard": true
+ },
+ {
+  "name": "simulation: object at the goal",
+  "ok": true,
+  "detail": "",
+  "hard": true
+ },
+ {
+  "name": "simulation: arm back at ready",
+  "ok": true,
+  "detail": "",
+  "hard": true
+ },
+ {
+  "name": "simulation: palm clear of the box and the table",
+  "ok": true,
+  "detail": "",
+  "hard": true
+ },
+ {
+  "name": "simulation: arm and hand clear of the box and the table",
+  "ok": true,
+  "detail": "",
+  "hard": true
+ },
+ {
+  "name": "joint-limit margin",
+  "ok": true,
+  "detail": "0.63 rad",
+  "hard": true
+ },
+ {
+  "name": "arm and hand clearance",
+  "ok": true,
+  "detail": "smallest distance 9.2 mm",
+  "hard": true
+ },
+ {
+  "name": "box mass within the payload",
+  "ok": true,
+  "detail": "1.00 kg, payload 3.0 kg",
+  "hard": true
+ },
+ {
+  "name": "box weight is not close to the force stop",
+  "ok": true,
+  "detail": "9.8 N weight, stop at 30 N",
+  "hard": false
+ },
+ {
+  "name": "joint accelerations within the limits",
+  "ok": true,
+  "detail": "0.02 of the limit",
+  "hard": false
+ }
+]

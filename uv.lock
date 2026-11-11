@@ -1766,6 +1766,7 @@ sim = [
     { name = "spatialmath-python" },
     { name = "swift-sim" },
     { name = "trimesh" },
+    { name = "xacrodoc" },
 ]
 
 [package.metadata]
@@ -1796,6 +1797,7 @@ requires-dist = [
     { name = "swift-sim", marker = "extra == 'sim'", specifier = ">=2.0" },
     { name = "torch", marker = "extra == 'genesis'" },
     { name = "trimesh", marker = "extra == 'sim'" },
+    { name = "xacrodoc", marker = "extra == 'sim'" },
 ]
 provides-extras = ["sim", "genesis", "robot", "dev", "docs"]
 

@@ -25,6 +25,11 @@ except ImportError:
     logging.warning("panda_py not available - real robot execution disabled")
 
 
+def _require_panda_py():
+    if not REAL_ROBOT_AVAILABLE:
+        raise RuntimeError("real robot execution needs panda-py: uv sync --extra robot")
+
+
 class RobotExecutor:
     """
     Clean robot execution manager supporting both simulation and real robot execution.
@@ -213,6 +218,7 @@ class RobotExecutor:
         self.logger.info("Starting real robot approach to target")
 
         if ctrl is None:
+            _require_panda_py()
             ctrl = controllers.IntegratedVelocity()
         real_robot.start_controller(ctrl)
         elapsed_time = ctrl.get_time()
@@ -315,6 +321,7 @@ class RobotExecutor:
             real_robot.unlock()
             
         # Setup controller
+        _require_panda_py()
         ctrl = controllers.IntegratedVelocity()
         real_robot.start_controller(ctrl)
         elapsed_time = ctrl.get_time()
@@ -404,6 +411,7 @@ class RobotExecutor:
         
             
         # Setup controller
+        _require_panda_py()
         ctrl = controllers.IntegratedVelocity()
         real_robot.start_controller(ctrl)
         real_robot.enable_logging(len(velocity_commands) + 1000)

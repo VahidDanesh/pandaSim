@@ -112,6 +112,19 @@ def manipulability_jacobian(J: np.ndarray, H: np.ndarray) -> np.ndarray:
     return w * np.einsum('jk,ilk,jl->i', J, H, np.linalg.inv(JJt))
 
 
+def _find_panda_virtual() -> str:
+    """The Panda URDF with the virtual finger: $PANDASIM_MODEL_DIR/franka_description/..., else the repository's
+    `model/` folder (a source checkout or an editable install)."""
+    rel = Path(PANDA_VIRTUAL).relative_to('../../../model')
+    roots = ([Path(os.environ['PANDASIM_MODEL_DIR'])] if os.environ.get('PANDASIM_MODEL_DIR') else []) \
+        + [Path(__file__).resolve().parents[3] / 'model']
+    for root in roots:
+        if (root / rel).exists():
+            return str((root / rel).resolve())
+    raise FileNotFoundError(f"{rel} not found in {[str(r) for r in roots]}; set PANDASIM_MODEL_DIR to the "
+                            "repository's model/ folder or install the repository in editable mode")
+
+
 def create_virtual_panda(urdf_path: Union[str, None] = None) -> rtb.models.Panda:
     """
     Attaches a virtual finger link to a Panda robot model and returns the modified Panda.
@@ -123,8 +136,7 @@ def create_virtual_panda(urdf_path: Union[str, None] = None) -> rtb.models.Panda
         rtb.models.Panda: The modified Panda robot model.
     """
     if urdf_path is None:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        urdf_path = os.path.abspath(os.path.join(current_dir, PANDA_VIRTUAL))
+        urdf_path = _find_panda_virtual()
     else:
         urdf_path = os.path.abspath(urdf_path)
 
