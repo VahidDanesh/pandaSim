@@ -57,13 +57,14 @@ def pivot_reference(V1, Tf, method="quintic"):
 class Log:
     """Per-tick records of one run, plus segment results and gripper events."""
 
-    FIELDS = ("t", "segment", "theta", "phi", "qd", "V", "solve_time", "tick_time", "F_ext", "tau_ext")
+    FIELDS = ("t", "segment", "theta", "phi", "qd", "V", "solve_time", "tick_time", "F_ext", "tau_ext", "track", "target")
 
     def __init__(self):
         self.rows = {k: [] for k in self.FIELDS}
         self.segments = []      # dicts: name, ok, cause, t0, t_end, Tf (run_plan adds step)
         self.events = []        # (name, t, ok, width): gripper calls and the finger opening they command
         self.steps = []         # run_plan: dicts kind, ok, T_obj (object pose after the step)
+        self.abort = None       # run_plan: dict(cause, segment, step, holding) if the run stopped early
 
     def record(self, **row):
         for k in self.FIELDS:
@@ -78,35 +79,74 @@ class Log:
 
     def save(self, path, **meta):
         np.savez(path, **self.arrays(), segments=np.array(self.segments, dtype=object),
-                 events=np.array(self.events, dtype=object), steps=np.array(self.steps, dtype=object), **meta)
+                 events=np.array(self.events, dtype=object), steps=np.array(self.steps, dtype=object),
+                 abort=np.array(self.abort, dtype=object), **meta)
+
+
+def wrench_excess(F_ext, tau_ext, f_max, tau_max, load=None):
+    """External wrench estimate against its thresholds: max(|F| / f_max, max_j |tau_j| / tau_max); above 1 the
+    run stops. F_ext: force part of O_F_ext_hat_K (base frame), tau_ext: tau_ext_hat_filtered.
+
+    load = (f, tau): force [N, base frame] and joint torques [Nm] with which the whole weight of the held object
+    would load the arm (the estimate includes the object; no load is configured on the robot). In a pivot or a
+    slide the table carries part of the weight, so any fraction alpha in [0, 1] of this load is expected: the
+    best-fitting fraction is removed and the rest is compared with the thresholds. A force that the weight cannot
+    explain (sideways, upwards, or more than the weight) counts in full.
+    """
+    w = np.r_[np.asarray(F_ext, float)[:3] / f_max, np.asarray(tau_ext, float) / tau_max]
+    if load is not None:
+        a = np.r_[np.asarray(load[0], float) / f_max, np.asarray(load[1], float) / tau_max]
+        w = w - np.clip(a @ w / max(a @ a, 1e-12), 0.0, 1.0) * a
+    return float(max(np.linalg.norm(w[:3]), np.abs(w[3:]).max()))
 
 
 def run_segment(backend, ctrl, ref, Tf, log, name, phi=0.0, done=None, settle=2.0, f_max=30.0, tau_max=15.0,
-                viewer=None):
+                dt_max=0.05, load=None, lead=None, lead_T=0.02, viewer=None):
     """Track ref(t, q) with ctrl until t >= Tf (and done(q), if given). Returns (ok, phi).
 
-    Stops with zero velocity on an infeasible QP, an external force/torque above
-    f_max (N) / tau_max (Nm), a robot error, or t > Tf + settle; the cause is logged.
+    lead: None, or the time constants [s] by which the measured joints lag the position target of the robot's
+    controller (backend.lag). The target is then led by lead * theta_dot, so that the measured joints follow the
+    commanded motion without that lag: the velocity sent is theta_dot + u, where u moves the injected lead L
+    towards lead * theta_dot with the time constant lead_T. L is bounded by lead * |theta_dot| and returns to zero
+    when the motion stops, so nothing accumulates.
+
+    Stops with zero velocity and logs the cause on: an infeasible QP; an external force/torque above
+    f_max (N) / tau_max (Nm) (wrench_excess; load(theta) -> (f, tau) is the weight of a held object, or None);
+    a fault reported by the backend (watchdog, tracking error); more than dt_max s between two ticks
+    (the arm kept its last velocity meanwhile); a robot error; t > Tf + settle; a backend that stops ticking.
+    Any other exception (Ctrl-C included) also zeroes the velocity and is recorded, then it propagates.
     """
     free = ctrl.n == 8
     t0, t_last, phi_dot = backend.time(), 0.0, 0.0
-    cause = None
+    cause = "backend stopped"          # a tick() that returns False must not look like a finished segment
     seg = len(log.segments)
+    L, u = np.zeros(7), np.zeros(7)    # lead of the position target [rad] and its rate
+    qd_lim = getattr(ctrl, "qd_lim", getattr(ctrl, "qd_max", None))    # joint speed limits of the controller
     try:
         while backend.tick():
             tick_start = time.perf_counter()
             t = backend.time() - t0
-            phi += phi_dot * (t - t_last)      # phi(t + dt) = phi(t) + phi_dot dt (phi is not measured)
+            dt = t - t_last
+            phi += phi_dot * dt                # phi(t + dt) = phi(t) + phi_dot dt (phi is not measured)
+            L += u * dt
             t_last = t
             theta = backend.theta()
             q = np.r_[theta, phi] if free else theta
+            fault = backend.fault()
+            if fault is not None:
+                cause = fault
+                break
+            if dt > dt_max:
+                cause = f"loop stall: {dt * 1e3:.0f} ms between two ticks"
+                break
             if t >= Tf and (done is None or done(q)):
+                cause = None
                 break
             if t > Tf + settle:
                 cause = "timeout"
                 break
             F_ext, tau_ext = backend.wrench()
-            if np.linalg.norm(F_ext[:3]) > f_max or np.abs(tau_ext).max() > tau_max:
+            if wrench_excess(F_ext, tau_ext, f_max, tau_max, None if load is None else load(theta)) > 1.0:
                 cause = "external wrench"
                 break
             V = ref(t, q)
@@ -116,18 +156,30 @@ def run_segment(backend, ctrl, ref, Tf, log, name, phi=0.0, done=None, settle=2.
             if qd is None:
                 cause = "infeasible QP"
                 break
-            backend.command(qd[:7])
+            if lead is None:
+                backend.command(qd[:7])
+            else:
+                u = (lead * qd[:7] - L) / lead_T
+                sent = qd[:7] + u
+                if qd_lim is not None:
+                    sent = np.clip(sent, -qd_lim, qd_lim)
+                    u = sent - qd[:7]
+                backend.command(sent)
             phi_dot = qd[7] if free else 0.0
             phi_model = phi if free else 0.0   # rigid: {c} = {E}, the model has phi = 0
             if viewer is not None:
                 viewer.update(np.r_[theta, phi_model])
             log.record(t=t0 + t, segment=seg, theta=theta, phi=phi_model, qd=np.r_[qd[:7], phi_dot], V=V,
-                       solve_time=solve_time, tick_time=time.perf_counter() - tick_start, F_ext=F_ext, tau_ext=tau_ext)
+                       solve_time=solve_time, tick_time=time.perf_counter() - tick_start, F_ext=F_ext, tau_ext=tau_ext,
+                       track=backend.tracking(), target=backend.target())
     except RuntimeError as e:          # panda-py raises robot errors from PandaContext.ok()
         cause = f"robot error: {e}"
+    except BaseException as e:         # Ctrl-C, or a bug: the arm is stopped below, then the exception goes on
+        cause = f"{type(e).__name__}: {e}".rstrip(": ")
+        raise
     finally:
         backend.command(np.zeros(7))
-    log.segments.append(dict(name=name, ok=cause is None, cause=cause, t0=t0, t_end=backend.time(), Tf=Tf))
+        log.segments.append(dict(name=name, ok=cause is None, cause=cause, t0=t0, t_end=backend.time(), Tf=Tf))
     return cause is None, phi
 
 
@@ -213,7 +265,8 @@ class JointMove:
 
 
 def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, qp=None, approach=None, pivot=None,
-             ready=None, grasp=None, safety=None, lift=0.10, viewer=None, approach_free=True):
+             ready=None, grasp=None, safety=None, lift=0.10, viewer=None, approach_free=True, payload=0.0, lead=None,
+             log=None):
     """Execute planner steps (sequencer.Step: kind, plan.T_grasp, plan.screws, plan.width) in order.
 
     Each step starts and ends at the ready configuration q_ready (default robot.qr):
@@ -227,8 +280,17 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
 
     qp: ContactQP kwargs; approach: approach_reference kwargs plus tol, used for
     pre, approach, slide and retreat; pivot: dict(w_max, method, Tf_min); ready: JointMove kwargs;
-    grasp: dict(force); safety: run_segment kwargs. T_w_obj: object pose at the start (world).
-    The run stops at the first failed segment (the gripper is left as it is).
+    grasp: dict(force, speed, epsilon); safety: run_segment kwargs (f_max, tau_max, settle, dt_max).
+    T_w_obj: object pose at the start (world). payload: mass [kg] of the object; while it is held, the part of
+    the external wrench that its weight explains does not count towards f_max / tau_max (wrench_excess).
+    lead: lag compensation of the robot's joint controller (run_segment; None: off).
+    log: a Log to fill (so the caller keeps the records if an exception ends the run).
+
+    Abort procedure. The run stops at the first failed segment or gripper call, and on any exception:
+    the velocity command is set to zero, the controller is stopped (backend.stop(): on the robot its own joint
+    controller then holds the position), and the gripper is left exactly as it is. If the object is in the
+    gripper it stays there (opening would drop it); log.abort = dict(cause, segment, step, holding) says so.
+    No motion is commanded after a failure.
     Returns (log, T_w_obj): the object pose after the last finished step, from the motion of the hand (open loop).
     """
     qp, approach, pivot, ready = dict(qp or {}), dict(approach or {}), dict(pivot or {}), dict(ready or {})
@@ -237,11 +299,21 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
     q_ready = np.asarray(robot.qr if q_ready is None else q_ready, float)[:7]
     T_w_obj = np.array(T_w_obj, float)
     fk = lambda q: contact_pose(robot, q)
-    log = Log()
+    log = Log() if log is None else log
     step = -1
+    state = dict(holding=False, cause=None, finished=False)
+
+    ets = robot.ets(end=EE)
+    f_load = robot.base.R.T @ np.array([0.0, 0.0, -9.81 * payload])      # weight of the object, robot base frame
+
+    def held_load(theta):
+        """(force, joint torques) of the whole weight acting at the fingertips."""
+        return f_load, ets.jacob0(np.r_[theta, 0.0])[:3, :7].T @ f_load
 
     def segment(ctrl, ref, Tf, name, phi=0.0, done=None):
-        ok, phi = run_segment(backend, ctrl, ref, Tf, log, name, phi=phi, done=done, viewer=viewer, **safety)
+        load = held_load if state["holding"] and payload > 0 else None
+        ok, phi = run_segment(backend, ctrl, ref, Tf, log, name, phi=phi, done=done, viewer=viewer, load=load,
+                              lead=lead, **safety)
         log.segments[-1]["step"] = step
         return ok, phi
 
@@ -257,10 +329,16 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
 
     def gripper(name, call, *args):
         backend.command(np.zeros(7))
-        ok = call(*args)
+        try:
+            ok = bool(call(*args))
+            error = "" if ok else "the gripper reported failure"
+        except RuntimeError as e:                      # libfranka command or network error of the hand
+            ok, error = False, str(e)
         width = args[0] if args else OPEN_WIDTH        # finger opening after the call
-        log.events.append((name, backend.time(), bool(ok), float(width)))
-        if ok and viewer is not None:
+        log.events.append((name, backend.time(), ok, float(width)))
+        if not ok:
+            state["cause"] = f"gripper {name} failed: {error}"
+        elif viewer is not None:
             viewer.fingers(width)
         return ok
 
@@ -286,6 +364,7 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
                 ok, phi = move(ctrl, T_d, name, phi)
                 if not ok:
                     return log, T_w_obj
+            state["holding"] = True                    # from here the fingers may be on the object
             if not gripper("grasp", backend.grasp, pl.width, grasp.get("force", 20.0), grasp.get("speed", 0.05),
                            grasp.get("epsilon", 0.01)):
                 return log, T_w_obj
@@ -309,15 +388,27 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
             T_w_obj = fk(q_now()) @ T_c_obj
             if not gripper("release", backend.open):
                 return log, T_w_obj
+            state["holding"] = False
             if viewer is not None:
                 viewer.detach()
             log.steps[-1].update(T_obj=T_w_obj)
             if not move(rigid, up(fk(backend.theta())), "retreat")[0] or not to_ready():
                 return log, T_w_obj
             log.steps[-1].update(ok=True)
+        state["finished"] = True
         return log, T_w_obj
+    except BaseException as e:
+        state["cause"] = state["cause"] or f"{type(e).__name__}: {e}".rstrip(": ")
+        raise
     finally:
-        backend.stop()
+        try:
+            backend.stop()
+        finally:
+            if not state["finished"]:
+                failed = next((sg for sg in reversed(log.segments) if not sg["ok"]), None)
+                last = log.segments[-1] if log.segments else None
+                log.abort = dict(cause=state["cause"] or (failed["cause"] if failed else "stopped"),
+                                 segment=last["name"] if last else None, step=step, holding=state["holding"])
 
 
 def check_profile(log, qd_scale=0.8):

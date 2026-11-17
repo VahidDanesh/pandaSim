@@ -128,6 +128,9 @@ class FakeCtrl:
     def get_time(self):
         return self.t
 
+    def get_qd(self):                 # position target of the controller; this fake arm does not move
+        return self.q0
+
 
 class FakeCtx:
     def __init__(self, panda, fail_after):
@@ -147,6 +150,7 @@ class FakePanda:
 
     def start_controller(self, ctrl):
         self.ctrl = ctrl
+        ctrl.q0 = np.array(self.q, float)
         self.calls.append("start")
 
     def stop_controller(self):
@@ -158,7 +162,7 @@ class FakePanda:
     def get_state(self):
         self.calls.append("get_state") if not self.calls or self.calls[-1] != "get_state" else None
         class S:
-            q, O_F_ext_hat_K, tau_ext_hat_filtered = self.q, np.zeros(6), np.zeros(7)
+            q, dq, O_F_ext_hat_K, tau_ext_hat_filtered = self.q, np.zeros(7), np.zeros(6), np.zeros(7)
         return S()
 
 

@@ -31,7 +31,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import run_plan as rp  # noqa: E402
 
-from pandaSim.control.primitive_executor import check_profile  # noqa: E402
+from pandaSim.control.backends import PANDA_KP, PANDA_LAG, PANDA_WALL, SimBackend  # noqa: E402
+from pandaSim.control.primitive_executor import Log, check_profile, contact_pose, run_plan  # noqa: E402
 from pandaSim.planning.sequencer import pose_error  # noqa: E402
 
 REAL_CONFIG = HERE / "configs" / "box_real.yaml"
@@ -41,6 +42,7 @@ G = 9.81
 PAYLOAD = 3.0                       # kg, Franka Emika Panda (hand included)
 REGION = dict(x=(0.30, 0.75), y=(-0.35, 0.35))
 JOINT_MARGIN = (0.05, 0.15)         # rad: below the first the run is refused, below the second it is a warning
+PIVOT_PATH_WARN = 2.0               # mm: warning if the hand leaves the pivot arc by more with the controller's lag
 
 
 def parse_pose(text):
@@ -79,6 +81,26 @@ def preflight(res, cfg):
     out.append(check("joint-limit margin", margin >= JOINT_MARGIN[0], f"{margin:.2f} rad", hard=True))
     if margin < JOINT_MARGIN[1]:
         out.append(check("joint-limit margin comfortable", False, f"{margin:.2f} rad < {JOINT_MARGIN[1]} rad", hard=False))
+    # panda-py's virtual joint walls push back inside these zones, which the simulation does not model
+    per_joint = np.minimum(a["theta"] - lb, ub - a["theta"]).min(axis=0)
+    j = int(np.argmin(per_joint - PANDA_WALL))
+    out.append(check("joints stay out of the controller's joint walls", bool(np.all(per_joint >= PANDA_WALL)),
+                     f"joint {j + 1}: {per_joint[j]:.3f} rad from its limit, wall at {PANDA_WALL[j]:.3f} rad"))
+    j = int(np.argmin(per_joint - 2 * PANDA_WALL))
+    if per_joint[j] < 2 * PANDA_WALL[j]:
+        out.append(check("joints stay out of the walls' damping zone", False,
+                         f"joint {j + 1}: {per_joint[j]:.3f} rad < {2 * PANDA_WALL[j]:.3f} rad (more tracking lag there)", hard=False))
+    tr = res.get("tracking")
+    if tr is not None:
+        mode = "with lag compensation" if tr["lead"] else "without lag compensation"
+        out.append(check(f"simulation with the joint controller's lag ({mode}): all segments completed", tr["ok"],
+                         "" if tr["ok"] else "; ".join(tr["fails"]) + "  (slower speed, larger safety.settle, or --lead)"))
+        if tr["ok"]:
+            tol = cfg["tolerance"]
+            out.append(check("  object at the goal with the lag", tr["err_mm"] < tol["position"] * 1e3
+                             and tr["err_deg"] < tol["rotation_deg"], f"{tr['err_mm']:.1f} mm, {tr['err_deg']:.2f} deg", hard=False))
+            out.append(check("  hand stays on the pivot arc with the lag", tr["pivot_dev_mm"] < PIVOT_PATH_WARN,
+                             f"leaves it by {tr['pivot_dev_mm']:.1f} mm (the box is squeezed against the table by that much)", hard=False))
     out.append(check("arm and hand clearance", res["clearance"]["arm_min"] >= 0.005, f"smallest distance {res['clearance']['arm_min'] * 1e3:.1f} mm"))
     m, f_max = box.mass, (cfg["execution"].get("safety") or {}).get("f_max", 30.0)
     out.append(check("box mass within the payload", m <= PAYLOAD, f"{m:.2f} kg, payload {PAYLOAD} kg"))
@@ -99,6 +121,13 @@ def print_preflight(items):
     print("  => " + ("GO" if go(items) else "NO-GO: a hard check failed"))
 
 
+def robot_settings(cfg):
+    """execution.robot of the config with its defaults: settings that only matter on the real robot."""
+    r = dict(stall_timeout=0.05, track_tau_max=None, lead=False, reflex=None)
+    r.update((cfg["execution"].get("robot") or {}))
+    return r
+
+
 def plan_json(res, cfg, speed):
     steps = [asdict(s) for s in res["plan"].steps] if res["plan"].found else []
     meta = dict(start=cfg["tasks"]["custom"]["start"], goal=cfg["tasks"]["custom"]["goal"], speed=speed,
@@ -107,8 +136,9 @@ def plan_json(res, cfg, speed):
     return json.dumps(meta, indent=1, default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o))
 
 
-def plan_and_simulate(cfg, start, goal, speed=1.0):
-    """Plan with the feasibility model of the config and simulate the plan at `speed`; returns res (+ robot limits)."""
+def plan_and_simulate(cfg, start, goal, speed=1.0, tracking=False):
+    """Plan with the feasibility model of the config and simulate the plan at `speed`; returns res (+ robot limits).
+    tracking=True adds res["tracking"]: the same plan simulated with the joint controller's lag (simulate_tracking)."""
     cfg["tasks"]["custom"] = dict(start=start, goal=goal)
     rp.scale_speed(cfg, speed)
     robot = rp.make_robot(cfg)
@@ -117,7 +147,41 @@ def plan_and_simulate(cfg, start, goal, speed=1.0):
     res = rp.run_task(cfg, robot, "custom", rp.make_planner(cfg_plan, robot))
     res["robot_limits"] = (robot.qlim[0, :7], robot.qlim[1, :7])
     res["robot"] = robot
+    if tracking and res["plan"].found:
+        res["tracking"] = simulate_tracking(res, cfg, lead=robot_settings(cfg)["lead"])
     return res
+
+
+def pivot_path_error(log, steps, robot):
+    """Largest distance [m] of the grasp point from the planned pivot arc over the pivots of a log: change of
+    the radius about the pivot axis or of the position along it."""
+    a, dev = log.arrays(), 0.0
+    for j, sg in enumerate(log.segments):
+        idx = np.flatnonzero(a["segment"] == j)
+        if sg["name"] != "pivot" or len(idx) < 2:
+            continue
+        S = np.asarray(steps[sg["step"]].plan.S, float)
+        u, p_axis = S[:3], np.cross(S[:3], S[3:])
+        P = np.array([contact_pose(robot, np.r_[a["theta"][k], a["phi"][k]])[:3, 3] for k in idx[::20]])
+        d = P - p_axis
+        ax = d @ u
+        rad = np.linalg.norm(d - np.outer(ax, u), axis=1)
+        dev = max(dev, float(np.abs(rad - rad[0]).max()), float(np.abs(ax - ax[0]).max()))
+    return dev
+
+
+def simulate_tracking(res, cfg, lead=False, dt=0.002):
+    """The plan once more, with measured joints that lag the position target as on the robot (SimBackend(lag=...):
+    panda-py's controller damps the joint velocity, so q lags q_d by Kd / Kp * velocity). The ideal simulation
+    cannot show the two effects of that lag: segments that do not settle in time, and a pivot that leaves its arc."""
+    kw = rp.exec_kwargs(cfg)
+    backend = SimBackend(kw["q_ready"], dt=dt, lag=PANDA_LAG)
+    log, T_end = run_plan(backend, res["robot"], res["plan"].steps, res["T0"], free_rotation=cfg["free_rotation"],
+                          lead=PANDA_LAG if lead else None, **kw)
+    ep, er = pose_error(T_end, res["Tg"])
+    return dict(lead=bool(lead), ok=log.ok, fails=[f"{s['name']} (step {s.get('step')}): {s['cause']}" for s in log.segments if not s["ok"]],
+                err_mm=float(ep * 1e3), err_deg=float(math.degrees(er)),
+                pivot_dev_mm=pivot_path_error(log, res["plan"].steps, res["robot"]) * 1e3)
 
 
 def save_run(res, cfg, run_dir, speed):
@@ -145,9 +209,22 @@ def compare(expected, real, T_end=None, T_goal=None):
                          duration=float(tr[-1]), expected_duration=float(te[-1]),
                          rms_joint_error=float(np.sqrt((e ** 2).mean())), max_joint_error=float(np.abs(e).max()),
                          max_force=float(np.linalg.norm(ra["F_ext"][ir][:, :3], axis=1).max())))
-    out = dict(segments=segs, tick_ms_p99=float(np.percentile(ra["tick_time"], 99) * 1e3),
-               solve_ms_p99=float(np.percentile(ra["solve_time"], 99) * 1e3), n_segments=len(real.segments),
-               expected_segments=len(expected.segments), ok=real.ok)
+    out = dict(segments=segs, n_segments=len(real.segments), expected_segments=len(expected.segments),
+               ok=real.ok and real.abort is None, abort=real.abort)
+    if len(ra["t"]) > 2:
+        dt = np.diff(ra["t"])[ra["segment"][1:] == ra["segment"][:-1]]
+        dq = np.gradient(ra["theta"], ra["t"], axis=0)
+        e = ra["target"] - ra["theta"]                                  # position target minus measured joints
+        moving = np.abs(dq) > 0.02
+        lag = [float((e[moving[:, i], i] @ dq[moving[:, i], i]) / (dq[moving[:, i], i] @ dq[moving[:, i], i]))
+               if moving[:, i].sum() > 100 else None for i in range(7)]
+        out.update(tick_ms_p99=float(np.percentile(ra["tick_time"], 99) * 1e3),
+                   solve_ms_p99=float(np.percentile(ra["solve_time"], 99) * 1e3),
+                   period_ms_max=float(dt.max() * 1e3) if len(dt) else None,
+                   # tracking: (q_d - q) - lag dq, as a torque of the joint controller, and the lag itself
+                   track_mrad_max=(np.abs(ra["track"]).max(axis=0) * 1e3).round(2).tolist(),
+                   track_torque_max=(np.abs(ra["track"]).max(axis=0) * PANDA_KP).round(2).tolist(),
+                   lag_measured_s=lag, lag_model_s=PANDA_LAG.round(3).tolist())
     if T_end is not None and T_goal is not None:
         ep, er = pose_error(T_end, T_goal)
         out.update(object_error_mm=float(ep * 1e3), object_error_deg=float(math.degrees(er)))
@@ -155,8 +232,12 @@ def compare(expected, real, T_end=None, T_goal=None):
 
 
 def print_compare(c):
-    print(f"\nreal run: {'all segments finished' if c['ok'] else 'STOPPED'}  ({c['n_segments']} of {c['expected_segments']} segments), "
-          f"tick p99 {c['tick_ms_p99']:.2f} ms, QP p99 {c['solve_ms_p99']:.2f} ms")
+    print(f"\nreal run: {'all segments finished' if c['ok'] else 'STOPPED'}  ({c['n_segments']} of {c['expected_segments']} segments)")
+    if "tick_ms_p99" in c:
+        print(f"  loop: tick p99 {c['tick_ms_p99']:.2f} ms, QP p99 {c['solve_ms_p99']:.2f} ms, longest period {c['period_ms_max']:.1f} ms")
+        print(f"  tracking torque, largest per joint [Nm]: {c['track_torque_max']}")
+        print(f"  lag of the joints behind the target [s]: measured {[None if v is None else round(v, 3) for v in c['lag_measured_s']]}, "
+              f"model {c['lag_model_s']}")
     for s in c["segments"]:
         print(f"  step {s['step']}  {s['name']:9s} {s['duration']:6.2f} s (sim {s['expected_duration']:6.2f})  "
               f"joint error rms {s['rms_joint_error'] * 1e3:6.1f} mrad, max {s['max_joint_error'] * 1e3:6.1f} mrad   "
@@ -164,6 +245,13 @@ def print_compare(c):
     if "object_error_mm" in c:
         print(f"  object pose by forward kinematics at the release: {c['object_error_mm']:.2f} mm, {c['object_error_deg']:.2f} deg "
               f"from the goal (not measured)")
+    ab = c.get("abort")
+    if ab:
+        print(f"\nABORTED in '{ab['segment']}' (step {ab['step']}): {ab['cause']}")
+        print("  The velocity was set to zero and the controller stopped; the robot holds its position. No motion follows.")
+        if ab["holding"]:
+            print("  THE FINGERS ARE STILL CLOSED ON THE BOX. Support the box by hand, then open the gripper from Desk.")
+        print("  Before the next run: move the arm near the ready configuration by hand (guiding mode) and put the box back.")
 
 
 # ---- the robot -------------------------------------------------------------------------------------------
@@ -193,12 +281,26 @@ def confirm(phrase, ask=input):
     return ask(f"\nType  {phrase}  to move the robot (anything else cancels): ").strip() == phrase
 
 
-def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, gripper=None):
-    """Run the planned and simulated task on the Panda. panda/gripper: connected objects (tests pass fakes)."""
-    from pandaSim.control.backends import PandaBackend
-    from pandaSim.control.primitive_executor import run_plan
+def set_reflex(panda, reflex):
+    """Collision thresholds of the robot itself (libfranka setCollisionBehavior): lower = contact, upper = stop.
+    panda-py does not set them, so without this call they are whatever the robot was left with."""
+    t, f = reflex["torque"], reflex["force"]
+    panda.get_robot().set_collision_behavior([float(x) for x in t["lower"]], [float(x) for x in t["upper"]],
+                                             [float(x) for x in f["lower"]], [float(x) for x in f["upper"]])
 
-    robot, kw = res["robot"], rp.exec_kwargs(cfg)
+
+def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, gripper=None, lead=None):
+    """Run the planned and simulated task on the Panda. panda/gripper: connected objects (tests pass fakes).
+
+    Order: connect (read only) -> checks on the robot -> typed confirmation -> brakes, reflex thresholds, move to
+    ready -> run_plan. Whatever ends the run (failed segment, robot error, Ctrl-C, exception), the arm has been
+    commanded to zero velocity and the controller stopped by run_plan, and real.npz and compare.json are written.
+    Returns the comparison dict, or None if the robot was not moved."""
+    from pandaSim.control.backends import PandaBackend
+
+    robot, kw, rs = res["robot"], rp.exec_kwargs(cfg), robot_settings(cfg)
+    lead = rs["lead"] if lead is None else lead
+    creds = None
     if panda is None:
         import check_connection as cc
         import os
@@ -211,8 +313,6 @@ def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, grippe
         panda = panda_py.Panda(host, realtime_config=libfranka.RealtimeConfig.kEnforce if rt_ok else libfranka.RealtimeConfig.kIgnore)
         gripper = libfranka.Gripper(host)
         creds = cc.desk_credentials()
-        if creds is not None:                          # release the brakes (needed if the robot was locked)
-            panda_py.Desk(host, *creds, platform="panda").unlock()
     items = robot_checks(panda.get_state(), kw["q_ready"], res["robot_limits"],
                          gripper.read_once() if gripper is not None else None)
     print("\nrobot:")
@@ -220,21 +320,49 @@ def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, grippe
     if not go(items):
         return None
     print(f"\nrun {run_dir.name}: level {level}, speed {speed}, {len(res['plan'].steps)} steps "
-          f"({' -> '.join(s.kind for s in res['plan'].steps)}), about {res['log'].arrays()['t'][-1]:.0f} s")
+          f"({' -> '.join(s.kind for s in res['plan'].steps)}), about {res['log'].arrays()['t'][-1]:.0f} s, "
+          f"lag compensation {'on' if lead else 'off'}")
+    if rs["reflex"]:
+        print(f"the robot's collision reflex will be set to: force {rs['reflex']['force']['upper'][:3]} N, "
+              f"torque {rs['reflex']['torque']['upper']} Nm")
     if not confirm(f"RUN {level} {run_dir.name}", ask):
         print("cancelled; the robot was not moved")
         return None
+    if creds is not None:                              # release the brakes (needed if the robot was locked)
+        import panda_py
+
+        panda_py.Desk(host, *creds, platform="panda").unlock()
+    if rs["reflex"]:
+        set_reflex(panda, rs["reflex"])
     if np.abs(np.asarray(panda.get_state().q) - kw["q_ready"]).max() > 1e-3:
         print("moving to the ready configuration (panda-py joint motion, slow)")
-        panda.move_to_joint_position(kw["q_ready"], speed_factor=0.1)
-    backend = PandaBackend(panda, gripper, frequency=1.0 / cfg["execution"]["dt"], air=(level == "air"))
+        reached = panda.move_to_joint_position(kw["q_ready"], speed_factor=0.1)
+        off = float(np.abs(np.asarray(panda.get_state().q) - kw["q_ready"]).max())
+        if reached is False or off > 0.02:
+            print(f"the move to the ready configuration did not arrive ({off:.3f} rad off): the run is not started")
+            return None
+    backend = PandaBackend(panda, gripper, frequency=1.0 / cfg["execution"]["dt"], air=(level == "air"),
+                           stall_timeout=rs["stall_timeout"],
+                           **({} if rs["track_tau_max"] is None else {"track_tau_max": rs["track_tau_max"]}))
+    log, T_end, error = Log(), None, None
     t0 = time.perf_counter()
-    log, T_end = run_plan(backend, robot, res["plan"].steps, res["T0"], free_rotation=cfg["free_rotation"], **kw)
-    print(f"finished in {time.perf_counter() - t0:.1f} s")
-    log.save(run_dir / "real.npz", T0=res["T0"], Tg=res["Tg"], size=np.array(res["box"].size), base=np.array(cfg["robot"]["base"]))
-    c = compare(res["log"], log, T_end, res["Tg"])
-    (run_dir / "compare.json").write_text(json.dumps(c, indent=1))
-    print_compare(c)
+    try:
+        _, T_end = run_plan(backend, robot, res["plan"].steps, res["T0"], free_rotation=cfg["free_rotation"],
+                            payload=0.0 if level == "air" else res["box"].mass, lead=backend.lag if lead else None,
+                            log=log, **kw)
+    except KeyboardInterrupt:
+        error = "interrupted with Ctrl-C"
+    except Exception as e:                             # the arm is already stopped (run_plan); keep the records
+        error = e
+    finally:
+        print(f"finished in {time.perf_counter() - t0:.1f} s")
+        log.save(run_dir / "real.npz", T0=res["T0"], Tg=res["Tg"], size=np.array(res["box"].size),
+                 base=np.array(cfg["robot"]["base"]))
+        c = compare(res["log"], log, T_end, res["Tg"])
+        (run_dir / "compare.json").write_text(json.dumps(c, indent=1, default=str))
+        print_compare(c)
+    if isinstance(error, Exception):
+        raise error
     return c
 
 
@@ -252,6 +380,8 @@ def main(argv=None):
     ap.add_argument("--replay-speed", type=float, default=1.0)
     ap.add_argument("--execute", action="store_true", help="run on the robot (after the checks and a typed confirmation)")
     ap.add_argument("--host", default="172.16.0.2")
+    ap.add_argument("--lead", action=argparse.BooleanOptionalAction, default=None,
+                    help="lag compensation of the joint controller (default: execution.robot.lead of the config)")
     args = ap.parse_args(argv)
 
     cfg = rp.load_config(args.config, not args.rigid, None)
@@ -263,7 +393,9 @@ def main(argv=None):
         raise SystemExit(f"speed {speed} is outside (0, {cap}] for level {args.level}")
     run_dir = HERE / "runs" / "box" / (args.name or time.strftime("%Y%m%d-%H%M%S"))
 
-    res = plan_and_simulate(cfg, parse_pose(args.start), parse_pose(args.goal), speed)
+    if args.lead is not None:
+        cfg["execution"]["robot"] = {**(cfg["execution"].get("robot") or {}), "lead": args.lead}
+    res = plan_and_simulate(cfg, parse_pose(args.start), parse_pose(args.goal), speed, tracking=True)
     print(f"\nplan {args.start}  ->  {args.goal}   ({'rigid' if args.rigid else 'free rotation'}, speed {speed})")
     if res["plan"].found:
         rp.report(res)

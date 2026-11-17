@@ -26,8 +26,22 @@ execution:
   lift: 0.10
   pivot: {w_max: 0.3}
   grasp: {force: 20.0, speed: 0.05, epsilon: 0.015}   # N, m/s, m: the box width may differ from the plan by 15 mm
-  qp: {}
-  safety: {f_max: 30.0, tau_max: 15.0, settle: 2.0}   # stop on |F_ext| > f_max N or |tau_ext| > tau_max Nm
+  # panda-py adds virtual walls to every torque controller: a spring pushes back within 0.12 rad (joint 1) or
+  # 0.09 rad (joints 2 to 4) of a joint limit. rho_s keeps the QP out of that zone (0.05 rad in the simulation config).
+  qp: {rho_s: 0.13, rho_e: 0.40}
+  # stop on |F_ext| > f_max N or |tau_ext| > tau_max Nm (the weight of the held box is removed first), on more than
+  # dt_max s between two ticks, or if a segment has not arrived settle s after its planned end
+  safety: {f_max: 30.0, tau_max: 15.0, settle: 5.0, dt_max: 0.05}
+  robot:                        # real robot only (run_box.py --execute); see PandaBackend
+    stall_timeout: 0.05         # s without a new velocity command before the watchdog zeroes it
+    track_tau_max: [20.0, 20.0, 20.0, 20.0, 6.0, 6.0, 4.0]   # Nm of tracking torque Kp (q_d - q) - Kd dq before a stop
+    lead: false                 # lag compensation of the joint controller (run_box.py --lead); switch on only after
+                                # an air run has shown that the measured lag matches the model (compare.json)
+    # the robot's own collision reflex (libfranka setCollisionBehavior), set before the motion so it is known:
+    # contact is flagged above `lower`, the robot stops by itself above `upper`. Above the software stops on purpose.
+    reflex:
+      torque: {lower: [15.0, 15.0, 15.0, 15.0, 6.0, 6.0, 6.0], upper: [25.0, 25.0, 25.0, 25.0, 10.0, 10.0, 10.0]}   # Nm
+      force: {lower: [20.0, 20.0, 20.0, 6.0, 6.0, 6.0], upper: [40.0, 40.0, 40.0, 12.0, 12.0, 12.0]}              # N, Nm
 
 tolerance: {position: 0.003, rotation_deg: 2.0}
 
