@@ -18,6 +18,7 @@ The robot only moves after you type the confirmation phrase; there is no flag th
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import math
 import sys
@@ -33,6 +34,7 @@ import run_plan as rp  # noqa: E402
 
 from pandaSim.control.backends import OPEN_WIDTH, PANDA_KP, PANDA_LAG, PANDA_WALL, SimBackend  # noqa: E402
 from pandaSim.control.primitive_executor import Log, check_profile, contact_pose, run_plan  # noqa: E402
+from pandaSim.planning.box_primitives import BASE_KEEPOUT  # noqa: E402
 from pandaSim.planning.feasibility import grasp_observability  # noqa: E402
 from pandaSim.planning.sequencer import pose_error  # noqa: E402
 
@@ -69,6 +71,12 @@ def preflight(res, cfg):
         x, y = spec["xy"]
         out.append(check(f"{key} pose inside the table area", REGION["x"][0] <= x <= REGION["x"][1]
                          and REGION["y"][0] <= y <= REGION["y"][1], f"x {x:.2f}, y {y:.2f}; area {REGION}"))
+        # the planner keeps every corner of the box out of a cylinder around the base: a pose inside it has no plan
+        T = res["T0"] if key == "start" else res["Tg"]
+        corners = T[:3, 3] + (np.array(list(itertools.product((-0.5, 0.5), repeat=3))) * np.asarray(box.size)) @ T[:3, :3].T
+        d = float(np.linalg.norm(corners[:, :2] - np.asarray(cfg["robot"]["base"][:2]), axis=1).min())
+        out.append(check(f"{key} pose clear of the robot base", d >= BASE_KEEPOUT,
+                         f"nearest box corner {d:.2f} m from the base axis, keep-out {BASE_KEEPOUT:.2f} m"))
     out.append(check("plan found", plan.found, "" if plan.found else "no feasible plan for this start and goal"))
     if not plan.found:
         return out

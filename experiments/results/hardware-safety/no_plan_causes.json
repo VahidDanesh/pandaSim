@@ -1,0 +1,238 @@
+[
+ {
+  "trial": 17,
+  "start": {
+   "xy": [
+    0.37334150306848546,
+    -0.09341401271752489
+   ],
+   "rpy": [
+    0.0,
+    -90.0,
+    167.78234908226528
+   ]
+  },
+  "goal": {
+   "xy": [
+    0.54678114477996,
+    -0.14468124409744065
+   ],
+   "rpy": [
+    0.0,
+    -90.0,
+    -92.99674292603581
+   ]
+  },
+  "candidates": 0,
+  "found_again": false,
+  "cause": "no candidate passes the cheap tests (reach, base keep-out, tipping margin)",
+  "detail": "start 0.38 m and goal 0.57 m from the base"
+ },
+ {
+  "trial": 27,
+  "start": {
+   "xy": [
+    0.5524175702241954,
+    -0.18352213626552383
+   ],
+   "rpy": [
+    0.0,
+    0.0,
+    8.436501862171184
+   ]
+  },
+  "goal": {
+   "xy": [
+    0.3811274740861952,
+    0.2891656158760237
+   ],
+   "rpy": [
+    0.0,
+    0.0,
+    25.702416164078784
+   ]
+  },
+  "candidates": 4,
+  "found_again": false,
+  "first_feasible_rank": null,
+  "reasons": {
+   "slide/slide: infeasible QP": 4
+  },
+  "cause": "none of the 4 cheapest candidates can be executed",
+  "found_with_4_pivots": false
+ },
+ {
+  "trial": 30,
+  "start": {
+   "xy": [
+    0.41202935916613054,
+    -0.06715996092928847
+   ],
+   "rpy": [
+    0.0,
+    0.0,
+    81.31711095927966
+   ]
+  },
+  "goal": {
+   "xy": [
+    0.38071876036582036,
+    -0.06294497498521945
+   ],
+   "rpy": [
+    0.0,
+    -90.0,
+    134.46814720346356
+   ]
+  },
+  "candidates": 0,
+  "found_again": false,
+  "cause": "no candidate passes the cheap tests (reach, base keep-out, tipping margin)",
+  "detail": "start 0.42 m and goal 0.39 m from the base"
+ },
+ {
+  "trial": 41,
+  "start": {
+   "xy": [
+    0.6186782944942157,
+    0.042410871515699444
+   ],
+   "rpy": [
+    0.0,
+    0.0,
+    -39.10304653032088
+   ]
+  },
+  "goal": {
+   "xy": [
+    0.37580935468923204,
+    -0.014299822069802626
+   ],
+   "rpy": [
+    0.0,
+    -90.0,
+    -25.72574106854742
+   ]
+  },
+  "candidates": 0,
+  "found_again": false,
+  "cause": "no candidate passes the cheap tests (reach, base keep-out, tipping margin)",
+  "detail": "start 0.62 m and goal 0.38 m from the base"
+ },
+ {
+  "trial": 47,
+  "start": {
+   "xy": [
+    0.4654635413728775,
+    0.2662066591375127
+   ],
+   "rpy": [
+    0.0,
+    -90.0,
+    4.38251682158463
+   ]
+  },
+  "goal": {
+   "xy": [
+    0.3584046202349722,
+    -0.2019791453178263
+   ],
+   "rpy": [
+    0.0,
+    -90.0,
+    138.03074410808227
+   ]
+  },
+  "candidates": 0,
+  "found_again": false,
+  "cause": "no candidate passes the cheap tests (reach, base keep-out, tipping margin)",
+  "detail": "start 0.54 m and goal 0.41 m from the base"
+ },
+ {
+  "trial": 48,
+  "start": {
+   "xy": [
+    0.6262366418884366,
+    0.03410129403239415
+   ],
+   "rpy": [
+    0.0,
+    0.0,
+    20.789129743670316
+   ]
+  },
+  "goal": {
+   "xy": [
+    0.35425128413976437,
+    0.12779617856275238
+   ],
+   "rpy": [
+    0.0,
+    -90.0,
+    78.03024500294214
+   ]
+  },
+  "candidates": 0,
+  "found_again": false,
+  "cause": "no candidate passes the cheap tests (reach, base keep-out, tipping margin)",
+  "detail": "start 0.63 m and goal 0.38 m from the base"
+ },
+ {
+  "trial": 57,
+  "start": {
+   "xy": [
+    0.4888631605036988,
+    -0.17869914361470923
+   ],
+   "rpy": [
+    0.0,
+    -90.0,
+    -145.8803957899799
+   ]
+  },
+  "goal": {
+   "xy": [
+    0.3517147952460014,
+    -0.10624751780161298
+   ],
+   "rpy": [
+    0.0,
+    0.0,
+    176.66809856683994
+   ]
+  },
+  "candidates": 0,
+  "found_again": false,
+  "cause": "no candidate passes the cheap tests (reach, base keep-out, tipping margin)",
+  "detail": "start 0.52 m and goal 0.37 m from the base"
+ },
+ {
+  "trial": 72,
+  "start": {
+   "xy": [
+    0.35423549548526745,
+    -0.01019495193972042
+   ],
+   "rpy": [
+    0.0,
+    -90.0,
+    169.78725154269642
+   ]
+  },
+  "goal": {
+   "xy": [
+    0.6641944522911418,
+    0.27639893155816303
+   ],
+   "rpy": [
+    0.0,
+    -90.0,
+    37.393076786670974
+   ]
+  },
+  "candidates": 0,
+  "found_again": false,
+  "cause": "no candidate passes the cheap tests (reach, base keep-out, tipping margin)",
+  "detail": "start 0.35 m and goal 0.72 m from the base"
+ }
+]

@@ -448,3 +448,11 @@ def test_observability_of_the_grasp(planned):
     on_axis[:3, 3] = np.cross(S[:3], S[3:]) + S[:3] * (S[:3] @ pl.T_grasp[:3, 3])       # same place along the edge
     assert not grasp_observability(dataclasses.replace(step, plan=dataclasses.replace(pl, T_grasp=on_axis)))[0]
     assert all(c["ok"] for c in rb.preflight(res, cfg) if "finger axis" in c["name"])
+
+
+def test_a_pose_inside_the_base_keep_out_is_named_in_the_preflight():
+    cfg = rp.load_config(rb.REAL_CONFIG)
+    res = rb.plan_and_simulate(cfg, rb.parse_pose("0.50,0.00,0,lying"), rb.parse_pose("0.38,0.00,0,lying"))
+    items = rb.preflight(res, cfg)                     # the 0.25 m side points at the base: a corner 0.26 m from its axis
+    assert not res["plan"].found and not rb.go(items)
+    assert [c["name"] for c in items if not c["ok"]] == ["goal pose clear of the robot base", "plan found"]
