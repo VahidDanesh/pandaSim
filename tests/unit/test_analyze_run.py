@@ -8,7 +8,14 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "experiments"))
 import analyze_run as ar  # noqa: E402
 import run_box as rb  # noqa: E402
-from test_run_box import Ctrl, Ctx, Gripper, Panda, planned  # noqa: E402,F401  (planned is a fixture)
+import run_plan as rp  # noqa: E402
+from test_run_box import GOAL, START, Ctrl, Ctx, Gripper, Panda  # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def planned():
+    cfg = rp.load_config(rb.REAL_CONFIG)
+    return cfg, rb.plan_and_simulate(cfg, rb.parse_pose(START), rb.parse_pose(GOAL), speed=1.0)
 
 
 class FailingCtx(Ctx):
