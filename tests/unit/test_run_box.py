@@ -475,3 +475,31 @@ def test_a_pose_inside_the_base_keep_out_is_named_in_the_preflight():
     items = rb.preflight(res, cfg)                     # the 0.25 m side points at the base: a corner 0.26 m from its axis
     assert not res["plan"].found and not rb.go(items)
     assert [c["name"] for c in items if not c["ok"]] == ["goal pose clear of the robot base", "plan found"]
+
+
+def test_a_rigid_pivot_that_is_predicted_to_stop_runs_only_with_expect_stop(tmp_path, monkeypatch):
+    """7.5: the free-rotation plan executed with the rigid grasp stops by an infeasible QP in the pivot. The pre-flight
+    refuses it unless the stop is expected; with --expect-stop it is GO, and on the robot the run stops there with the
+    fingers still on the box (no release, no further motion)."""
+    from panda_py import controllers
+
+    start, goal = rb.parse_pose("0.50,-0.20,90,lying"), rb.parse_pose("0.50,0.00,90,standing")
+    cfg = rp.load_config(rb.REAL_CONFIG, False, True)
+    res = rb.plan_and_simulate(cfg, start, goal, 0.3, tracking=True)
+    assert [s.kind for s in res["plan"].steps] == ["pivot"] and not res["log"].ok
+    stop = rb.predicted_stop(res["log"], res["plan"].steps)
+    assert stop["step"] == 0 and 30 < stop["angle_deg"] < 85 and stop["of_deg"] == pytest.approx(90.0)
+    assert not rb.go(rb.preflight(res, cfg)) and rb.go(rb.preflight(res, cfg, expect_stop=True))
+    coast = next(c for c in rb.preflight(res, cfg, expect_stop=True) if c["name"].startswith("hand coasts"))
+    assert coast["ok"] and cfg["execution"]["qp"]["qd_scale"] == pytest.approx(0.8 * 0.3)    # the bound is slowed too
+    free = rb.plan_and_simulate(rp.load_config(rb.REAL_CONFIG, True, True), start, goal, 0.3)
+    assert free["log"].ok and not rb.go(rb.preflight(free, cfg, expect_stop=True))      # it does not stop
+
+    monkeypatch.setattr(controllers, "IntegratedVelocity", Ctrl)
+    cfg["execution"]["robot"]["stall_timeout"] = 1.0     # a long run on the fake; the watchdog is tested elsewhere
+    run_dir = tmp_path / "fr"
+    run_dir.mkdir()
+    panda, gripper = Panda(rp.exec_kwargs(cfg)["q_ready"]), Gripper()
+    c = rb.execute(res, cfg, run_dir, None, "low", 0.3, ask=lambda p: f"RUN low {run_dir.name}", panda=panda, gripper=gripper)
+    assert c["abort"]["cause"] == "infeasible QP" and c["abort"]["holding"] and stopped(panda)
+    assert [g[0] for g in gripper.calls] == ["move", "grasp"]                              # the box stays in the hand

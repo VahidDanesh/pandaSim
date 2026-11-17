@@ -56,6 +56,8 @@ python experiments/run_box.py --start ... --goal ... --execute --host 172.16.0.2
 
 The run folder `experiments/runs/box/<name>/` gets `plan.json`, `expected.npz` (the simulated run, for the Swift replay), `preflight.json` and, after a robot run, `real.npz` and `compare.json` (joint tracking against the simulation, forces, loop timing, object pose by forward kinematics at the release). Edit `experiments/configs/box_real.yaml` first: weigh the box (mass), check the size and the robot base height.
 
+`--gait` plans object gaiting (the box turns about its vertices on the same face) instead of slides and pivots; `--rigid` executes the free-rotation plan with the rigid grasp. The experiments of the paper are listed in `experiments/configs/protocol.yaml`; `experiments/protocol.py` checks all of them in simulation and prints their commands.
+
 `--execute` connects to the robot, checks it (joint limits, errors, load, distance to the ready configuration, gripper), prints the plan and moves only after you type `RUN <level> <run name>`; there is no flag that skips this. Levels: `air` (no box, fingers close to the box width in the air), `low` and `full` (box on the table); `--speed` scales the approach, slides and pivots (0.3 by default for `air` and `low`). A robot error, a wrench above the limits, an infeasible QP or a failed grasp stops the arm and leaves the gripper as it is.
 
 ## Project Structure

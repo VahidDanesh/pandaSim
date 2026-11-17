@@ -8,6 +8,7 @@
 The log of each run is saved to experiments/runs/<task>_<free|rigid>.npz.
 """
 import argparse
+import inspect
 import math
 import sys
 import time
@@ -17,6 +18,7 @@ import numpy as np
 import yaml
 
 from pandaSim.control.backends import SimBackend
+from pandaSim.control.contact_qp import ContactQP
 from pandaSim.control.primitive_executor import check_clearance, check_profile, run_plan
 from pandaSim.planning import clearance, se3
 from pandaSim.planning.collision import ArmCollision
@@ -25,6 +27,7 @@ from pandaSim.planning.gait import GaitPlanner
 from pandaSim.planning.sequencer import Box, Sequencer, pose_error, snap_stable
 
 HERE = Path(__file__).resolve().parent
+QD_SCALE = inspect.signature(ContactQP).parameters["qd_scale"].default     # nominal joint velocity bound, x limit
 DEFAULT_CONFIG = HERE / "configs" / "box_plan.yaml"
 
 
@@ -70,12 +73,15 @@ def exec_kwargs(cfg):
 
 
 def scale_speed(cfg, factor):
-    """Slow the execution down by `factor` (0 < factor <= 1): approach, joint moves and pivots. The geometry of the
-    plan does not change; the rollouts of the planner run at the nominal speed (slower is never harder for the QP)."""
+    """Slow the execution down by `factor` (0 < factor <= 1): approach, joint moves, pivots and the joint velocity
+    bound of the QP (eq:qp_d), so that a run that is slowed down also cannot speed a joint up beyond the same fraction
+    (near a singularity the QP drives the joints to its bound). The geometry of the plan does not change; the rollouts
+    of the planner run at the nominal speed."""
     e = cfg["execution"]
     e["pivot"] = {**(e.get("pivot") or {}), "w_max": 0.3 * factor}
     e["approach"] = {**(e.get("approach") or {}), "v_max": 0.1 * factor, "w_max": 0.3 * factor}
     e["ready"] = {**(e.get("ready") or {}), "qd_max": 0.5 * factor}
+    e["qp"] = {**(e.get("qp") or {}), "qd_scale": QD_SCALE * factor}
     return cfg
 
 

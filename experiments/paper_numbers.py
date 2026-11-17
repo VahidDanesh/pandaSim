@@ -49,6 +49,7 @@ def parameters(config=CONFIG):
 
     qp = {k: v.default for k, v in inspect.signature(ContactQP).parameters.items() if v.default is not inspect._empty}
     cfg = yaml.safe_load(Path(config).read_text())
+    prot = yaml.safe_load((Path(config).parent / "protocol.yaml").read_text())
     e, p = cfg["execution"], cfg["planner"]
     qp.update(e.get("qp") or {})                       # the values the robot runs with: config overrides the defaults
     d_col = inspect.signature(collision.ArmCollision).parameters["margin"].default
@@ -78,6 +79,14 @@ def parameters(config=CONFIG):
         ("tau_max", "joint torque stop", e["safety"]["tau_max"], "Nm", [("external joint torque exceeds ${}$~Nm", [e["safety"]["tau_max"]])]),
         ("lift", "approach and retreat height", e["lift"], "m", [("approach from ${}$~m above the grasp", [e["lift"]])]),
         ("rate", "control rate", 1.0 / e["dt"], "Hz", [("quadprog at ${}$~kHz", [1e-3 / e["dt"]])]),
+        ("gamma, beta", "tilting angles in object gaiting", (p["gait"]["gamma_deg"], p["gait"]["beta_deg"]), "deg",
+         [("tilting angles in object gaiting & ${}^\\circ$, ${}^\\circ$", [p["gait"]["gamma_deg"], p["gait"]["beta_deg"]])]),
+        ("alpha_max", "maximum rotation in object gaiting", p["gait"]["alpha_max_deg"], "deg",
+         [("maximum rotation in object gaiting & ${}^\\circ$", [p["gait"]["alpha_max_deg"]])]),
+        ("speed", "speed factors of the robot runs (protocol.yaml)", (prot["speed"], prot["experiments"]["fr"]["speed"]), "",
+         [("bound $\\dot{\\boldsymbol{\\theta}}_{\\max}$ are scaled by ${}$, and by ${}$ in", [prot["speed"], prot["experiments"]["fr"]["speed"]])]),
+        ("tolerance", "final pose tolerance", (cfg["tolerance"]["position"], cfg["tolerance"]["rotation_deg"]), "m, deg",
+         [("is within ${}$~mm and ${}^\\circ$ of", [cfg["tolerance"]["position"] * 1e3, cfg["tolerance"]["rotation_deg"]])]),
     ]
     if d_palm != d_col:
         rows.append(("d_palm", "palm clearance in the check after the run", d_palm, "m", []))

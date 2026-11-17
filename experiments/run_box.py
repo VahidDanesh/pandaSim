@@ -49,6 +49,7 @@ PAYLOAD = 3.0                       # kg, Franka Emika Panda (hand included)
 REGION = dict(x=(0.30, 0.75), y=(-0.35, 0.35))
 JOINT_MARGIN = (0.05, 0.15)         # rad: below the first the run is refused, below the second it is a warning
 PIVOT_PATH_WARN = 2.0               # mm: warning if the hand leaves the pivot arc by more with the controller's lag
+STOP_COAST_MAX = 0.005              # m: an expected stop is refused if the hand would coast further (controller lag)
 
 
 def parse_pose(text):
@@ -81,9 +82,30 @@ def check(name, ok, detail="", hard=True):
     return dict(name=name, ok=bool(ok), detail=detail, hard=hard)
 
 
-def preflight(res, cfg):
+# checks of the simulation that fail by design when the run is expected to stop (rigid grasp, --expect-stop)
+UNTIL_THE_STOP = ("all segments completed", "QP always feasible", "object at the goal", "arm back at ready")
+
+
+def predicted_stop(log, steps):
+    """Where a simulated run stops if it stops by an infeasible QP in a pivot: dict(step, angle_deg, of_deg, time_frac);
+    None if it does not stop, or stops for another reason."""
+    failed = next((sg for sg in log.segments if not sg["ok"]), None)
+    if failed is None or failed["name"] != "pivot" or failed["cause"] != "infeasible QP":
+        return None
+    from pandaSim.planning.primitives import time_scaling
+
+    k = sum(1 for sg in log.segments[:log.segments.index(failed)] if sg["name"] == "pivot" and sg["step"] == failed["step"])
+    theta = steps[failed["step"]].plan.screws[k][1]
+    tau = (failed["t_end"] - failed["t0"]) / failed["Tf"]
+    s = time_scaling(failed["t_end"] - failed["t0"], failed["Tf"])[0]
+    return dict(step=failed["step"], angle_deg=math.degrees(s * theta), of_deg=math.degrees(theta), time_frac=tau)
+
+
+def preflight(res, cfg, expect_stop=False):
     """Pre-flight list for a planned and simulated task (res of run_plan.run_task): dicts name, ok, detail, hard.
-    A failed hard check blocks the execution on the robot; a failed soft check is a warning."""
+    A failed hard check blocks the execution on the robot; a failed soft check is a warning.
+    expect_stop: the run is meant to stop (a rigid grasp where the simulation predicts an infeasible QP): it must stop
+    exactly so, in a pivot, and every other check holds until the stop."""
     plan, box = res["plan"], res["box"]
     out = []
     for key in ("start", "goal"):
@@ -102,8 +124,22 @@ def preflight(res, cfg):
         return out
     ep, er = pose_error(res["T0"], res["Tg"], symmetric(cfg))
     out.append(check("start and goal differ", ep > 1e-3 or er > 1e-2))
+    stop = predicted_stop(res["log"], plan.steps) if expect_stop else None
+    if expect_stop:
+        out.append(check("simulation stops by an infeasible QP in a pivot (expected: the robot then holds the tilted box)",
+                         stop is not None, f"step {stop['step']} at {stop['angle_deg']:.0f} of {stop['of_deg']:.0f} deg"
+                         if stop else "it does not: run it without --expect-stop"))
+    if stop:
+        # the joints are fast where the QP gives up; after the zero command they move on by the controller's lag
+        a = res["log"].arrays()
+        qd = a["qd"][-1, :7]
+        J = res["robot"].jacob0(np.r_[a["theta"][-1], a["phi"][-1]])[:3, :7]
+        coast = float(np.linalg.norm(J @ (PANDA_LAG * qd)))
+        out.append(check("hand coasts little after the expected stop", coast <= STOP_COAST_MAX,
+                         f"{coast * 1e3:.1f} mm (joints at up to {np.abs(qd).max():.2f} rad/s), at most "
+                         f"{STOP_COAST_MAX * 1e3:.0f} mm: otherwise lower --speed"))
     for k, v in res["checks"].items():
-        if k != "plan found":
+        if k != "plan found" and not (stop and k in UNTIL_THE_STOP):
             out.append(check(f"simulation: {k}", v))
     for i, st in enumerate(plan.steps):                # phi is not measured: the contact must determine it
         ok, _, text = grasp_observability(st)
@@ -126,9 +162,14 @@ def preflight(res, cfg):
     tr = res.get("tracking")
     if tr is not None:
         mode = "with lag compensation" if tr["lead"] else "without lag compensation"
-        out.append(check(f"simulation with the joint controller's lag ({mode}): all segments completed", tr["ok"],
-                         "" if tr["ok"] else "; ".join(tr["fails"]) + "  (slower speed, larger safety.settle, or --lead)"))
-        if tr["ok"]:
+        if stop:
+            same = bool(tr["fails"]) and all(f.startswith(f"pivot (step {stop['step']}): infeasible QP") for f in tr["fails"])
+            out.append(check(f"simulation with the joint controller's lag ({mode}): stops in the same pivot", same,
+                             "; ".join(tr["fails"]) or "it does not stop"))
+        else:
+            out.append(check(f"simulation with the joint controller's lag ({mode}): all segments completed", tr["ok"],
+                             "" if tr["ok"] else "; ".join(tr["fails"]) + "  (slower speed, larger safety.settle, or --lead)"))
+        if tr["ok"] and not stop:
             tol = cfg["tolerance"]
             out.append(check("  object at the goal with the lag", tr["err_mm"] < tol["position"] * 1e3
                              and tr["err_deg"] < tol["rotation_deg"], f"{tr['err_mm']:.1f} mm, {tr['err_deg']:.2f} deg", hard=False))
@@ -442,7 +483,12 @@ def main(argv=None):
     ap.add_argument("--start", required=True, help="x,y,yaw_deg,face")
     ap.add_argument("--goal", required=True, help="x,y,yaw_deg,face")
     ap.add_argument("--config", default=REAL_CONFIG)
-    ap.add_argument("--rigid", action="store_true", help="rigid grasp instead of free rotation (ablation)")
+    ap.add_argument("--rigid", action="store_true",
+                    help="execute with the rigid grasp (original fingers); the plan is the one of free rotation, so both "
+                         "grasps run the same motion")
+    ap.add_argument("--plan-rigid", action="store_true", help="plan with the rigid grasp as well")
+    ap.add_argument("--expect-stop", action="store_true",
+                    help="the simulation predicts an infeasible QP in a pivot (rigid grasp): run up to that stop")
     ap.add_argument("--gait", action="store_true", help="object gaiting (rotations about vertices) instead of slides and pivots")
     ap.add_argument("--mass", type=float, help="box mass in kg (overrides the config)")
     ap.add_argument("--name", help="run folder name (default: timestamp)")
@@ -456,7 +502,7 @@ def main(argv=None):
                     help="lag compensation of the joint controller (default: execution.robot.lead of the config)")
     args = ap.parse_args(argv)
 
-    cfg = rp.load_config(args.config, not args.rigid, None)
+    cfg = rp.load_config(args.config, not args.rigid, not args.plan_rigid)
     if args.mass is not None:
         cfg["box"]["mass"] = args.mass
     default, cap = LEVEL_SPEED[args.level]
@@ -468,10 +514,12 @@ def main(argv=None):
     if args.lead is not None:
         cfg["execution"]["robot"] = {**(cfg["execution"].get("robot") or {}), "lead": args.lead}
     res = plan_and_simulate(cfg, parse_pose(args.start), parse_pose(args.goal), speed, tracking=True, gait=args.gait)
-    print(f"\nplan {args.start}  ->  {args.goal}   ({'rigid' if args.rigid else 'free rotation'}, speed {speed})")
+    grasp = lambda free: "free rotation" if free else "rigid grasp"
+    print(f"\nplan {args.start}  ->  {args.goal}   (planned with {grasp(cfg['plan_free_rotation'])}, executed with "
+          f"{grasp(cfg['free_rotation'])}, speed {speed})")
     if res["plan"].found:
         rp.report(res)
-    items = preflight(res, cfg)
+    items = preflight(res, cfg, args.expect_stop)
     print("\npre-flight:")
     print_preflight(items)
     save_run(res, cfg, run_dir, speed)
@@ -486,6 +534,10 @@ def main(argv=None):
         if not ok:
             print("NO-GO: the robot is not moved")
             return 2
+        if args.expect_stop:
+            st = predicted_stop(res["log"], res["plan"].steps)
+            print(f"\nEXPECTED STOP: the simulation stops in step {st['step']} (pivot) at {st['angle_deg']:.0f} of "
+                  f"{st['of_deg']:.0f} deg. The robot will then hold the tilted box: support it, open the gripper from Desk.")
         execute(res, cfg, run_dir, args.host, args.level, speed)
         if args.replay == "real" and (run_dir / "real.npz").exists():
             env = rp.show(run_dir / "real.npz", args.replay_speed)

@@ -6,7 +6,7 @@ Reads expected.npz (the simulated run of the plan), real.npz (the run on the rob
 compare.json from the run folder; writes analysis.pdf, analysis.png and summary.txt there. A run that stopped early
 is shown up to where it stopped, with the cause. Panels:
   A  joint angles normalised to their range, robot (solid) and simulation (dashed), per segment
-  B  bearing angle phi-hat (integrated, not measured), robot and simulation
+  B  bearing angle phi-hat (integrated, not measured), robot and simulation, with the limits of phi of each pivot
   C  external force |F_ext| and the stop threshold
   D  loop timing: tick and QP solve time per control period
 The simulation is aligned to the robot segment by segment (each segment starts at the same time in both), since
@@ -80,7 +80,16 @@ def summary(exp, real, comp=None, f_max=None):
     return lines
 
 
-def figure(exp, real, qlim, f_max=None, width=7.0):
+def phi_limits(run_dir):
+    """{step: (lo, hi)} rad, the limits of phi of each pivot or gait step, from plan.json ({} if it has none)."""
+    path = Path(run_dir) / "plan.json"
+    if not path.exists():
+        return {}
+    steps = json.loads(path.read_text()).get("steps", [])
+    return {i: tuple(s["plan"]["phi_lim"]) for i, s in enumerate(steps) if (s.get("plan") or {}).get("phi_lim")}
+
+
+def figure(exp, real, qlim, f_max=None, width=7.0, phi_lim=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -110,11 +119,16 @@ def figure(exp, real, qlim, f_max=None, width=7.0):
     a.legend(frameon=False, ncol=7, loc="lower center", bbox_to_anchor=(0.5, 1.0), handlelength=1.4, columnspacing=1.0)
     axs[1].plot(t, np.degrees(real["phi"]), color="#0072B2", lw=1.1, label="robot")
     axs[1].plot(ts, np.degrees(sim["phi"]), color="#000000", lw=0.8, ls=(0, (3, 2)), label="simulation")
+    for s in real["segments"]:                          # limits of phi while a pivot holds the object
+        lim = (phi_lim or {}).get(s.get("step"))
+        if s["name"] == "pivot" and lim:
+            axs[1].hlines(np.degrees(lim), s["t0"] - t0, s["t_end"] - t0, color="#D55E00", lw=0.8, ls=(0, (1, 1)))
     axs[1].set_ylabel("$\\hat{\\phi}$ (deg)")
     from matplotlib.patches import Patch
     handles, _ = axs[1].get_legend_handles_labels()
-    axs[1].legend(handles + [Patch(color="#e6e6e6", label="object held")], ["robot", "simulation", "object held"],
-                  frameon=False, loc="upper left", ncol=3)
+    from matplotlib.lines import Line2D
+    axs[1].legend(handles + [Patch(color="#e6e6e6"), Line2D([], [], color="#D55E00", lw=0.8, ls=(0, (1, 1)))],
+                  ["robot", "simulation", "object held", "limits of $\\phi$"], frameon=False, loc="upper left", ncol=4)
     F = np.linalg.norm(real["F_ext"][:, :3], axis=1) if len(t) else np.zeros(0)
     axs[2].plot(t, F, color="#009E73", lw=0.9)
     if f_max:
@@ -143,7 +157,7 @@ def analyze(run_dir, f_max=None, qlim=None):
         qlim = (r.qlim[0, :7], r.qlim[1, :7])
     lines = summary(exp, real, comp, f_max)
     (run_dir / "summary.txt").write_text("\n".join(lines) + "\n")
-    fig = figure(exp, real, qlim, f_max)
+    fig = figure(exp, real, qlim, f_max, phi_lim=phi_limits(run_dir))
     fig.savefig(run_dir / "analysis.pdf", bbox_inches="tight", pad_inches=0.02)
     fig.savefig(run_dir / "analysis.png", dpi=300, bbox_inches="tight", pad_inches=0.02)
     return lines

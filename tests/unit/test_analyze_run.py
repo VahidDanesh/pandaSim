@@ -70,3 +70,11 @@ def test_run_that_stopped(planned, tmp_path, monkeypatch):
     sim = ar.aligned_simulation(exp, real)
     assert sim["t"].max() <= real["segments"][-1]["t0"] + exp["t"][-1]  # only the segments the robot started
     assert (run_dir / "analysis.pdf").exists()
+
+
+def test_phi_limits_come_from_the_plan_of_the_run(tmp_path):
+    import json
+
+    (tmp_path / "plan.json").write_text(json.dumps(dict(steps=[dict(kind="pivot", plan=dict(phi_lim=[-1.0, 0.5])),
+                                                               dict(kind="slide", plan=dict(width=0.06))])))
+    assert ar.phi_limits(tmp_path) == {0: (-1.0, 0.5)} and ar.phi_limits(tmp_path / "missing") == {}

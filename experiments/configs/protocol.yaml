@@ -1,0 +1,44 @@
+# Hardware experiments of the paper (Sec. 7), in the order of the paper. experiments/protocol.py plans and simulates
+# every entry with run_box.py (same code as on the robot), prints the pre-flight verdict and the commands of every run.
+# Run folders: experiments/runs/box/<experiment>_<task>_<grasp>_r<k>, k = 1..repetitions.
+# Poses: x,y,yaw_deg,face of run_box.py (the marked corner of the box defines its frame; the replay shows it).
+
+level: low            # run_box.py --level (low: box on the table, speed <= 0.5)
+speed: 0.3            # speed factor of every run (an experiment may set its own); it scales the joint velocity bound too
+# lag compensation of the joint controller (run_box.py --lead). Set true only after the air run has shown that the
+# measured lag matches the model (docs/HARDWARE_DAY.md); the gait needs it (25 screw motions per task: without it
+# the hand leaves the arcs by about 4 mm at speed 0.3 in the simulation with the lag).
+lead: false
+
+experiments:
+  prim:               # 7.2 primitive motions, free rotation
+    repetitions: 5
+    tasks:
+      slide: {start: "0.50,0.00,0,lying", goal: "0.60,0.10,20,lying"}
+      pivot: {start: "0.50,0.00,90,lying", goal: "0.50,-0.20,90,standing_flip"}
+
+  gait:               # 7.3 object gaiting with one manipulator (run_box.py --gait)
+    repetitions: 5
+    gait: true
+    tasks:
+      lying: {start: "0.50,0.10,0,lying", goal: "0.55,-0.08,30,lying"}
+      standing: {start: "0.55,0.10,0,standing", goal: "0.55,-0.05,0,standing"}
+
+  seq:                # 7.4 sequencing of sliding and pivoting motions, marked (not symmetric) box
+    repetitions: 5
+    tasks:
+      turn: {start: "0.50,0.00,0,lying", goal: "0.55,0.10,30,standing"}         # onto the adjacent face
+      flip: {start: "0.50,0.00,0,lying", goal: "0.50,0.00,0,lying_flip"}        # onto the opposite face
+      flip_turn: {start: "0.55,0.10,90,standing", goal: "0.50,-0.10,0,lying_flip"}
+
+  fr:                 # 7.5 free rotation against the rigid grasp: the same pivot, planned with free rotation
+    repetitions: 3
+    speed: 0.15       # slower: where the rigid grasp fails, its QP drives the joints to the bound before the stop;
+                      # at 0.15 the hand coasts at most about 4 mm after it (pre-flight check, at most 5 mm)
+    grasps: [free, rigid]   # rigid: the original fingers of the gripper (same geometry as the bearing fingertips)
+    tasks:
+      a: {start: "0.50,0.10,90,lying", goal: "0.50,-0.10,90,standing_flip"}
+      b: {start: "0.60,0.15,90,lying", goal: "0.60,-0.05,90,standing_flip"}
+      c: {start: "0.50,0.00,90,lying", goal: "0.50,0.20,90,standing"}
+      d: {start: "0.50,-0.20,90,lying", goal: "0.50,0.00,90,standing"}
+      e: {start: "0.45,0.00,0,lying", goal: "0.65,0.00,0,standing"}
