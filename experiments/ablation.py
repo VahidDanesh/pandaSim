@@ -3,6 +3,7 @@
     python experiments/ablation.py pivots          # random single 90 deg pivots, each run in three modes
     python experiments/ablation.py tasks           # random start and goal poses, planned and executed
     python experiments/ablation.py pivots --n 50 --workers 4 --seed 1
+    python experiments/ablation.py report [FILES]      # summaries, success by distance from the base, seeds
 
 pivots: box poses are drawn on the table and kept if the pivot passes the planner's tests that do not depend
 on the mode (base keep-out, reach of the grasp point). Every pivot is then executed as
@@ -251,15 +252,56 @@ def print_summary(name, s):
         print(f"  solved in both modes: {s['both']}")
 
 
+DIST_BINS = (0.2, 0.4, 0.5, 0.6, 0.7, 1.0)          # m, distance of the box centre from the base axis
+
+
+def by_distance(trials, bins=DIST_BINS):
+    """Successes per distance of the box centre from the robot base axis: [(lo, hi, n, {mode: successes})]."""
+    r = np.array([math.hypot(*t["start"]["xy"]) for t in trials])
+    out = []
+    for lo, hi in zip(bins[:-1], bins[1:]):
+        idx = [i for i in np.flatnonzero((r >= lo) & (r < hi))]
+        out.append((lo, hi, len(idx), {m: sum(trials[i][m]["success"] for i in idx) for m in PIVOT_MODES}))
+    return out
+
+
+def report(paths):
+    """Summary of saved result files; for pivot files also the success by distance from the base, and for
+    several files of the same experiment the spread of the success counts between them (other seeds)."""
+    data = [json.loads(Path(p).read_text()) for p in paths]
+    for p, d in zip(paths, data):
+        print(f"== {p}  ({d['experiment']}, n = {d['n']}, seed {d['seed']})")
+        print_summary(d["experiment"], d["summary"])
+        if d["experiment"] == "pivots":
+            print("  successes by distance of the box centre from the base axis:")
+            for lo, hi, n, k in by_distance(d["trials"]):
+                print(f"    {lo:.1f}-{hi:.1f} m  n = {n:3d}  " + "  ".join(f"{m} {k[m]:3d} ({100 * k[m] / max(n, 1):5.1f} %)" for m in PIVOT_MODES))
+    piv = [d for d in data if d["experiment"] == "pivots"]
+    if len(piv) > 1:
+        print("pivot success rate per seed (%):")
+        for m in PIVOT_MODES:
+            rates = [100 * d["summary"]["all"][m]["success"] / d["n"] for d in piv]
+            print(f"  {m:13s} " + "  ".join(f"seed {d['seed']}: {r:5.1f}" for d, r in zip(piv, rates)) + f"   spread {max(rates) - min(rates):.1f}")
+    tasks = [d for d in data if d["experiment"] == "tasks"]
+    if len(tasks) > 1:
+        print("tasks executed per seed:")
+        for m in TASK_MODES:
+            print(f"  {m:6s} " + "  ".join(f"seed {d['seed']}: {d['summary'][m]['success']}/{d['n']}" for d in tasks))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("experiment", choices=["pivots", "tasks"])
+    ap.add_argument("experiment", choices=["pivots", "tasks", "report"])
+    ap.add_argument("files", nargs="*", help="report: result files to summarise")
     ap.add_argument("--n", type=int, default=None, help="number of trials (default: 300 pivots, 100 tasks)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 2))
     ap.add_argument("--config", default=str(rp.DEFAULT_CONFIG))
     ap.add_argument("--out", default=None, help="result file (default: experiments/results/ablation_<experiment>.json)")
     args = ap.parse_args(argv)
+    if args.experiment == "report":
+        report(args.files or sorted(str(p) for p in RESULTS.glob("ablation_*.json")))
+        return 0
 
     t0 = time.perf_counter()
     meta = dict(experiment=args.experiment, seed=args.seed, config=rp.load_config(args.config))

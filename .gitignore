@@ -19,3 +19,5 @@ video/
 Presentation/
 refs/
 *.pdf
+# robot and dry-run folders of experiments/run_box.py (logs are large; keep them outside git)
+experiments/runs/box/
