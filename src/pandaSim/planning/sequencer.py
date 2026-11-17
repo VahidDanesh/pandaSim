@@ -105,10 +105,11 @@ def snap_stable(o, T):
     return se3.rp(R, np.array([T[0, 3], T[1, 3], np.abs(R[2]) @ np.asarray(o.size, float) / 2]))
 
 
-def pose_error(T, Tg):
-    """Position error [m] and rotation error [rad] to the goal, over the four symmetric goal poses."""
-    return (float(np.linalg.norm(T[:3, 3] - Tg[:3, 3])),
-            min(se3.angle_between(T[:3, :3], Tv[:3, :3]) for Tv in box_symmetric_goals(Tg)))
+def pose_error(T, Tg, symmetric=True):
+    """Position error [m] and rotation error [rad] to the goal; symmetric: the smallest over the four poses a box
+    cannot be told apart in (False: a marked box, only Tg itself)."""
+    goals = box_symmetric_goals(Tg) if symmetric else [Tg]
+    return (float(np.linalg.norm(T[:3, 3] - Tg[:3, 3])), min(se3.angle_between(T[:3, :3], Tv[:3, :3]) for Tv in goals))
 
 
 def drop_noops(steps, tol_p=3e-3, tol_r=math.radians(2.0)):
@@ -121,10 +122,12 @@ def drop_noops(steps, tol_p=3e-3, tol_r=math.radians(2.0)):
 class Sequencer:
     """kin: object with T_ready (4x4, {c} at the ready configuration) and
     check(step) -> (feasible, joint_margin); see feasibility.Rollout.
-    Without kin (y_ref given) only candidates() can be used."""
+    Without kin (y_ref given) only candidates() can be used.
+    symmetric: search the four goal poses a box cannot be told apart in (False: a marked box, only the goal itself)."""
 
-    def __init__(self, kin=None, y_ref=None, staging=None, max_pivots=3, max_kin_checks=12, base_xy=(0.0, 0.0)):
-        self.kin = kin
+    def __init__(self, kin=None, y_ref=None, staging=None, max_pivots=3, max_kin_checks=12, base_xy=(0.0, 0.0),
+                 symmetric=True):
+        self.kin, self.symmetric = kin, symmetric
         self.y_ref = kin.T_ready[:3, 1] if y_ref is None else np.asarray(y_ref, float)
         self.max_pivots, self.max_kin_checks = max_pivots, max_kin_checks
         self.base_xy = np.asarray(base_xy, float)
@@ -316,7 +319,7 @@ class Sequencer:
         self._memo_d = {}
         T0, Tg = snap_stable(o, T0), snap_stable(o, Tg)
         k = math.inf if k is None else k
-        goals = box_symmetric_goals(Tg)
+        goals = box_symmetric_goals(Tg) if self.symmetric else [Tg]
         starts = self._box_starts(o, T0)
         protos = [(b, g, n, f) for g, Tv in enumerate(goals)
                   for n, (b, f) in enumerate(self._cycle_protos(o, starts, Tv, down_axis(Tv)))]

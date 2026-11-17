@@ -33,6 +33,8 @@ def _make_shape(spec):
         return sg.Cuboid(scale=spec["scale"], **kw)
     if kind == "cylinder":
         return sg.Cylinder(radius=spec["radius"], length=spec["length"], **kw)
+    if kind == "sphere":
+        return sg.Sphere(radius=spec["radius"], **kw)
     raise ValueError(f"unknown object type {spec['type']!r}")
 
 
@@ -59,7 +61,7 @@ def _scene(base, objects, q0, **launch):
     shapes = [_make_shape(o) for o in objects]
     for s in shapes:
         env.add(s)
-    return env, robot, (shapes[0] if shapes else None)
+    return env, robot, shapes
 
 
 def _swift_main(shared, base, objects, rate):
@@ -67,7 +69,8 @@ def _swift_main(shared, base, objects, rate):
 
     os.nice(10)                                    # never compete with the control loop
     a = np.frombuffer(shared, dtype=float)
-    env, robot, obj = _scene(base, objects, a[_Q].copy())
+    env, robot, shapes = _scene(base, objects, a[_Q].copy())
+    obj = shapes[0] if shapes else None
     while a[_STOP] == 0:
         q = a[_Q].copy()
         robot.q = q
@@ -148,13 +151,17 @@ def finger_widths(t, events):
 
 def replay(path, base, objects=(), speed=1.0, rate=30.0, **launch):
     """Play a saved run (Log.save) back in Swift; the first object follows {c} between each grasp and release,
-    and the fingers are shown at the commanded width (the object width while it is grasped).
+    and the fingers are shown at the commanded width (the object width while it is grasped). An object with
+    "follow": True (e.g. a mark on the box) moves with the first object.
     launch: options of swift.Swift.launch, e.g. notebook=True."""
     from pandaSim.control.primitive_executor import contact_pose
 
     d = np.load(path, allow_pickle=True)
     t, q = d["t"], np.c_[d["theta"], d["phi"]]
-    env, robot, obj = _scene(base, objects, q[0], **launch)
+    env, robot, shapes = _scene(base, objects, q[0], **launch)
+    obj = shapes[0] if shapes else None
+    followers = [(s, np.linalg.inv(np.asarray(objects[0]["pose"])) @ np.asarray(o["pose"]))
+                 for s, o in zip(shapes, objects) if o.get("follow")]
     fk = lambda q: contact_pose(robot, q)
     held = grasp_intervals(t, q, d["events"], objects[0]["pose"], fk) if obj is not None else []
     width = finger_widths(t, d["events"])
@@ -164,5 +171,7 @@ def replay(path, base, objects=(), speed=1.0, rate=30.0, **launch):
         for k0, k1, T_c_obj, T_after in held:
             if k >= k0:
                 obj.T = fk(q[k]) @ T_c_obj if k < k1 else T_after
+        for s, T_rel in followers:
+            s.T = np.asarray(obj.T) @ T_rel
         env.step(1.0 / rate)
     return env

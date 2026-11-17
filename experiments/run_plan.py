@@ -85,7 +85,7 @@ def make_planner(cfg, robot):
         clearance.HAND_MODEL = p["hand_model"]
     kin = Rollout(robot, free_rotation=cfg["plan_free_rotation"], dt=p["dt"], size=make_box(cfg).size, **exec_kwargs(cfg))
     return Sequencer(kin, max_pivots=p["max_pivots"], max_kin_checks=p["max_kin_checks"],
-                     base_xy=tuple(cfg["robot"]["base"][:2]))
+                     base_xy=tuple(cfg["robot"]["base"][:2]), symmetric=p.get("symmetric", True))
 
 
 def run_task(cfg, robot, name, planner=None):
@@ -103,7 +103,7 @@ def run_task(cfg, robot, name, planner=None):
     backend = SimBackend(kw["q_ready"], dt=cfg["execution"]["dt"])
     t0 = time.perf_counter()
     log, T_end = run_plan(backend, robot, plan.steps, T0, free_rotation=cfg["free_rotation"], **kw)
-    ep, er = pose_error(T_end, Tg)
+    ep, er = pose_error(T_end, Tg, cfg["planner"].get("symmetric", True))
     prof, tol = check_profile(log), cfg["tolerance"]
     clear = check_clearance(log, robot, T0, box.size, arm=ArmCollision(robot, box.size))
     res.update(log=log, T_end=T_end, err_pos=ep, err_rot=er, profile=prof, clearance=clear,
@@ -155,14 +155,21 @@ def save(res, cfg, out_dir=HERE / "runs"):
     return path
 
 
+MARK = (1.0, 1.0, 1.0)      # marked corner of the real box (box frame, in half sizes); see run_box.py
+
+
 def show(path, speed=1.0, **launch):
-    """Replay a saved run in Swift: the box in blue, its goal pose as a green ghost."""
+    """Replay a saved run in Swift: the box in blue, its goal pose as a green ghost, and the marked corner of the
+    box as a small red sphere on both."""
     from pandaSim.control.viewer import replay
 
     d = np.load(path, allow_pickle=True)
     size, base = d["size"].tolist(), se3.rp(np.eye(3), d["base"])
+    mark = lambda T: T @ se3.rp(np.eye(3), np.asarray(MARK) * np.asarray(size) / 2)
     objects = [{"type": "cuboid", "scale": size, "pose": d["T0"], "color": "blue"},
-               {"type": "cuboid", "scale": size, "pose": d["Tg"], "color": [0.1, 0.8, 0.1, 0.35]}]
+               {"type": "cuboid", "scale": size, "pose": d["Tg"], "color": [0.1, 0.8, 0.1, 0.35]},
+               {"type": "sphere", "radius": 0.008, "pose": mark(d["T0"]), "color": "red", "follow": True},
+               {"type": "sphere", "radius": 0.008, "pose": mark(d["Tg"]), "color": [0.9, 0.1, 0.1, 0.5]}]
     return replay(path, base, objects, speed=speed, **launch)
 
 

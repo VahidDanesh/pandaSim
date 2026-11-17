@@ -19,7 +19,7 @@ Everything below runs from the repo root after `unset PYTHONPATH`, with `.venv/b
 1. Dry run and replay: `experiments/run_box.py --start ... --goal ... --replay` (no robot). Read the pre-flight; it must end in GO. Watch the replay in a normal browser (`http://localhost:52000/?53000`).
 2. `--execute --level air --speed 0.3`: no box on the table. The fingers close to the box width in the air. Check that the motion matches the replay. Press Ctrl-C once on purpose during the first joint move: the arm must stop within about 2 cm and `compare.json` must say `KeyboardInterrupt`.
    After a full air run read in `compare.json`: `lag_measured_s` against `lag_model_s` (within about 30 %), `track_torque_max` (well below the limits), the largest period and `max_force` per segment. Only if the lag matches, repeat with `--lead` (lag compensation of the joint controller; off by default, `execution.robot.lead`).
-3. `--level low --speed 0.3` with the box, a slide-only task first (for example `--start 0.50,0.00,0,lying --goal 0.60,0.10,20,lying_flip`), then one pivot, then a slide and a pivot.
+3. `--level low --speed 0.3` with the box, a slide-only task first (for example `--start 0.50,0.00,0,lying --goal 0.60,0.10,20,lying`), then one pivot, then a slide and a pivot.
 4. `--level full` (speed up to 1.0) once `low` runs are clean.
 After every run: `experiments/analyze_run.py experiments/runs/box/<name>` (figure and summary), and measure the final box pose against the goal (tape or ruler), since the logged object pose is forward kinematics, not a measurement.
 

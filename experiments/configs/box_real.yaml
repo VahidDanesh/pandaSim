@@ -24,6 +24,9 @@ planner:
   # collision mesh at least 11.8 mm from the box. mesh: the collision mesh itself with 5 mm (as in the simulation
   # study; 13 deg more range on each side). The cautious one for the first runs on the robot.
   hand_model: box
+  # the real box carries a mark on one corner (box.mark), so its goal is one pose, not the four poses a plain box
+  # cannot be told apart in: only that pose is searched and the error is measured against it
+  symmetric: false
 
 execution:
   dt: 0.001
@@ -43,9 +46,13 @@ execution:
                                 # an air run has shown that the measured lag matches the model (compare.json)
     # the robot's own collision reflex (libfranka setCollisionBehavior), set before the motion so it is known:
     # contact is flagged above `lower`, the robot stops by itself above `upper`. Above the software stops on purpose.
+    # Joint torques: alpha x torque_fraction x the maximum torque of each joint (87 Nm joints 1-4, 12 Nm joints 5-7),
+    # at most the maximum; the wrist has larger fractions because the held box loads it as much as the shoulder.
+    # Forces and moments: alpha x force. Change alpha only (smaller: the robot stops on lighter contact).
     reflex:
-      torque: {lower: [15.0, 15.0, 15.0, 15.0, 6.0, 6.0, 6.0], upper: [25.0, 25.0, 25.0, 25.0, 10.0, 10.0, 10.0]}   # Nm
-      force: {lower: [20.0, 20.0, 20.0, 6.0, 6.0, 6.0], upper: [40.0, 40.0, 40.0, 12.0, 12.0, 12.0]}              # N, Nm
+      alpha: 1.0
+      torque_fraction: {lower: [0.17, 0.17, 0.17, 0.17, 0.5, 0.5, 0.5], upper: [0.29, 0.29, 0.29, 0.29, 0.83, 0.83, 0.83]}
+      force: {lower: [20.0, 20.0, 20.0, 6.0, 6.0, 6.0], upper: [40.0, 40.0, 40.0, 12.0, 12.0, 12.0]}   # N, Nm
 
 tolerance: {position: 0.003, rotation_deg: 2.0}
 

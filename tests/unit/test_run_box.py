@@ -14,7 +14,7 @@ import run_plan as rp  # noqa: E402
 
 from pandaSim.control.backends import PANDA_LAG  # noqa: E402
 
-START, GOAL = "0.50,0.00,0,lying", "0.60,0.10,20,lying_flip"      # a slide: about 13 s of motion
+START, GOAL = "0.50,0.00,0,lying", "0.60,0.10,20,lying"           # a slide: about 13 s of motion
 
 
 @pytest.fixture(autouse=True)
@@ -226,7 +226,17 @@ def test_execute_on_a_fake_panda_matches_the_simulation(planned, tmp_path, monke
     assert [g[0] for g in gripper.calls] == ["move", "grasp", "move"]
     assert json.loads((run_dir / "compare.json").read_text())["ok"]
     assert stopped(panda) and c["abort"] is None
-    assert panda.robot.collision is not None and panda.robot.collision[1][0] == 25.0     # reflex thresholds were set
+    assert panda.robot.collision is not None and panda.robot.collision[1][0] == pytest.approx(0.29 * 87)   # reflex set
+
+
+def test_reflex_thresholds_scale_with_alpha_and_stay_below_the_maximum_torque():
+    reflex = dict(alpha=1.0, torque_fraction=dict(lower=[0.17] * 4 + [0.5] * 3, upper=[0.29] * 4 + [0.83] * 3),
+                  force=dict(lower=[20.0] * 3 + [6.0] * 3, upper=[40.0] * 3 + [12.0] * 3))
+    th = rb.reflex_thresholds(reflex)
+    assert th["torque"]["upper"] == pytest.approx([25.23] * 4 + [9.96] * 3) and th["force"]["upper"][0] == 40.0
+    th = rb.reflex_thresholds(dict(reflex, alpha=2.0))
+    assert th["torque"]["upper"] == pytest.approx([50.46] * 4 + [12.0] * 3)        # the wrist is capped at 12 Nm
+    assert th["force"]["upper"][0] == 80.0 and th["torque"]["lower"][0] == pytest.approx(2 * 0.17 * 87)
 
 
 def test_robot_checks_refuse_a_bad_start():

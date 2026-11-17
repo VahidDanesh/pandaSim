@@ -98,3 +98,17 @@ def test_plans_end_at_a_symmetric_goal():
             assert ep < 1e-9 and er < 1e-6
             assert any(np.allclose(T, Tv, atol=1e-6) for Tv in box_symmetric_goals(Tg))
         assert all(a[0] <= b[0] + 1e-12 for a, b in zip(cands, cands[1:]))
+
+
+def test_a_marked_box_ends_exactly_at_its_goal():
+    """symmetric=False: every candidate ends at the goal pose itself, not at a pose of the box that only looks the same
+    (lying, turned by 180 deg: a symmetric box is done by two pivots, a marked one needs slides)."""
+    T0 = _pose(0.5, 0.0, 0.0, -math.pi / 2)
+    for Tg in (_pose(0.5, 0.0, math.pi, -math.pi / 2), _pose(0.5, 0.0, 0.0, math.pi / 2), _pose(0.55, 0.1, 0.5, math.pi)):
+        cands = Sequencer(y_ref=(0.0, -1.0, 0.0), symmetric=False).candidates(BOX, T0, Tg, k=4)
+        assert cands
+        for _, steps in cands:
+            assert np.allclose(steps[-1].T_after, Tg, atol=1e-6)
+            assert pose_error(steps[-1].T_after, Tg, symmetric=False)[1] < 1e-6
+    T1 = _pose(0.5, 0.0, math.pi, -math.pi / 2)              # looks like T0 but is turned by 180 deg
+    assert pose_error(T0, T1)[1] < 1e-9 and pose_error(T0, T1, symmetric=False)[1] == pytest.approx(math.pi)

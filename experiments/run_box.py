@@ -9,7 +9,9 @@
 
 Pose: x,y,yaw_deg,face. x, y: box centre on the table (the robot base is at the origin of the table frame), yaw
 about z, face: the face on the table: lying (0.06 x 0.25 face), lying_flip (the opposite one), standing
-(0.15 x 0.06 face), standing_flip. The largest face cannot be grasped. Levels of the real ladder:
+(0.15 x 0.06 face), standing_flip. The largest face cannot be grasped. The box frame is fixed by a mark on one corner
+of the real box: the marked corner is the (+x, +y, +z) corner of the box frame (MARK); the replay draws it on the
+start pose, the moving box and the goal. Levels of the real ladder:
     air    no box, gripper open, the fingers close to the box width in the air (speed <= 0.5)
     low    box on the table, slow (speed <= 0.5)
     full   box on the table, speed up to 1.0
@@ -39,7 +41,8 @@ from pandaSim.planning.feasibility import grasp_observability  # noqa: E402
 from pandaSim.planning.sequencer import pose_error  # noqa: E402
 
 REAL_CONFIG = HERE / "configs" / "box_real.yaml"
-FACES = {"lying": -90.0, "lying_flip": 90.0, "standing": 0.0, "standing_flip": 180.0}
+FACES = {"lying": -90.0, "lying_flip": 90.0, "standing": 0.0, "standing_flip": 180.0}     # pitch about the box y axis
+MARK = rp.MARK                      # the marked corner of the real box, in units of the half size (box frame)
 LEVEL_SPEED = {"air": (0.3, 0.5), "low": (0.3, 0.5), "full": (1.0, 1.0)}      # default and maximum speed factor
 G = 9.81
 PAYLOAD = 3.0                       # kg, Franka Emika Panda (hand included)
@@ -55,6 +58,23 @@ def parse_pose(text):
         return dict(xy=[float(x), float(y)], rpy=[0.0, FACES[face.strip()], float(yaw)])
     except (ValueError, KeyError):
         raise SystemExit(f"cannot read the pose '{text}': use x,y,yaw_deg,face with face in {sorted(FACES)}")
+
+
+def pose_text(T):
+    """Resting pose -> 'x,y,yaw_deg,face' (inverse of parse_pose with run_plan.box_pose)."""
+    from pandaSim.planning import se3
+
+    R = np.asarray(T, float)[:3, :3]
+    for face, pitch in FACES.items():
+        M = R @ se3.exp3(np.array([0.0, math.radians(pitch), 0.0])).T       # = Rz(yaw) for the right face
+        if M[2, 2] > 0.99:
+            return f"{T[0, 3]:.3f},{T[1, 3]:.3f},{math.degrees(math.atan2(M[1, 0], M[0, 0])):.1f},{face}"
+    raise ValueError("the box rests on its largest face: no pose of run_box.py")
+
+
+def symmetric(cfg):
+    """Is the box treated as symmetric (False: a marked box, only the goal itself counts)."""
+    return cfg["planner"].get("symmetric", True)
 
 
 def check(name, ok, detail="", hard=True):
@@ -80,7 +100,8 @@ def preflight(res, cfg):
     out.append(check("plan found", plan.found, "" if plan.found else "no feasible plan for this start and goal"))
     if not plan.found:
         return out
-    out.append(check("start and goal differ", pose_error(res["T0"], res["Tg"])[0] > 1e-3 or pose_error(res["T0"], res["Tg"])[1] > 1e-2))
+    ep, er = pose_error(res["T0"], res["Tg"], symmetric(cfg))
+    out.append(check("start and goal differ", ep > 1e-3 or er > 1e-2))
     for k, v in res["checks"].items():
         if k != "plan found":
             out.append(check(f"simulation: {k}", v))
@@ -190,7 +211,7 @@ def simulate_tracking(res, cfg, lead=False, dt=0.002):
     backend = SimBackend(kw["q_ready"], dt=dt, lag=PANDA_LAG)
     log, T_end = run_plan(backend, res["robot"], res["plan"].steps, res["T0"], free_rotation=cfg["free_rotation"],
                           lead=PANDA_LAG if lead else None, **kw)
-    ep, er = pose_error(T_end, res["Tg"])
+    ep, er = pose_error(T_end, res["Tg"], symmetric(cfg))
     return dict(lead=bool(lead), ok=log.ok, fails=[f"{s['name']} (step {s.get('step')}): {s['cause']}" for s in log.segments if not s["ok"]],
                 err_mm=float(ep * 1e3), err_deg=float(math.degrees(er)),
                 pivot_dev_mm=pivot_path_error(log, res["plan"].steps, res["robot"]) * 1e3)
@@ -205,7 +226,7 @@ def save_run(res, cfg, run_dir, speed):
 
 
 # ---- comparison of a real run with the simulation ------------------------------------------------------
-def compare(expected, real, T_end=None, T_goal=None):
+def compare(expected, real, T_end=None, T_goal=None, symmetric=True):
     """Per segment (same order in both logs): joint tracking against the simulated trajectory over the common
     time, in rad; plus the largest wrench, the loop timing and the final object pose error."""
     ea, ra = expected.arrays(), real.arrays()
@@ -238,7 +259,7 @@ def compare(expected, real, T_end=None, T_goal=None):
                    track_torque_max=(np.abs(ra["track"]).max(axis=0) * PANDA_KP).round(2).tolist(),
                    lag_measured_s=lag, lag_model_s=PANDA_LAG.round(3).tolist())
     if T_end is not None and T_goal is not None:
-        ep, er = pose_error(T_end, T_goal)
+        ep, er = pose_error(T_end, T_goal, symmetric)
         out.update(object_error_mm=float(ep * 1e3), object_error_deg=float(math.degrees(er)))
     return out
 
@@ -311,12 +332,24 @@ def confirm(phrase, ask=input):
     return ask(f"\nType  {phrase}  to move the robot (anything else cancels): ").strip() == phrase
 
 
+FER_TAU_MAX = np.array([87.0, 87.0, 87.0, 87.0, 12.0, 12.0, 12.0])     # Nm, maximum joint torques
+
+
+def reflex_thresholds(reflex):
+    """execution.robot.reflex -> absolute thresholds dict(torque=dict(lower, upper) [Nm], force=dict(lower, upper)):
+    torque = alpha x torque_fraction x the maximum joint torque (at most the maximum), force = alpha x force."""
+    a = float(reflex.get("alpha", 1.0))
+    tq = {k: np.minimum(a * np.asarray(v, float) * FER_TAU_MAX, FER_TAU_MAX).tolist()
+          for k, v in reflex["torque_fraction"].items()}
+    return dict(torque=tq, force={k: (a * np.asarray(v, float)).tolist() for k, v in reflex["force"].items()})
+
+
 def set_reflex(panda, reflex):
     """Collision thresholds of the robot itself (libfranka setCollisionBehavior): lower = contact, upper = stop.
     panda-py does not set them, so without this call they are whatever the robot was left with."""
-    t, f = reflex["torque"], reflex["force"]
-    panda.get_robot().set_collision_behavior([float(x) for x in t["lower"]], [float(x) for x in t["upper"]],
-                                             [float(x) for x in f["lower"]], [float(x) for x in f["upper"]])
+    th = reflex_thresholds(reflex)
+    t, f = th["torque"], th["force"]
+    panda.get_robot().set_collision_behavior(t["lower"], t["upper"], f["lower"], f["upper"])
 
 
 def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, gripper=None, lead=None):
@@ -356,8 +389,9 @@ def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, grippe
           f"({' -> '.join(s.kind for s in res['plan'].steps)}), about {res['log'].arrays()['t'][-1]:.0f} s, "
           f"lag compensation {'on' if lead else 'off'}")
     if rs["reflex"]:
-        print(f"the robot's collision reflex will be set to: force {rs['reflex']['force']['upper'][:3]} N, "
-              f"torque {rs['reflex']['torque']['upper']} Nm")
+        th = reflex_thresholds(rs["reflex"])
+        print(f"the robot's collision reflex (alpha {rs['reflex'].get('alpha', 1.0)}) will stop it above: force "
+              f"{[round(x, 1) for x in th['force']['upper'][:3]]} N, torque {[round(x, 1) for x in th['torque']['upper']]} Nm")
     if not confirm(f"RUN {level} {run_dir.name}", ask):
         print("cancelled; the robot was not moved")
         return None
@@ -391,7 +425,7 @@ def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, grippe
         print(f"finished in {time.perf_counter() - t0:.1f} s")
         log.save(run_dir / "real.npz", T0=res["T0"], Tg=res["Tg"], size=np.array(res["box"].size),
                  base=np.array(cfg["robot"]["base"]))
-        c = compare(res["log"], log, T_end, res["Tg"])
+        c = compare(res["log"], log, T_end, res["Tg"], symmetric(cfg))
         (run_dir / "compare.json").write_text(json.dumps(c, indent=1, default=str))
         print_compare(c)
     if isinstance(error, Exception):
