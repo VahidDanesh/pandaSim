@@ -44,6 +44,8 @@ the QP.
 
 ## From a start pose to the real robot
 
+Step-by-step procedure for the robot: [docs/HARDWARE_DAY.md](docs/HARDWARE_DAY.md). Overview of the code and the sequencer: [docs/GUIDE.md](docs/GUIDE.md).
+
 `experiments/run_box.py` takes the box's start and goal pose (`x,y,yaw_deg,face`; face is `lying`, `lying_flip`, `standing` or `standing_flip`), plans, simulates the plan with the executor that runs on the robot, and prints a pre-flight report (GO / NO-GO):
 
 ```bash

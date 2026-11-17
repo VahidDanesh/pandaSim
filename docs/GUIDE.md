@@ -1,6 +1,6 @@
 # pandaSim guide: box planner, executor, hardware path
 
-Branch `exp/planner`. Setup: `uv sync --extra sim --extra robot --extra dev`, then run everything with `.venv/bin/python` (run `unset PYTHONPATH` first if ROS is sourced). Tests: `pytest` (87, headless, about 45 s).
+Branch `exp/planner`. Setup: `uv sync --extra sim --extra robot --extra dev`, then run everything with `.venv/bin/python` (run `unset PYTHONPATH` first if ROS is sourced). Tests: `pytest` (headless, about 1 min). For the robot itself see [HARDWARE_DAY.md](HARDWARE_DAY.md).
 
 ## 1. What was added
 
@@ -10,6 +10,7 @@ Branch `exp/planner`. Setup: `uv sync --extra sim --extra robot --extra dev`, th
 | Checks | `planning/clearance.py`, `planning/collision.py`, `planning/feasibility.py` | Palm clearance and the limits of the bearing angle phi; arm and hand against box and table (coal through RTB); `Rollout` simulates a candidate step with the executor. |
 | Control | `control/contact_qp.py`, `primitive_executor.py`, `backends.py`, `viewer.py` | `ContactQP` (free rotation or rigid, `phi_lim`); `run_plan` runs the steps; `SimBackend` / `PandaBackend(air=...)`; Swift replay with fingers at the grasp width. |
 | Scripts | `experiments/run_box.py`, `run_plan.py`, `ablation.py`, `ablation_figures.py`, `check_connection.py` | Start/goal to robot; five sim tasks; random-trial ablation; figure; read-only robot check. |
+| Hardware-day tools | `experiments/calibrate_box.py`, `analyze_run.py`, `paper_numbers.py` | Box pose by touching corners (read only); plan against measurement for a robot run; every number of the paper's Sec. 7 from the code and results, checked against `main.tex`. |
 | Configs | `experiments/configs/box_plan.yaml` (sim), `box_real.yaml` (robot) | Box, robot base, speeds, gripper, safety, tolerances. |
 | Results | `experiments/results/ablation_*.json`, `ablation_pivots.{pdf,png}` | 300 random pivots, 100 random tasks (rigid vs free rotation). |
 
@@ -24,6 +25,10 @@ python experiments/run_box.py ... --execute --host 172.16.0.2 --level air --spee
 python experiments/run_plan.py --task all --viewer    # the five sim tasks
 python experiments/ablation.py pivots|tasks           # results in experiments/results/
 python experiments/ablation_figures.py                # figure
+python experiments/ablation.py report                 # summaries, success by distance from the base, seeds
+python experiments/calibrate_box.py 172.16.0.2        # box pose from touched corners (read only)
+python experiments/analyze_run.py experiments/runs/box/<name>   # after a robot run
+python experiments/paper_numbers.py                   # paper parameters and results, checked in main.tex
 python experiments/check_connection.py 172.16.0.2 --base-z 0.013   # read-only
 ```
 
