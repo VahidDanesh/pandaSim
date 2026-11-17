@@ -100,7 +100,6 @@ def test_pivot_pose_and_the_special_cases_of_eq_D12s():
     theta = 1.1
     for s in (0.3, 1.0):                                                  # h = 0: D12(s) = (cos, sin u) + eps sin m
         Rw = Rotation.from_rotvec(u * theta * s).as_matrix()
-        p_screw = np.r_[1.0, np.zeros(7)]
         # the world-frame screw conjugated into the frame of T0 gives the body screw (u_b, m_b)
         u_b = T0[:3, :3].T @ u
         m_b = np.cross(T0[:3, :3].T @ (q - T0[:3, 3]), u_b)
