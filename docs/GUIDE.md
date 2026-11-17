@@ -1,6 +1,6 @@
 # pandaSim guide: box planner, executor, hardware path
 
-Branch `exp/planner`. Setup: `uv sync --extra sim --extra robot --extra dev`, then run everything with `.venv/bin/python` (run `unset PYTHONPATH` first if ROS is sourced). Tests: `pytest` (headless, about 1 min). For the robot itself see [HARDWARE_DAY.md](HARDWARE_DAY.md).
+Branch `exp/planner`. Setup: `uv sync --extra sim --extra robot --extra dev`, then run everything with `.venv/bin/python` (run `unset PYTHONPATH` first if ROS is sourced). Tests: `pytest` (headless, about 1 min). For the robot itself see [HARDWARE_DAY.md](HARDWARE_DAY.md) and the safety review [HARDWARE_SAFETY.md](HARDWARE_SAFETY.md) (watchdog, tracking monitor, payload-aware wrench stop, lag model and `--lead`, swept collision check of joint moves, placement tolerance).
 
 ## 1. What was added
 
@@ -58,4 +58,5 @@ Input: box (size, mass, friction), start pose, goal pose. Output: a list of step
 
 ## 5. Known limits
 
+The hand model for the limits of phi is set by `planner.hand_model` (`box`: bounding box of the hand, cautious, used on the robot; `mesh`: collision mesh with 5 mm, used in the simulation study). 
 Kinematic simulation (no slip or contact forces); only collisions of the arm, hand and box with the box and table are checked (no other objects), fingers are modelled closed; the box pose on the table is not measured (place it with marks or a jig); `planning/screw_motion_planner.generate_twist_trajectory_dq` (old code) is broken and unused.

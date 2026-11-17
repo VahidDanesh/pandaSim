@@ -4,7 +4,8 @@
     python experiments/paper_numbers.py --tex PATH      # another copy of main.tex
     python experiments/paper_numbers.py --no-check      # only print
 
-Parameters come from the code that runs the robot (ContactQP defaults, planner constants, configs/box_real.yaml),
+Parameters come from the code that runs the robot (ContactQP defaults with the overrides of configs/box_real.yaml,
+planner constants, the rest of the config),
 so the table of the paper cannot drift from the implementation. Simulation results come from
 experiments/results/ablation_{pivots,tasks}.json (rates with 95 % Wilson intervals). The check looks for each
 parameter in main.tex in the form the paper writes it and lists what is missing or different.
@@ -49,6 +50,7 @@ def parameters(config=CONFIG):
     qp = {k: v.default for k, v in inspect.signature(ContactQP).parameters.items() if v.default is not inspect._empty}
     cfg = yaml.safe_load(Path(config).read_text())
     e, p = cfg["execution"], cfg["planner"]
+    qp.update(e.get("qp") or {})                       # the values the robot runs with: config overrides the defaults
     d_col = inspect.signature(collision.ArmCollision).parameters["margin"].default
     d_palm = inspect.signature(check_clearance).parameters["clearance"].default
     # each check: a template of main.tex with {} for the numbers, and the values the numbers must have
