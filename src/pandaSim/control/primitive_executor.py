@@ -355,7 +355,7 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
         if np.abs(backend.theta() - q_ready).max() > 1e-4 and not to_ready():
             return log, T_w_obj
         for step, st in enumerate(steps):
-            pl, is_pivot = st.plan, st.kind == "pivot"
+            pl, is_pivot = st.plan, st.kind in ("pivot", "gait")   # feed-forward screws (gait: five in one grasp)
             log.steps.append(dict(kind=st.kind, ok=False, T_obj=T_w_obj))
             lim = {"phi_lim": getattr(pl, "phi_lim", None)}        # palm clear of the object; qp can override it
             ctrl = ContactQP(robot, free_rotation=True, **{**lim, **qp}) if is_pivot and approach_free else rigid

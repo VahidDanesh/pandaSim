@@ -21,6 +21,7 @@ from pandaSim.control.primitive_executor import check_clearance, check_profile, 
 from pandaSim.planning import clearance, se3
 from pandaSim.planning.collision import ArmCollision
 from pandaSim.planning.feasibility import Rollout
+from pandaSim.planning.gait import GaitPlanner
 from pandaSim.planning.sequencer import Box, Sequencer, pose_error, snap_stable
 
 HERE = Path(__file__).resolve().parent
@@ -78,12 +79,18 @@ def scale_speed(cfg, factor):
     return cfg
 
 
-def make_planner(cfg, robot):
-    """Sequencer whose feasibility check rolls each step out with the executor (model: plan_free_rotation)."""
+def make_planner(cfg, robot, gait=False):
+    """Sequencer (gait=True: GaitPlanner, object gaiting) whose feasibility check rolls each step out with the
+    executor (model: plan_free_rotation)."""
     p = cfg["planner"]
     if p.get("hand_model"):                            # model of the hand for the phi limits and the clearance test
         clearance.HAND_MODEL = p["hand_model"]
     kin = Rollout(robot, free_rotation=cfg["plan_free_rotation"], dt=p["dt"], size=make_box(cfg).size, **exec_kwargs(cfg))
+    if gait:
+        g = p["gait"]
+        return GaitPlanner(kin, gamma=math.radians(g["gamma_deg"]), beta=math.radians(g["beta_deg"]),
+                           alpha_max=math.radians(g["alpha_max_deg"]), k_max=g["k_max"],
+                           max_kin_checks=g["max_kin_checks"], base_xy=tuple(cfg["robot"]["base"][:2]))
     return Sequencer(kin, max_pivots=p["max_pivots"], max_kin_checks=p["max_kin_checks"],
                      base_xy=tuple(cfg["robot"]["base"][:2]), symmetric=p.get("symmetric", True))
 

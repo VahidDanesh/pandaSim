@@ -27,6 +27,10 @@ planner:
   # the real box carries a mark on one corner (box.mark), so its goal is one pose, not the four poses a plain box
   # cannot be told apart in: only that pose is searched and the error is measured against it
   symmetric: false
+  # object gaiting (run_box.py --gait; planning/gait.py): each step tilts the box by gamma about a short edge and by
+  # beta about the box edge through a vertex, turns it by at most alpha_max about the vertical through that vertex,
+  # and puts it back on its face; at most k_max steps
+  gait: {gamma_deg: 15.0, beta_deg: 30.0, alpha_max_deg: 45.0, k_max: 5, max_kin_checks: 8}
 
 execution:
   dt: 0.001

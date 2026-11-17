@@ -169,15 +169,16 @@ def plan_json(res, cfg, speed):
     return json.dumps(meta, indent=1, default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o))
 
 
-def plan_and_simulate(cfg, start, goal, speed=1.0, tracking=False):
+def plan_and_simulate(cfg, start, goal, speed=1.0, tracking=False, gait=False):
     """Plan with the feasibility model of the config and simulate the plan at `speed`; returns res (+ robot limits).
-    tracking=True adds res["tracking"]: the same plan simulated with the joint controller's lag (simulate_tracking)."""
+    tracking=True adds res["tracking"]: the same plan simulated with the joint controller's lag (simulate_tracking).
+    gait=True: object gaiting (planning/gait.py) instead of the sequence of slides and pivots."""
     cfg["tasks"]["custom"] = dict(start=start, goal=goal)
     rp.scale_speed(cfg, speed)
     robot = rp.make_robot(cfg)
     cfg_plan = json.loads(json.dumps(cfg))
     rp.scale_speed(cfg_plan, 1.0)                     # the rollouts of the planner run at the nominal speed
-    res = rp.run_task(cfg, robot, "custom", rp.make_planner(cfg_plan, robot))
+    res = rp.run_task(cfg, robot, "custom", rp.make_planner(cfg_plan, robot, gait))
     res["robot_limits"] = (robot.qlim[0, :7], robot.qlim[1, :7])
     res["robot"] = robot
     if tracking and res["plan"].found:
@@ -186,14 +187,17 @@ def plan_and_simulate(cfg, start, goal, speed=1.0, tracking=False):
 
 
 def pivot_path_error(log, steps, robot):
-    """Largest distance [m] of the grasp point from the planned pivot arc over the pivots of a log: change of
-    the radius about the pivot axis or of the position along it."""
-    a, dev = log.arrays(), 0.0
+    """Largest distance [m] of the grasp point from the planned arc over the pivot segments of a log (every screw of
+    a pivot or gait step): change of the radius about the screw axis or of the position along it."""
+    a, dev, count = log.arrays(), 0.0, {}
     for j, sg in enumerate(log.segments):
         idx = np.flatnonzero(a["segment"] == j)
-        if sg["name"] != "pivot" or len(idx) < 2:
+        if sg["name"] != "pivot":
             continue
-        S = np.asarray(steps[sg["step"]].plan.S, float)
+        k = count[sg["step"]] = count.get(sg["step"], -1) + 1             # k-th screw of the step (a gait has five)
+        if len(idx) < 2:
+            continue
+        S = np.asarray(steps[sg["step"]].plan.screws[k][0], float)
         u, p_axis = S[:3], np.cross(S[:3], S[3:])
         P = np.array([contact_pose(robot, np.r_[a["theta"][k], a["phi"][k]])[:3, 3] for k in idx[::20]])
         d = P - p_axis
@@ -439,6 +443,7 @@ def main(argv=None):
     ap.add_argument("--goal", required=True, help="x,y,yaw_deg,face")
     ap.add_argument("--config", default=REAL_CONFIG)
     ap.add_argument("--rigid", action="store_true", help="rigid grasp instead of free rotation (ablation)")
+    ap.add_argument("--gait", action="store_true", help="object gaiting (rotations about vertices) instead of slides and pivots")
     ap.add_argument("--mass", type=float, help="box mass in kg (overrides the config)")
     ap.add_argument("--name", help="run folder name (default: timestamp)")
     ap.add_argument("--speed", type=float, help="speed factor of the execution, 0 < s <= 1 (default by level)")
@@ -462,7 +467,7 @@ def main(argv=None):
 
     if args.lead is not None:
         cfg["execution"]["robot"] = {**(cfg["execution"].get("robot") or {}), "lead": args.lead}
-    res = plan_and_simulate(cfg, parse_pose(args.start), parse_pose(args.goal), speed, tracking=True)
+    res = plan_and_simulate(cfg, parse_pose(args.start), parse_pose(args.goal), speed, tracking=True, gait=args.gait)
     print(f"\nplan {args.start}  ->  {args.goal}   ({'rigid' if args.rigid else 'free rotation'}, speed {speed})")
     if res["plan"].found:
         rp.report(res)

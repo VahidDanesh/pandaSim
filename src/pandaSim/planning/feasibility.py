@@ -66,19 +66,29 @@ def grasp_observability(step, min_arm=0.02, max_cos=0.9):
       pivot  about a line (edge) without slipping: the object can only rotate about that line, so turning about
              n is possible only if n lies on it. margin = distance [m] of the grasp point from the pivot axis
              when n is parallel to it (required: >= min_arm); n not parallel to the axis is always valid.
+      gait   first on an edge (as a pivot), then on one vertex without slipping (a spherical joint): turning about n
+             moves the vertex unless n passes through it. margin = the smaller of the edge margin and the distance
+             of the vertex from the line n (required: >= min_arm).
       slide  on a face: the object can turn about any vertical axis, so n must not be vertical.
              margin = 1 - |n_z| (required: |n_z| <= max_cos).
     """
     pl = step.plan
     n, c = pl.T_grasp[:3, 1], pl.T_grasp[:3, 3]
-    if step.kind == "pivot":
-        S = np.asarray(pl.S, float)
+    if step.kind in ("pivot", "gait"):
+        S = np.asarray(pl.screws[0][0], float)
         u = S[:3] / np.linalg.norm(S[:3])
         p_axis = np.cross(u, S[3:] / np.linalg.norm(S[:3]))             # point of the axis closest to the origin
         if np.linalg.norm(np.cross(n, u)) > 0.1:                        # more than 6 deg from parallel
-            return True, float("inf"), "the finger axis is not parallel to the pivot axis"
-        d = c - p_axis
-        arm = float(np.linalg.norm(d - (d @ u) * u))
-        return arm >= min_arm, arm, f"grasp point {arm * 1e3:.0f} mm from the pivot axis (at least {min_arm * 1e3:.0f} mm)"
+            arm, text = float("inf"), "the finger axis is not parallel to the pivot axis"
+        else:
+            d = c - p_axis
+            arm = float(np.linalg.norm(d - (d @ u) * u))
+            text = f"grasp point {arm * 1e3:.0f} mm from the pivot axis"
+        if step.kind == "gait":
+            d = np.asarray(pl.vertex, float) - c
+            vertex = float(np.linalg.norm(d - (d @ n) * n))
+            text += f", vertex {vertex * 1e3:.0f} mm from the finger axis"
+            arm = min(arm, vertex)
+        return arm >= min_arm, arm, text + f" (at least {min_arm * 1e3:.0f} mm)"
     cos = abs(float(n[2]))
     return cos <= max_cos, 1.0 - cos, f"finger axis {np.degrees(np.arccos(min(cos, 1.0))):.0f} deg from the vertical"
