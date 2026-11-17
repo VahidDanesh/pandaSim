@@ -1,0 +1,413 @@
+[
+ {
+  "name": "prim_slide_free",
+  "experiment": "prim",
+  "task": "slide",
+  "grasp": "free",
+  "start": "0.50,0.00,0,lying",
+  "goal": "0.60,0.10,20,lying",
+  "gait": false,
+  "repetitions": 5,
+  "speed": 0.3,
+  "go": true,
+  "steps": [
+   "slide"
+  ],
+  "duration_s": 41.17799999999473,
+  "stop": null,
+  "flags": [],
+  "failed": [],
+  "warnings": []
+ },
+ {
+  "name": "prim_pivot_free",
+  "experiment": "prim",
+  "task": "pivot",
+  "grasp": "free",
+  "start": "0.50,0.00,90,lying",
+  "goal": "0.50,-0.20,90,standing_flip",
+  "gait": false,
+  "repetitions": 5,
+  "speed": 0.3,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 87.58400000005415,
+  "stop": null,
+  "flags": [],
+  "failed": [],
+  "warnings": [
+   "  hand stays on the pivot arc with the lag (leaves it by 2.8 mm (the box is squeezed against the table by that much))"
+  ]
+ },
+ {
+  "name": "gait_lying_free",
+  "experiment": "gait",
+  "task": "lying",
+  "grasp": "free",
+  "start": "0.50,0.10,0,lying",
+  "goal": "0.55,-0.08,30,lying",
+  "gait": true,
+  "repetitions": 5,
+  "speed": 0.3,
+  "go": true,
+  "steps": [
+   "gait",
+   "gait",
+   "gait"
+  ],
+  "duration_s": 233.69800000075182,
+  "stop": null,
+  "flags": [
+   "--gait"
+  ],
+  "failed": [],
+  "warnings": [
+   "  object at the goal with the lag (15.4 mm, 0.75 deg)",
+   "  hand stays on the pivot arc with the lag (leaves it by 3.8 mm (the box is squeezed against the table by that much))"
+  ]
+ },
+ {
+  "name": "gait_standing_free",
+  "experiment": "gait",
+  "task": "standing",
+  "grasp": "free",
+  "start": "0.55,0.10,0,standing",
+  "goal": "0.55,-0.05,0,standing",
+  "gait": true,
+  "repetitions": 5,
+  "speed": 0.3,
+  "go": true,
+  "steps": [
+   "gait",
+   "gait",
+   "gait",
+   "gait"
+  ],
+  "duration_s": 287.44300000011475,
+  "stop": null,
+  "flags": [
+   "--gait"
+  ],
+  "failed": [],
+  "warnings": [
+   "  object at the goal with the lag (6.8 mm, 0.65 deg)"
+  ]
+ },
+ {
+  "name": "seq_turn_free",
+  "experiment": "seq",
+  "task": "turn",
+  "grasp": "free",
+  "start": "0.50,0.00,0,lying",
+  "goal": "0.55,0.10,30,standing",
+  "gait": false,
+  "repetitions": 5,
+  "speed": 0.3,
+  "go": true,
+  "steps": [
+   "pivot",
+   "slide"
+  ],
+  "duration_s": 143.07000000031908,
+  "stop": null,
+  "flags": [],
+  "failed": [],
+  "warnings": [
+   "  hand stays on the pivot arc with the lag (leaves it by 2.1 mm (the box is squeezed against the table by that much))"
+  ]
+ },
+ {
+  "name": "seq_flip_free",
+  "experiment": "seq",
+  "task": "flip",
+  "grasp": "free",
+  "start": "0.50,0.00,0,lying",
+  "goal": "0.50,0.00,0,lying_flip",
+  "gait": false,
+  "repetitions": 5,
+  "speed": 0.3,
+  "go": true,
+  "steps": [
+   "slide",
+   "pivot",
+   "pivot",
+   "slide"
+  ],
+  "duration_s": 337.7609999989249,
+  "stop": null,
+  "flags": [],
+  "failed": [],
+  "warnings": [
+   "  hand stays on the pivot arc with the lag (leaves it by 2.8 mm (the box is squeezed against the table by that much))"
+  ]
+ },
+ {
+  "name": "seq_flip_turn_free",
+  "experiment": "seq",
+  "task": "flip_turn",
+  "grasp": "free",
+  "start": "0.55,0.10,90,standing",
+  "goal": "0.50,-0.10,0,lying_flip",
+  "gait": false,
+  "repetitions": 5,
+  "speed": 0.3,
+  "go": true,
+  "steps": [
+   "slide",
+   "slide",
+   "pivot",
+   "slide"
+  ],
+  "duration_s": 324.37399999924145,
+  "stop": null,
+  "flags": [],
+  "failed": [],
+  "warnings": [
+   "  hand stays on the pivot arc with the lag (leaves it by 2.1 mm (the box is squeezed against the table by that much))"
+  ]
+ },
+ {
+  "name": "fr_a_free",
+  "experiment": "fr",
+  "task": "a",
+  "grasp": "free",
+  "start": "0.50,0.10,90,lying",
+  "goal": "0.50,-0.10,90,standing_flip",
+  "gait": false,
+  "repetitions": 3,
+  "speed": 0.15,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 176.2660000004776,
+  "stop": null,
+  "flags": [],
+  "failed": [],
+  "warnings": []
+ },
+ {
+  "name": "fr_a_rigid",
+  "experiment": "fr",
+  "task": "a",
+  "grasp": "rigid",
+  "start": "0.50,0.10,90,lying",
+  "goal": "0.50,-0.10,90,standing_flip",
+  "gait": false,
+  "repetitions": 3,
+  "speed": 0.15,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 185.49500000052166,
+  "stop": null,
+  "flags": [
+   "--rigid"
+  ],
+  "failed": [],
+  "warnings": [
+   "  hand stays on the pivot arc with the lag (leaves it by 2.4 mm (the box is squeezed against the table by that much))"
+  ]
+ },
+ {
+  "name": "fr_b_free",
+  "experiment": "fr",
+  "task": "b",
+  "grasp": "free",
+  "start": "0.60,0.15,90,lying",
+  "goal": "0.60,-0.05,90,standing_flip",
+  "gait": false,
+  "repetitions": 3,
+  "speed": 0.15,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 180.43200000049748,
+  "stop": null,
+  "flags": [],
+  "failed": [],
+  "warnings": []
+ },
+ {
+  "name": "fr_b_rigid",
+  "experiment": "fr",
+  "task": "b",
+  "grasp": "rigid",
+  "start": "0.60,0.15,90,lying",
+  "goal": "0.60,-0.05,90,standing_flip",
+  "gait": false,
+  "repetitions": 3,
+  "speed": 0.15,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 187.60600000053174,
+  "stop": null,
+  "flags": [
+   "--rigid"
+  ],
+  "failed": [],
+  "warnings": [
+   "  hand stays on the pivot arc with the lag (leaves it by 2.5 mm (the box is squeezed against the table by that much))"
+  ]
+ },
+ {
+  "name": "fr_c_free",
+  "experiment": "fr",
+  "task": "c",
+  "grasp": "free",
+  "start": "0.50,0.00,90,lying",
+  "goal": "0.50,0.20,90,standing",
+  "gait": false,
+  "repetitions": 3,
+  "speed": 0.15,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 203.4950000006076,
+  "stop": null,
+  "flags": [],
+  "failed": [],
+  "warnings": [
+   "  hand stays on the pivot arc with the lag (leaves it by 2.7 mm (the box is squeezed against the table by that much))"
+  ]
+ },
+ {
+  "name": "fr_c_rigid",
+  "experiment": "fr",
+  "task": "c",
+  "grasp": "rigid",
+  "start": "0.50,0.00,90,lying",
+  "goal": "0.50,0.20,90,standing",
+  "gait": false,
+  "repetitions": 3,
+  "speed": 0.15,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 116.45200000019199,
+  "stop": {
+   "step": 0,
+   "angle_deg": 59.33896754372022,
+   "of_deg": 90.0,
+   "time_frac": 0.5866935033422276
+  },
+  "flags": [
+   "--rigid",
+   "--expect-stop"
+  ],
+  "failed": [],
+  "warnings": [
+   "joint-limit margin comfortable (0.15 rad < 0.15 rad)",
+   "joint accelerations within the limits (1.43 of the limit)"
+  ]
+ },
+ {
+  "name": "fr_d_free",
+  "experiment": "fr",
+  "task": "d",
+  "grasp": "free",
+  "start": "0.50,-0.20,90,lying",
+  "goal": "0.50,0.00,90,standing",
+  "gait": false,
+  "repetitions": 3,
+  "speed": 0.15,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 193.77000000056117,
+  "stop": null,
+  "flags": [],
+  "failed": [],
+  "warnings": []
+ },
+ {
+  "name": "fr_d_rigid",
+  "experiment": "fr",
+  "task": "d",
+  "grasp": "rigid",
+  "start": "0.50,-0.20,90,lying",
+  "goal": "0.50,0.00,90,standing",
+  "gait": false,
+  "repetitions": 3,
+  "speed": 0.15,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 115.92100000018945,
+  "stop": {
+   "step": 0,
+   "angle_deg": 58.04371279720024,
+   "of_deg": 90.0,
+   "time_frac": 0.5785804209631363
+  },
+  "flags": [
+   "--rigid",
+   "--expect-stop"
+  ],
+  "failed": [],
+  "warnings": [
+   "joint-limit margin comfortable (0.15 rad < 0.15 rad)",
+   "joint accelerations within the limits (3.70 of the limit)"
+  ]
+ },
+ {
+  "name": "fr_e_free",
+  "experiment": "fr",
+  "task": "e",
+  "grasp": "free",
+  "start": "0.45,0.00,0,lying",
+  "goal": "0.65,0.00,0,standing",
+  "gait": false,
+  "repetitions": 3,
+  "speed": 0.15,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 140.76500000030808,
+  "stop": null,
+  "flags": [],
+  "failed": [],
+  "warnings": []
+ },
+ {
+  "name": "fr_e_rigid",
+  "experiment": "fr",
+  "task": "e",
+  "grasp": "rigid",
+  "start": "0.45,0.00,0,lying",
+  "goal": "0.65,0.00,0,standing",
+  "gait": false,
+  "repetitions": 3,
+  "speed": 0.15,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 79.02700000001329,
+  "stop": {
+   "step": 0,
+   "angle_deg": 54.68245078787501,
+   "of_deg": 90.0,
+   "time_frac": 0.557892824837848
+  },
+  "flags": [
+   "--rigid",
+   "--expect-stop"
+  ],
+  "failed": [],
+  "warnings": [
+   "joint accelerations within the limits (1.65 of the limit)"
+  ]
+ }
+]
