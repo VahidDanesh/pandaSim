@@ -13,6 +13,15 @@ import run_plan as rp  # noqa: E402
 pytest.importorskip("coal")
 
 
+@pytest.fixture(autouse=True)
+def keep_hand_model(monkeypatch):
+    """The real config selects the hand model (a module setting): put it back after every test."""
+    from pandaSim.planning import clearance
+
+    monkeypatch.setattr(clearance, "HAND_MODEL", clearance.HAND_MODEL)
+
+
+
 def test_displaced_box_against_the_planned_grasp():
     from pandaSim.planning.collision import ArmCollision
 

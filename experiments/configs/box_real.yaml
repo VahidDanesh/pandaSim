@@ -20,6 +20,10 @@ planner:
   max_pivots: 3
   max_kin_checks: 12
   dt: 0.01
+  # hand model for the limits of phi (planning/clearance.py). box: the bounding box of the hand, which keeps its
+  # collision mesh at least 11.8 mm from the box. mesh: the collision mesh itself with 5 mm (as in the simulation
+  # study; 13 deg more range on each side). The cautious one for the first runs on the robot.
+  hand_model: box
 
 execution:
   dt: 0.001

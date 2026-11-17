@@ -17,6 +17,15 @@ from pandaSim.control.backends import PANDA_LAG  # noqa: E402
 START, GOAL = "0.50,0.00,0,lying", "0.60,0.10,20,lying_flip"      # a slide: about 13 s of motion
 
 
+@pytest.fixture(autouse=True)
+def keep_hand_model(monkeypatch):
+    """The real config selects the hand model (a module setting): put it back after every test."""
+    from pandaSim.planning import clearance
+
+    monkeypatch.setattr(clearance, "HAND_MODEL", clearance.HAND_MODEL)
+
+
+
 class Ctrl:
     """panda-py IntegratedVelocity: integrates the last velocity command into the position target q_d."""
 
