@@ -55,3 +55,30 @@ class Rollout:
         theta = log.arrays()["theta"]
         lb, ub = self.robot.qlim[0, :7], self.robot.qlim[1, :7]
         return True, float(np.minimum(theta - lb, ub - theta).min())
+
+
+def grasp_observability(step, min_arm=0.02, max_cos=0.9):
+    """Is the bearing angle phi determined by the motion of the hand? (ok, margin, text)
+
+    The fingertip bearing lets the object turn about the finger axis n (through the grasp point). phi is neither
+    driven nor measured: it is what the object-environment contact makes it. So the grasp is only valid if the
+    object cannot turn about n while it keeps that contact (manuscript Sec. 6, assumption behind the virtual joint):
+      pivot  about a line (edge) without slipping: the object can only rotate about that line, so turning about
+             n is possible only if n lies on it. margin = distance [m] of the grasp point from the pivot axis
+             when n is parallel to it (required: >= min_arm); n not parallel to the axis is always valid.
+      slide  on a face: the object can turn about any vertical axis, so n must not be vertical.
+             margin = 1 - |n_z| (required: |n_z| <= max_cos).
+    """
+    pl = step.plan
+    n, c = pl.T_grasp[:3, 1], pl.T_grasp[:3, 3]
+    if step.kind == "pivot":
+        S = np.asarray(pl.S, float)
+        u = S[:3] / np.linalg.norm(S[:3])
+        p_axis = np.cross(u, S[3:] / np.linalg.norm(S[:3]))             # point of the axis closest to the origin
+        if np.linalg.norm(np.cross(n, u)) > 0.1:                        # more than 6 deg from parallel
+            return True, float("inf"), "the finger axis is not parallel to the pivot axis"
+        d = c - p_axis
+        arm = float(np.linalg.norm(d - (d @ u) * u))
+        return arm >= min_arm, arm, f"grasp point {arm * 1e3:.0f} mm from the pivot axis (at least {min_arm * 1e3:.0f} mm)"
+    cos = abs(float(n[2]))
+    return cos <= max_cos, 1.0 - cos, f"finger axis {np.degrees(np.arccos(min(cos, 1.0))):.0f} deg from the vertical"

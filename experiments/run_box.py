@@ -33,6 +33,7 @@ import run_plan as rp  # noqa: E402
 
 from pandaSim.control.backends import OPEN_WIDTH, PANDA_KP, PANDA_LAG, PANDA_WALL, SimBackend  # noqa: E402
 from pandaSim.control.primitive_executor import Log, check_profile, contact_pose, run_plan  # noqa: E402
+from pandaSim.planning.feasibility import grasp_observability  # noqa: E402
 from pandaSim.planning.sequencer import pose_error  # noqa: E402
 
 REAL_CONFIG = HERE / "configs" / "box_real.yaml"
@@ -75,6 +76,9 @@ def preflight(res, cfg):
     for k, v in res["checks"].items():
         if k != "plan found":
             out.append(check(f"simulation: {k}", v))
+    for i, st in enumerate(plan.steps):                # phi is not measured: the contact must determine it
+        ok, _, text = grasp_observability(st)
+        out.append(check(f"step {i} ({st.kind}): the box cannot turn about the finger axis on its own", ok, text))
     a = res["log"].arrays()
     lb, ub = res["robot_limits"]
     margin = float(np.minimum(a["theta"] - lb, ub - a["theta"]).min())

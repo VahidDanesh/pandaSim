@@ -421,3 +421,30 @@ def test_the_move_to_ready_is_swept_for_collisions(planned):
     d_open, who = arm.clearance(q_grasp, st.T_before, width=0.08, fingers_vs_box=True)
     assert who.endswith("finger") and 0.005 < d_open < 0.012
     assert arm.clearance(q_grasp, st.T_before, width=0.08)[0] > d_open                  # without the fingers: further away
+
+
+def test_observability_of_the_grasp(planned):
+    import dataclasses
+
+    from pandaSim.planning import se3
+    from pandaSim.planning.feasibility import grasp_observability
+
+    cfg, res = planned
+    slide = res["plan"].steps[0]
+    assert slide.kind == "slide" and grasp_observability(slide)[0]
+    # fingers along the vertical: the box could spin about them on the table
+    Rx = se3.rp(se3.exp3(np.array([np.pi / 2, 0.0, 0.0])), np.zeros(3))
+    bad = dataclasses.replace(slide, plan=dataclasses.replace(slide.plan, T_grasp=slide.plan.T_grasp @ Rx))
+    assert not grasp_observability(bad)[0]
+    # a pivot of the planner: the grasp is far from the edge; moved onto the edge it is not observable
+    box = res["box"]
+    T = rp.box_pose(box, rb.parse_pose("0.5,0.0,0,lying"))
+    d_o, pl = rp.make_planner(cfg, res["robot"])._box_pivots(box, T)[0]
+    step = type(slide)("pivot", T, pl.T_goal, pl)
+    ok, arm, _ = grasp_observability(step)
+    assert ok and arm > 0.10
+    S = np.asarray(pl.S)
+    on_axis = pl.T_grasp.copy()
+    on_axis[:3, 3] = np.cross(S[:3], S[3:]) + S[:3] * (S[:3] @ pl.T_grasp[:3, 3])       # same place along the edge
+    assert not grasp_observability(dataclasses.replace(step, plan=dataclasses.replace(pl, T_grasp=on_axis)))[0]
+    assert all(c["ok"] for c in rb.preflight(res, cfg) if "finger axis" in c["name"])
