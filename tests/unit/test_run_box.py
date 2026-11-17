@@ -395,3 +395,29 @@ def test_a_run_without_lag_compensation_reports_the_measured_lag(planned, tmp_pa
     measured = [(m, PANDA_LAG[i]) for i, m in enumerate(c["lag_measured_s"]) if m is not None]
     assert len(measured) >= 3 and all(abs(m - model) < 0.25 * model for m, model in measured)
     assert max(c["track_torque_max"]) < 5.0                               # free motion: little tracking torque
+
+
+def test_the_move_to_ready_is_swept_for_collisions(planned):
+    from pandaSim.planning.collision import ArmCollision
+
+    cfg, res = planned
+    q_ready, lim = rp.exec_kwargs(cfg)["q_ready"], res["robot_limits"]
+    arm = ArmCollision(res["robot"], res["box"].size)
+    clear = Panda(q_ready + np.array([0.8, 0.3, -0.5, 0.4, 0.3, -0.5, 1.2]))          # far, but high above the table
+    items = rb.robot_checks(clear.get_state(), q_ready, lim, arm=arm, T_box=res["T0"])
+    assert rb.go(items) and any(not c["ok"] and not c["hard"] for c in items)          # allowed, with a warning
+    low = Panda(np.array([0.0, 1.0, 0.0, -1.5, 0.0, 2.5, 0.78]))                       # the hand a few cm above the table
+    items = rb.robot_checks(low.get_state(), q_ready, lim, arm=arm, T_box=None)
+    assert not rb.go(items) and not next(c for c in items if "clear of the table" in c["name"])["ok"]
+    # the box in the way of an otherwise clear path
+    T_box = res["T0"].copy()
+    T_box[:3, 3] = res["robot"].fkine(np.r_[q_ready, 0.0], end="panda_hand").t - [0, 0, 0.12]
+    sw = arm.sweep(q_ready + np.array([0.0, 0.25, 0, 0, 0, 0, 0]), q_ready, T_box)
+    assert sw["d_min"] < 0.03 and sw["link"] is not None
+    assert arm.sweep(q_ready + 0.2, q_ready, res["T0"])["d_min"] > 0.03                 # the planned start is clear
+    # fingers: open they are 10 mm from the box faces at the grasp, and they are part of the test
+    st = res["plan"].steps[0]
+    q_grasp = res["log"].arrays()["theta"][np.flatnonzero(res["log"].arrays()["segment"] == 1)[-1]]
+    d_open, who = arm.clearance(q_grasp, st.T_before, width=0.08, fingers_vs_box=True)
+    assert who.endswith("finger") and 0.005 < d_open < 0.012
+    assert arm.clearance(q_grasp, st.T_before, width=0.08)[0] > d_open                  # without the fingers: further away

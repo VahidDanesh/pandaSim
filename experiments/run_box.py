@@ -31,7 +31,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import run_plan as rp  # noqa: E402
 
-from pandaSim.control.backends import PANDA_KP, PANDA_LAG, PANDA_WALL, SimBackend  # noqa: E402
+from pandaSim.control.backends import OPEN_WIDTH, PANDA_KP, PANDA_LAG, PANDA_WALL, SimBackend  # noqa: E402
 from pandaSim.control.primitive_executor import Log, check_profile, contact_pose, run_plan  # noqa: E402
 from pandaSim.planning.sequencer import pose_error  # noqa: E402
 
@@ -255,8 +255,14 @@ def print_compare(c):
 
 
 # ---- the robot -------------------------------------------------------------------------------------------
-def robot_checks(state, q_ready, lim, gripper_state=None):
-    """Checks on the robot before the first motion (state: panda-py RobotState or a fake with the same fields)."""
+READY_PATH_CLEARANCE = 0.03         # m: required distance to the table and the box on the joint-space move to ready
+
+
+def robot_checks(state, q_ready, lim, gripper_state=None, arm=None, T_box=None):
+    """Checks on the robot before the first motion (state: panda-py RobotState or a fake with the same fields).
+    arm: planning.collision.ArmCollision, T_box: pose of the box on the table (None: no box, level air). With arm,
+    the straight joint-space path from the measured configuration to q_ready (the path of panda-py's
+    move_to_joint_position) is swept against the table, the box and the arm itself, fingers at their real opening."""
     q = np.asarray(state.q, float)
     margin = float(np.minimum(lim[1] - q, q - lim[0]).min())
     dist = float(np.abs(q - q_ready).max())
@@ -265,9 +271,21 @@ def robot_checks(state, q_ready, lim, gripper_state=None):
         check("joints inside the limits", margin > JOINT_MARGIN[0], f"margin {margin:.2f} rad"),
         check("no robot error", not str(state.current_errors).strip("[]{} "), str(state.current_errors)[:80]),
         check("robot is at rest and unloaded", force < 5.0, f"|F_ext| {force:.1f} N"),
-        check("robot is within 1.0 rad of the ready configuration (the move there is not collision-checked)", dist < 1.0,
-              f"largest joint distance {dist:.2f} rad"),
     ]
+    if arm is None:
+        items.append(check("robot is within 1.0 rad of the ready configuration (the move there is not collision-checked)",
+                           dist < 1.0, f"largest joint distance {dist:.2f} rad"))
+    else:
+        far = np.eye(4)
+        far[0, 3] = 10.0                               # no box on the table: park it out of reach
+        width = OPEN_WIDTH if gripper_state is None else float(gripper_state.width)
+        sw = arm.sweep(q, q_ready, far if T_box is None else T_box, width=width)
+        items.append(check("path to the ready configuration is clear of the table and the box",
+                           sw["d_min"] >= READY_PATH_CLEARANCE,
+                           f"closest {sw['d_min'] * 1e3:.0f} mm" + (f" ({sw['link']} at {sw['s'] * 100:.0f} % of the path)" if sw["link"] else " or more")
+                           + f", required {READY_PATH_CLEARANCE * 1e3:.0f} mm"))
+        items.append(check("the arm does not touch itself on that path", not sw["self_collision"]))
+        items.append(check("the move to the ready configuration is short", dist < 1.0, f"largest joint distance {dist:.2f} rad", hard=False))
     if gripper_state is not None:
         items.append(check("gripper answers", gripper_state.max_width > 0.07, f"max width {gripper_state.max_width:.3f} m"))
     return items
@@ -313,8 +331,11 @@ def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, grippe
         panda = panda_py.Panda(host, realtime_config=libfranka.RealtimeConfig.kEnforce if rt_ok else libfranka.RealtimeConfig.kIgnore)
         gripper = libfranka.Gripper(host)
         creds = cc.desk_credentials()
+    from pandaSim.planning.collision import ArmCollision
+
     items = robot_checks(panda.get_state(), kw["q_ready"], res["robot_limits"],
-                         gripper.read_once() if gripper is not None else None)
+                         gripper.read_once() if gripper is not None else None,
+                         arm=ArmCollision(robot, res["box"].size), T_box=None if level == "air" else res["T0"])
     print("\nrobot:")
     print_preflight(items)
     if not go(items):

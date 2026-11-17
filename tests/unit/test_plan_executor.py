@@ -103,20 +103,31 @@ def test_planned_slide_and_pivot_run(robot, plans, free):
     assert np.all(finger_widths(a["t"], [e[:3] for e in log.events]) == 0.08)   # logs without widths
 
 
-def test_phi_limits_keep_the_palm_clear_of_the_box(robot):
+@pytest.mark.parametrize("model, touch", [("box", [25.7, 115.7]), ("mesh", [38.8, 128.8])])
+def test_phi_limits_keep_the_palm_clear_of_the_box(robot, model, touch, monkeypatch):
+    """Both models of the hand (clearance.py): its bounding box touches the box 13 deg before its mesh does."""
+    if model == "mesh":
+        pytest.importorskip("coal")
+    monkeypatch.setattr(clearance, "HAND_MODEL", model)
     # pivot grasp: 0.02 m below the top face and 0.02 m inside the far side face
     seq = Sequencer(y_ref=np.array([0.0, 1.0, 0.0]))
     T = pose(0.5, 0.2, math.pi / 2, -math.pi / 2)
     (_, pa), (_, pb) = seq._box_pivots(BOX, T)
     T_c_obj = se3.inv(pa.T_grasp) @ T
     lo, hi = clearance.phi_limits(T_c_obj, BOX.size, clearance=0.0)
-    # palm corner (0.0316, 0.0374) from the fingertips: over the top face at 25.7 deg, into the side face at 115.7 deg
-    assert sorted(np.degrees([abs(lo), abs(hi)])) == pytest.approx([25.7, 115.7], abs=0.5)
+    # box model: palm corner (0.0316, 0.0374) from the fingertips, over the top face at 25.7 deg, into the side face at 115.7 deg
+    assert sorted(np.degrees([abs(lo), abs(hi)])) == pytest.approx(touch, abs=0.5)
     assert pa.phi_lim == clearance.phi_limits(T_c_obj, BOX.size) and pb.phi_lim == pytest.approx((-pa.phi_lim[1], -pa.phi_lim[0]))
     assert lo < pa.phi_lim[0] < 0 < pa.phi_lim[1] < hi                   # 5 mm clearance narrows the interval
     for phi, hit in ((0.0, False), (lo + 0.02, False), (lo - 0.02, True), (hi - 0.02, False), (hi + 0.02, True)):
         T_E = pa.T_grasp @ se3.rp(se3.exp3(np.array([0.0, -phi, 0.0])), np.zeros(3))
-        assert clearance.palm_hits_box(T_E, T, BOX.size) == hit
+        assert clearance.hand_hits_box(T_E, T, BOX.size) == hit
+    if model == "mesh":                                                   # the limits keep the mesh 5 mm away, exactly
+        for phi in pa.phi_lim:
+            assert 0.005 <= clearance.hand_box_distance(T_c_obj, BOX.size, phi) < 0.0056
+        box_lim = clearance.phi_limits(T_c_obj, BOX.size, model="box")    # the bounding box is the more cautious model
+        assert pa.phi_lim[0] < box_lim[0] and box_lim[1] < pa.phi_lim[1]
+        assert min(clearance.hand_box_distance(T_c_obj, BOX.size, phi) for phi in box_lim) > 0.010
 
     # without the limits the QP turns the palm into the box; with them the same pivot is clean
     step = Step("pivot", T, pa.T_goal, pa)

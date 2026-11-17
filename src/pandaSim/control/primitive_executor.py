@@ -16,7 +16,7 @@ from pytransform3d import transformations as pt
 
 from pandaSim.control.backends import OPEN_WIDTH
 from pandaSim.control.contact_qp import EE, FER_QD_MAX, ContactQP
-from pandaSim.planning.clearance import palm_hits_box, palm_lowest
+from pandaSim.planning.clearance import hand_hits_box, palm_lowest
 from pandaSim.planning.primitives import pivot_twist, pose_error_twist, screw_twist, time_scaling
 
 PEAK_SDOT = {"q": 1.875, "c": 1.5, "l": 1.0}   # max of s_dot * Tf per time scaling
@@ -426,19 +426,26 @@ def check_profile(log, qd_scale=0.8):
 
 
 def check_clearance(log, robot, T_w_obj, size, period=0.01, clearance=0.002, arm=None, arm_every=2):
-    """Palm of the hand against the box and the table over a run_plan log (the planner and the QP do not
+    """Hand and arm against the box and the table over a run_plan log (the planner and the QP do not
     check collisions of the arm; this is the check after the fact). T_w_obj: box pose at the start.
+    box_ok uses the same model of the hand as the phi limits (clearance.hand_hits_box: the hand's collision mesh,
+    or its bounding box if coal is missing or clearance.HAND_MODEL == "box"); table_ok uses the bounding box.
     The box pose at each sample follows from the log: at rest between the steps, moving with {c} while held.
     The palm must stay `clearance` [m] away from the box and above the table (the samples are `period` s apart,
     at most 3 mm of hand motion at the speeds used). Returns dict(box_ok, table_ok, hits): hits lists (t, segment name) of the samples with contact.
-    arm: planning.collision.ArmCollision; if given, every `arm_every`-th sample also tests all arm links and the
-    hand against the box and the table (distance >= arm.margin) and the result has arm_ok, arm_hits
-    (t, segment, link) and arm_min (smallest distance)."""
+    arm: planning.collision.ArmCollision; if given, every `arm_every`-th sample also tests all arm links, the
+    hand and the fingers against the box and the table (distance >= arm.margin) and the result has arm_ok, arm_hits
+    (t, segment, link) and arm_min (smallest distance). The fingers are at the opening the gripper was last
+    commanded to (log.events); they are tested against the box whenever it is not held."""
     a = log.arrays()
     seg, theta, phi, t = a["segment"], a["theta"], a["phi"], a["t"]
     T_rest = [np.asarray(T_w_obj, float)] + [np.asarray(st["T_obj"], float) for st in log.steps]   # before step i, after it
     hits, table_ok = [], True
     arm_hits, arm_min, count = [], np.inf, 0
+    width = np.full(len(t), OPEN_WIDTH)                    # finger opening at each sample
+    for _, t_ev, ok, *w in log.events:
+        if ok and w:
+            width[np.searchsorted(t, t_ev):] = w[0]
     T_c_obj = {}
     for j, sg in enumerate(log.segments):
         idx = np.flatnonzero(seg == j)
@@ -455,13 +462,13 @@ def check_clearance(log, robot, T_w_obj, size, period=0.01, clearance=0.002, arm
                 T_obj = T_rest[max(i, 0) + (sg["name"] in ("retreat", "ready") and i >= 0)]
             T_E = contact_pose(robot, theta[k])
             table_ok &= palm_lowest(T_E) > clearance
-            if palm_hits_box(T_E, T_obj, size, clearance):
+            if hand_hits_box(T_E, T_obj, size, clearance):
                 hits.append((float(t[k]), sg["name"]))
             if arm is not None and count % arm_every == 0:
-                ok, who, d = arm.ok(theta[k], T_obj, phi[k])
+                ok, who, d = arm.ok(theta[k], T_obj, phi[k], width=width[k], fingers_vs_box=not held)
                 arm_min = min(arm_min, d)
                 if not ok:
-                    arm_hits.append((float(t[k]), sg["name"], who))
+                    arm_hits.append((float(t[k]), sg["name"], who, arm.obstacle))
             count += 1
     return dict(box_ok=not hits, table_ok=bool(table_ok), hits=hits, arm_ok=not arm_hits, arm_hits=arm_hits,
                 arm_min=float(arm_min))
