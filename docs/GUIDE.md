@@ -12,6 +12,7 @@ Branch `exp/planner`. Setup: `uv sync --extra sim --extra robot --extra dev`, th
 | Scripts | `experiments/run_box.py`, `run_plan.py`, `ablation.py`, `ablation_figures.py`, `check_connection.py` | Start/goal to robot; five sim tasks; random-trial ablation; figure; read-only robot check. |
 | Hardware-day tools | `experiments/calibrate_box.py`, `analyze_run.py`, `paper_numbers.py` | Box pose by touching corners (read only; `--measure` for the final pose of a run); plan against measurement for a robot run; every number of the paper's Sec. 7 from the code and results, checked against `main.tex`. |
 | Paper experiments | `experiments/configs/protocol.yaml`, `protocol.py`, `hardware_tables.py`, `paper_figure.py` | Every robot run of Sec. 7 checked in simulation with its command; the tables (LaTeX rows) and the pivot figure from the run folders. |
+| Notebook | `experiments/plan_box.ipynb` | Tour of the project in simulation, section by section (primitives, contact QP, sequencing, gaiting, free vs rigid, pre-flight and lag, protocol, after a robot run) with Swift inside the cells (`notebook=True`), and a playground for your own task and config values. No robot. |
 | Configs | `experiments/configs/box_plan.yaml` (sim), `box_real.yaml` (robot) | Box, robot base, speeds, gripper, safety, tolerances. |
 | Results | `experiments/results/ablation_*.json`, `ablation_pivots.{pdf,png}` | 300 random pivots, 100 random tasks (rigid vs free rotation). |
 

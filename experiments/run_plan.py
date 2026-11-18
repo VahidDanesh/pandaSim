@@ -173,17 +173,22 @@ MARK = (1.0, 1.0, 1.0)      # marked corner of the real box (box frame, in half 
 
 def show(path, speed=1.0, **launch):
     """Replay a saved run in Swift: the box in blue, its goal pose as a green ghost, and the marked corner of the
-    box as a small red sphere on both."""
+    box as a small red sphere on both. launch: window=(t0, t1) of viewer.replay and the options of swift.Swift.launch
+    (notebook=True: inside the cell of a Jupyter notebook)."""
     from pandaSim.control.viewer import replay
 
     d = np.load(path, allow_pickle=True)
-    size, base = d["size"].tolist(), se3.rp(np.eye(3), d["base"])
+    return replay(path, se3.rp(np.eye(3), d["base"]), scene_objects(d["T0"], d["Tg"], d["size"]), speed=speed, **launch)
+
+
+def scene_objects(T0, Tg, size):
+    """Objects of the replay (viewer.replay): the box at T0 (blue), its goal Tg (green ghost), the marked corner on both."""
+    size = np.asarray(size, float).tolist()
     mark = lambda T: T @ se3.rp(np.eye(3), np.asarray(MARK) * np.asarray(size) / 2)
-    objects = [{"type": "cuboid", "scale": size, "pose": d["T0"], "color": "blue"},
-               {"type": "cuboid", "scale": size, "pose": d["Tg"], "color": [0.1, 0.8, 0.1, 0.35]},
-               {"type": "sphere", "radius": 0.008, "pose": mark(d["T0"]), "color": "red", "follow": True},
-               {"type": "sphere", "radius": 0.008, "pose": mark(d["Tg"]), "color": [0.9, 0.1, 0.1, 0.5]}]
-    return replay(path, base, objects, speed=speed, **launch)
+    return [{"type": "cuboid", "scale": size, "pose": T0, "color": "blue"},
+            {"type": "cuboid", "scale": size, "pose": Tg, "color": [0.1, 0.8, 0.1, 0.35]},
+            {"type": "sphere", "radius": 0.008, "pose": mark(T0), "color": "red", "follow": True},
+            {"type": "sphere", "radius": 0.008, "pose": mark(Tg), "color": [0.9, 0.1, 0.1, 0.5]}]
 
 
 def main(argv=None):

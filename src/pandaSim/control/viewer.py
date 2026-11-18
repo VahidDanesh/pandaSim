@@ -149,10 +149,11 @@ def finger_widths(t, events):
     return w
 
 
-def replay(path, base, objects=(), speed=1.0, rate=30.0, **launch):
+def replay(path, base, objects=(), speed=1.0, rate=30.0, window=None, **launch):
     """Play a saved run (Log.save) back in Swift; the first object follows {c} between each grasp and release,
     and the fingers are shown at the commanded width (the object width while it is grasped). An object with
     "follow": True (e.g. a mark on the box) moves with the first object.
+    window: (t0, t1) in s of the run, to play only that part (None: all of it).
     launch: options of swift.Swift.launch, e.g. notebook=True."""
     from pandaSim.control.primitive_executor import contact_pose
 
@@ -165,7 +166,8 @@ def replay(path, base, objects=(), speed=1.0, rate=30.0, **launch):
     fk = lambda q: contact_pose(robot, q)
     held = grasp_intervals(t, q, d["events"], objects[0]["pose"], fk) if obj is not None else []
     width = finger_widths(t, d["events"])
-    for k in np.searchsorted(t, np.arange(t[0], t[-1], speed / rate)):
+    t0, t1 = (t[0], t[-1]) if window is None else (max(t[0], window[0]), min(t[-1], window[1]))
+    for k in np.searchsorted(t, np.arange(t0, t1, speed / rate)):
         robot.q = q[k]
         set_fingers(robot, width[k])
         for k0, k1, T_c_obj, T_after in held:

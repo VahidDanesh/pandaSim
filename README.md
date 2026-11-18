@@ -36,7 +36,9 @@ on the simulated arm and check the result. Tasks and parameters are in
 
 `--free-rotation / --rigid` sets the execution model of the pivots, `--plan-free-rotation / --plan-rigid`
 the model of the planner's feasibility check (default: the same as execution). The logs go to
-`experiments/runs/`. `experiments/plan_box.ipynb` does the same step by step with plots.
+`experiments/runs/`. `experiments/plan_box.ipynb` is a tour of the whole project in simulation (primitives, contact QP,
+sequencing, gaiting, free vs rigid, pre-flight, the protocol of the paper, a playground for your own task), with
+Swift inside the notebook cells.
 The viewer runs on the machine that runs the script (ports 52000 and 53000).
 In a pivot the hand may turn about the finger axis only as far as its palm stays clear of the box: the
 limits of the bearing angle phi follow from the grasp geometry (`planning/clearance.py`) and are enforced by

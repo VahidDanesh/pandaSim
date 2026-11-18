@@ -282,3 +282,18 @@ def test_connection_check_locks_and_releases_desk_control(tmp_path, monkeypatch)
 
     lock_brakes(FakeDesk())
     assert FakeDesk.calls == ["take", "lock", "release"]
+
+
+def test_replay_plays_only_the_window(tmp_path, monkeypatch):
+    """viewer.replay(window=(t0, t1)) shows only the samples of that part of the run (headless Swift)."""
+    pytest.importorskip("swift")
+    from pandaSim.control import viewer
+
+    t = np.arange(0.0, 2.0, 0.01)
+    theta = np.outer(t, np.ones(7))                            # joint angles = time, to read the sample back
+    np.savez(tmp_path / "run.npz", t=t, theta=theta, phi=np.zeros_like(t), events=np.array([], dtype=object))
+    seen = []
+    monkeypatch.setattr(viewer, "set_fingers", lambda robot, width: seen.append(float(robot.q[0])))
+    viewer.replay(tmp_path / "run.npz", np.eye(4), speed=1.0, rate=30.0, window=(0.5, 1.0), headless=True, realtime=False)
+    frames = seen[1:]                                          # seen[0]: the scene is set up at the first sample
+    assert len(frames) == 15 and frames[0] == pytest.approx(0.5) and 0.95 <= frames[-1] < 1.0
