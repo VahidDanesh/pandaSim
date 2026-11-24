@@ -40,21 +40,6 @@ def arm_manipulability_jacobian(ets, q8, Je):
     return manipulability_jacobian(Je[:, :7], ets.hessiane(q8, Je=Je)[:7, :, :7])
 
 
-def _qp(Q, c, A_eq, b_eq, G, h):
-    """min 1/2 x'Qx + c'x  s.t.  A_eq x = b_eq, G x <= h.  Returns None if infeasible.
-
-    quadprog solves min 1/2 x'Qx - a'x s.t. C'x >= b with the first meq rows as equalities.
-    """
-    C = np.vstack([A_eq, -G]).T
-    b = np.r_[b_eq, -h]
-    try:
-        return quadprog.solve_qp(Q, -c, C, b, meq=len(b_eq))[0]
-    except ValueError as e:
-        if "inconsistent" in str(e):
-            return None
-        raise
-
-
 class ContactQP:
     """Joint velocities that track the body twist V_c of the contact frame {c}.
 
@@ -86,7 +71,9 @@ class ContactQP:
         self.Q = np.eye(self.n)
         if free_rotation:
             self.Q[7, 7] = nu
-        self.bounds = np.vstack([np.eye(7, self.n), -np.eye(7, self.n)])
+        # eq:qp_d as quadprog constraints C'x >= b, in this order: -theta_dot >= -theta_dot_max, theta_dot >= -theta_dot_max
+        self._C_bounds = np.hstack([-np.eye(self.n, 7), np.eye(self.n, 7)])
+        self._b_bounds = -np.r_[self.qd_max, self.qd_max]
 
     def jacobian(self, q):
         """J_c in (omega, v): 6 x 8 (free) or 6 x 7 (rigid)."""
@@ -106,24 +93,27 @@ class ContactQP:
         c = np.zeros(self.n)
         c[:7] = self.K * (theta - self.mid) - self.lam * J_m
 
-        # eq:rho, eq:damper_sign, eq:qp_c: rows only for joints within rho_e of a limit
+        # eq:rho, eq:damper_sign, eq:qp_c: one row per joint within rho_e of a limit, and the same damper on phi
+        # with the limits phi_lim: (index, sign of the row, rho)
         rho = np.minimum(self.ub - theta, theta - self.lb)
-        near = rho < self.rho_e
-        G_damp = np.zeros((near.sum(), self.n))
-        G_damp[np.arange(near.sum()), np.flatnonzero(near)] = np.sign(theta - self.mid)[near]
-        h_damp = self.eta * (rho[near] - self.rho_s) / (self.rho_e - self.rho_s)
-
-        # the same damper on phi, limits phi_lim
+        rows = [(j, np.sign(theta[j] - self.mid[j]), rho[j]) for j in np.flatnonzero(rho < self.rho_e)]
         if self.phi_lim is not None:
             for sign, rho_phi in ((-1.0, q8[7] - self.phi_lim[0]), (1.0, self.phi_lim[1] - q8[7])):
                 if rho_phi < self.rho_e:
-                    row = np.zeros((1, self.n))
-                    row[0, 7] = sign
-                    G_damp = np.vstack([G_damp, row])
-                    h_damp = np.r_[h_damp, self.eta * (rho_phi - self.rho_s) / (self.rho_e - self.rho_s)]
+                    rows.append((7, sign, rho_phi))
 
-        # eq:qp_d
-        G = np.vstack([G_damp, self.bounds])
-        h = np.r_[h_damp, self.qd_max, self.qd_max]
-
-        return _qp(self.Q, c, J, np.asarray(V_c, float), G, h)       # eq:qp_b
+        # quadprog: min 1/2 x'Qx - a'x  s.t.  C'x >= b, the first 6 columns equalities (eq:qp_b, J q_dot = V_c);
+        # a row g x <= h of eq:qp_c, eq:qp_d is the column -g with -h. C and b are filled in place (no stacking).
+        m = len(rows)
+        C, b = np.zeros((self.n, 6 + m + 14)), np.empty(6 + m + 14)
+        C[:, :6], b[:6] = J.T, V_c
+        for i, (j, sign, r) in enumerate(rows):
+            C[j, 6 + i] = -sign
+            b[6 + i] = -(self.eta * (r - self.rho_s) / (self.rho_e - self.rho_s))
+        C[:, 6 + m:], b[6 + m:] = self._C_bounds, self._b_bounds
+        try:
+            return quadprog.solve_qp(self.Q, -c, C, b, meq=6)[0]
+        except ValueError as e:                     # eq:qp_b is a hard equality: None if the QP is infeasible
+            if "inconsistent" in str(e):
+                return None
+            raise

@@ -156,3 +156,55 @@ def test_free_rotation_pivot_reaches_planned_pose(robot):
 
 def test_rigid_pivot_outcome_is_reported(robot):
     print("rigid:", pivot_run(robot, free=False))
+
+
+def test_solve_equals_the_stacked_formulation(robot):
+    """ContactQP.solve fills quadprog's C and b in place; it must return exactly (bitwise) what the stacked G, h
+    formulation it replaced returns, with joints near their limits and phi near both limits."""
+    import quadprog
+
+    def stacked(ctrl, q, V):
+        J, Je, q8 = ctrl._jacobians(np.asarray(q, float))
+        theta = q8[:7]
+        J_m = arm_manipulability_jacobian(ctrl.ets, q8, Je)
+        c = np.zeros(ctrl.n)
+        c[:7] = ctrl.K * (theta - ctrl.mid) - ctrl.lam * J_m
+        rho = np.minimum(ctrl.ub - theta, theta - ctrl.lb)
+        near = rho < ctrl.rho_e
+        G = np.zeros((near.sum(), ctrl.n))
+        G[np.arange(near.sum()), np.flatnonzero(near)] = np.sign(theta - ctrl.mid)[near]
+        h = ctrl.eta * (rho[near] - ctrl.rho_s) / (ctrl.rho_e - ctrl.rho_s)
+        if ctrl.phi_lim is not None:
+            for sign, rho_phi in ((-1.0, q8[7] - ctrl.phi_lim[0]), (1.0, ctrl.phi_lim[1] - q8[7])):
+                if rho_phi < ctrl.rho_e:
+                    row = np.zeros((1, ctrl.n))
+                    row[0, 7] = sign
+                    G, h = np.vstack([G, row]), np.r_[h, ctrl.eta * (rho_phi - ctrl.rho_s) / (ctrl.rho_e - ctrl.rho_s)]
+        G = np.vstack([G, np.eye(7, ctrl.n), -np.eye(7, ctrl.n)])
+        h = np.r_[h, ctrl.qd_max, ctrl.qd_max]
+        try:
+            return quadprog.solve_qp(ctrl.Q, -c, np.vstack([J, -G]).T, np.r_[V, -h], meq=6)[0]
+        except ValueError:
+            return None
+
+    rng = np.random.default_rng(1)
+    lb, ub = robot.qlim[0, :7], robot.qlim[1, :7]
+    n_near = n_none = 0
+    for free in (True, False):
+        for ctrl in (ContactQP(robot, free_rotation=free, phi_lim=(-0.4, 1.2)),
+                     ContactQP(robot, free_rotation=free, K=0.5, lam=0.1, rho_e=0.4, rho_s=0.13, eta=0.7)):
+            for k in range(150):
+                theta = q_test(robot)[:7] + rng.normal(0, 0.3, 7)
+                j = rng.integers(7)                                 # one joint within rho_e of a limit
+                theta[j] = (lb[j] + rng.uniform(0.0, 0.28)) if k % 2 else (ub[j] - rng.uniform(0.0, 0.28))
+                theta = np.clip(theta, lb + 1e-3, ub - 1e-3)
+                q = np.r_[theta, rng.uniform(-0.45, 1.25)] if free else theta     # phi near and between its limits
+                V = rng.normal(0, 0.3 if k % 5 else 3.0, 6)                       # every 5th far beyond the limits
+                want, got = stacked(ctrl, q, V), ctrl.solve(q, V)
+                n_near += np.any(np.minimum(ub - theta, theta - lb) < ctrl.rho_e)
+                if want is None:
+                    n_none += 1
+                    assert got is None
+                else:
+                    assert np.array_equal(got, want)
+    assert n_near == 600 and n_none > 0
