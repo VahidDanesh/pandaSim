@@ -29,7 +29,7 @@ from scipy.optimize import minimize
 
 from pandaSim.planning import box_primitives as P
 from pandaSim.planning import se3
-from pandaSim.planning.sequencer import REACH, Plan, Step, snap_stable
+from pandaSim.planning.sequencer import REACH, Plan, Step, check_steps, snap_stable
 
 Z = np.array([0.0, 0.0, 1.0])
 
@@ -202,7 +202,7 @@ class GaitPlanner:
                 if checked >= self.max_kin_checks:
                     return Plan([], math.inf, dict(candidates=n_cands, kin_checks=checked, time_s=time.perf_counter() - t))
                 checked += 1
-                res = [self.kin.check(s) for s in steps]
+                res = check_steps(self.kin, steps)
                 if all(r[0] for r in res):
                     return Plan(steps, len(steps) + float(np.linalg.norm(alphas)),
                                 dict(candidates=n_cands, kin_checks=checked, time_s=time.perf_counter() - t,

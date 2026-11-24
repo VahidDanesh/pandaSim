@@ -112,6 +112,16 @@ def pose_error(T, Tg, symmetric=True):
     return (float(np.linalg.norm(T[:3, 3] - Tg[:3, 3])), min(se3.angle_between(T[:3, :3], Tv[:3, :3]) for Tv in goals))
 
 
+def check_steps(kin, steps):
+    """kin.check of the steps of one candidate, in order, up to the first infeasible one (the candidate is out)."""
+    res = []
+    for s in steps:
+        res.append(kin.check(s))
+        if not res[-1][0]:
+            break
+    return res
+
+
 def drop_noops(steps, tol_p=3e-3, tol_r=math.radians(2.0)):
     """Remove slides that do not move the box (the plan template allows them)."""
     return [s for s in steps if s.kind != "slide"
@@ -353,7 +363,7 @@ class Sequencer:
         """Feasibility and joint margin of candidates top[lo:hi]."""
         feasible, margin = [], []
         for _, steps in top[lo:hi]:
-            res = [self.kin.check(s) for s in steps]
+            res = check_steps(self.kin, steps)
             ok = all(r[0] for r in res)
             feasible.append(ok)
             margin.append(min((r[1] for r in res), default=0.0) if ok else 0.0)
