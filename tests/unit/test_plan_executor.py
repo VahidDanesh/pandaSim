@@ -147,6 +147,7 @@ def test_unreachable_step_fails_safely_and_is_cached(robot):
     assert np.allclose(T_end, Ta) and not log.steps[0]["ok"]
 
     kin = Rollout(robot, dt=DT)
+    assert kin.failure(step) == (log.segments[-1]["name"], log.segments[-1]["cause"])   # the reason, as the analysis reads it
     assert kin.check(step) == (False, 0.0)
     kin._run = None                                                      # a second check must not run again
     assert kin.check(step) == (False, 0.0)

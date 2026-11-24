@@ -21,29 +21,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import run_plan as rp  # noqa: E402
 
-from pandaSim.control.backends import SimBackend  # noqa: E402
-from pandaSim.control.primitive_executor import check_clearance, run_plan  # noqa: E402
-from pandaSim.planning.collision import ArmCollision  # noqa: E402
-
 WIDE = 60                        # candidates simulated in the wider search
-
-
-def step_failure(cfg, robot, arm, step, size):
-    """Why the rollout rejects a step: None, or (segment, cause)."""
-    kw = rp.exec_kwargs(cfg)
-    log, _ = run_plan(SimBackend(kw["q_ready"], dt=cfg["planner"]["dt"]), robot, [step], step.T_before,
-                      free_rotation=cfg["plan_free_rotation"], **kw)
-    bad = next((s for s in log.segments if not s["ok"]), None)
-    if bad is not None:
-        return bad["name"], bad["cause"]
-    c = check_clearance(log, robot, step.T_before, size, period=0.02, arm=arm)
-    if not c["box_ok"]:
-        return c["hits"][0][1], "hand too close to the box"
-    if not c["table_ok"]:
-        return "?", "hand too close to the table"
-    if not c["arm_ok"]:
-        return c["arm_hits"][0][1], f"{c['arm_hits'][0][2]} too close to the {c['arm_hits'][0][3]}"
-    return None
 
 
 def analyse(args):
@@ -61,10 +39,9 @@ def analyse(args):
         out["cause"] = "no candidate passes the cheap tests (reach, base keep-out, tipping margin)"
         out["detail"] = f"start {r0:.2f} m and goal {rg:.2f} m from the base"
         return out
-    arm = ArmCollision(robot, box.size)
     reasons, first_ok = collections.Counter(), None
     for rank, (cost, steps) in enumerate(cands[:WIDE]):
-        fails = [(s.kind,) + f for s in steps if (f := step_failure(cfg, robot, arm, s, box.size)) is not None]
+        fails = [(s.kind,) + f for s in steps if (f := seq.kin.failure(s)) is not None]     # the planner's own check
         if not fails:
             first_ok = rank
             break

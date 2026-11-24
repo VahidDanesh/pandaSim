@@ -39,22 +39,36 @@ class Rollout:
         return self._cache[key]
 
     def _run(self, step):
+        log, fail = self._rollout(step)
+        if fail is not None:
+            return False, 0.0
+        theta = log.arrays()["theta"]
+        lb, ub = self.robot.qlim[0, :7], self.robot.qlim[1, :7]
+        return True, float(np.minimum(theta - lb, ub - theta).min())
+
+    def failure(self, step):
+        """Why the rollout rejects a step: None, or (segment, cause). Not cached (for the analysis of no plan)."""
+        return self._rollout(step)[1]
+
+    def _rollout(self, step):
+        """The step through the executor and the clearance test: (log, None | (segment, cause))."""
         from pandaSim.control.backends import SimBackend
-        from pandaSim.control.primitive_executor import run_plan
+        from pandaSim.control.primitive_executor import check_clearance, run_plan
 
         log, _ = run_plan(SimBackend(self.q_ready, dt=self.dt), self.robot, [step], step.T_before,
                           free_rotation=self.free_rotation, q_ready=self.q_ready, **self.run_kwargs)
         if not log.ok or not log.steps[-1]["ok"]:
-            return False, 0.0
+            bad = next((s for s in log.segments if not s["ok"]), None)
+            return log, (bad["name"], bad["cause"]) if bad else (log.abort["segment"], log.abort["cause"])
         if self.size is not None:
-            from pandaSim.control.primitive_executor import check_clearance
-
             c = check_clearance(log, self.robot, step.T_before, self.size, period=0.02, arm=self.arm)
-            if not (c["box_ok"] and c["table_ok"] and c["arm_ok"]):
-                return False, 0.0
-        theta = log.arrays()["theta"]
-        lb, ub = self.robot.qlim[0, :7], self.robot.qlim[1, :7]
-        return True, float(np.minimum(theta - lb, ub - theta).min())
+            if not c["box_ok"]:
+                return log, (c["hits"][0][1], "hand too close to the box")
+            if not c["table_ok"]:
+                return log, ("?", "hand too close to the table")
+            if not c["arm_ok"]:
+                return log, (c["arm_hits"][0][1], f"{c['arm_hits'][0][2]} too close to the {c['arm_hits'][0][3]}")
+        return log, None
 
 
 def grasp_observability(step, min_arm=0.02, max_cos=0.9):
