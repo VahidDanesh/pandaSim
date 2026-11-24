@@ -213,3 +213,41 @@ def test_obb_overlap_early_out_keeps_the_separating_axis_answer():
         assert got == sat(Ta, ha, Tb, hb)
         hits += got
     assert 1000 < hits < 9000                                           # both answers occur often (1981)
+
+
+def test_arm_collision_sphere_skip_keeps_every_distance(robot):
+    """ArmCollision.clearance skips pairs whose enclosing spheres are farther apart than its cutoff; the result
+    (distance, link, obstacle) must equal the plain loop over every link (kept here) at random configurations,
+    box poses near and far from the hand, with the fingers tested against the box or not."""
+    pytest.importorskip("coal")
+    from pandaSim.planning.collision import ArmCollision
+
+    ac = ArmCollision(robot, BOX.size)
+    inf = ac.margin + 0.05
+
+    def plain(fingers_vs_box):                    # the loop before the skip, on the state clearance() just set
+        best, who, obstacle = np.inf, None, None
+        pairs = [(l, True, l is not ac.arm[0]) for l in ac.arm] + [(ac.hand, True, True)]
+        for link, vs_box, vs_table in pairs + [(f, False, True) for f in ac.fingers]:
+            vs_box = vs_box or (fingers_vs_box and link in ac.fingers)
+            for use, shape, name in ((vs_box, ac.box, "box"), (vs_table, ac.table, "table")):
+                d = link.closest_point(shape, inf, skip=True)[0] if use else None
+                if d is not None and d < best:
+                    best, who, obstacle = d, link.name, name
+        return float(best), who, obstacle
+
+    rng = np.random.default_rng(2)
+    lb, ub = robot.qlim[0, :7], robot.qlim[1, :7]
+    counts = dict(box=0, table=0, none=0)
+    for k in range(200):
+        q0 = np.array([0.0, 1.5, 0.0, -0.8, 0.0, 2.0, 0.7854]) if k % 5 == 0 else robot.qr[:7]   # low: near the table
+        q = np.clip(q0 + rng.normal(0, 0.6, 7), lb, ub)
+        T_E = contact_pose(robot, q)
+        T_obj = pose(*rng.uniform(-0.6, 0.6, 2), rng.uniform(-np.pi, np.pi), -math.pi / 2 if k % 2 else 0.0)
+        if k % 3:                                  # the box next to the hand, at most 0.25 m away
+            T_obj[:3, 3] = T_E[:3, 3] + rng.uniform(-0.25, 0.25, 3)
+        fingers = bool(k % 4 < 2)
+        d, who = ac.clearance(q, T_obj, phi=rng.uniform(-1, 1), width=rng.uniform(0, 0.08), fingers_vs_box=fingers)
+        assert (d, who, ac.obstacle) == plain(fingers)
+        counts[ac.obstacle or "none"] += 1
+    assert min(counts.values()) >= 10, counts     # near the box, near the table, and nothing within the cutoff

@@ -11,6 +11,18 @@ from __future__ import annotations
 import numpy as np
 
 
+def _sphere(mesh):
+    """(centre, radius) of a sphere that encloses a spatialgeometry Mesh, in its own frame: from its vertices as
+    coal gets them (Mesh._init_coal: y_up, then scale)."""
+    import trimesh
+    from spatialgeometry.geom.CollisionShape import _Y_UP_TO_Z_UP
+
+    v = trimesh.load(mesh.filename, force="mesh").vertices
+    v = (v @ _Y_UP_TO_Z_UP if mesh.y_up else v) * mesh.scale
+    c = (v.min(axis=0) + v.max(axis=0)) / 2
+    return c, float(np.linalg.norm(v - c, axis=1).max())
+
+
 class ArmCollision:
     """robot: the pandaSim Panda (8 joints: 7 + phi); size: box dimensions; margin [m]: required distance."""
 
@@ -26,33 +38,41 @@ class ArmCollision:
         self.hand, self.fingers = hand, (left, right)
         self.names = [l.name for l in self.arm] + [hand.name]
         self.obstacle = None
-
-    def _pairs(self, T_obj):
-        from spatialmath import SE3
-
-        self.box.T = SE3(np.asarray(T_obj, float), check=False)
-        self.box.update()
-        shapes = [(l, True, l is not self.arm[0]) for l in self.arm] + [(self.hand, True, True)]
-        shapes += [(f, False, True) for f in self.fingers]
-        return shapes
+        # every collision mesh once: (mesh, link, vs_box, vs_table, finger, centre, radius of its enclosing sphere)
+        links = [(l, True, l is not self.arm[0]) for l in self.arm] + [(hand, True, True)]
+        links += [(f, False, True) for f in self.fingers]
+        self._shapes = [(col, l, vs_box, vs_table, l in self.fingers, *_sphere(col))
+                        for l, vs_box, vs_table in links for col in l.collision]
+        self._box_r = float(np.linalg.norm(np.asarray(size, float)) / 2)     # sphere about the box centre
 
     def clearance(self, theta, T_obj, phi=0.0, width=None, fingers_vs_box=False):
         """Smallest distance (arm and hand to the box, arm links 1-7, hand and fingers to the table), and the
         name of the closest link. theta: 7 joint angles. width: finger opening [m] (None: closed, as before).
         fingers_vs_box: also test the fingers against the box (the box is not in the hand)."""
+        from spatialmath import SE3
+
         r = self.robot
         w = 0.0 if width is None else float(np.clip(width, 0.0, 0.08))
         r.grippers[0].q = [w / 2, w / 2]
         r._update_link_tf(np.r_[np.asarray(theta, float)[:7], phi])
         r.update()
         self.table.update()
+        T_obj = np.asarray(T_obj, float)
+        self.box.T = SE3(T_obj, check=False)
+        self.box.update()
+        inf = max(self.margin, 0.0) + 0.05              # pairs farther apart do not count (closest_point: None)
+        p_box = T_obj[:3, 3]
         best, who, self.obstacle = np.inf, None, None
-        for link, vs_box, vs_table in self._pairs(T_obj):
-            vs_box = vs_box or (fingers_vs_box and link in self.fingers)
-            for use, shape, name in ((vs_box, self.box, "box"), (vs_table, self.table, "table")):
-                if not use:
+        for col, link, vs_box, vs_table, finger, c, rad in self._shapes:
+            vs_box = vs_box or (fingers_vs_box and finger)
+            c = col._wT[:3, :3] @ c + col._wT[:3, 3]     # centre of the enclosing sphere, world (_wT: the pose coal uses)
+            # lower bounds of the distance: sphere to sphere (box), sphere to the table top z = 0. Above inf, coal's
+            # distance would be above inf too and dropped, so the pair is skipped (1e-6: coal's tolerance)
+            for use, shape, name, lower in ((vs_box, self.box, "box", np.linalg.norm(c - p_box) - rad - self._box_r),
+                                            (vs_table, self.table, "table", c[2] - rad)):
+                if not use or lower > inf + 1e-6:
                     continue
-                d = link.closest_point(shape, max(self.margin, 0.0) + 0.05, skip=True)[0]
+                d = col.closest_point(shape, inf)[0]
                 if d is not None and d < best:
                     best, who, self.obstacle = d, link.name, name      # obstacle: what the closest link is close to
         return float(best), who
