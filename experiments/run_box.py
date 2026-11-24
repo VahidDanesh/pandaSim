@@ -86,9 +86,14 @@ def check(name, ok, detail="", hard=True):
 UNTIL_THE_STOP = ("all segments completed", "QP always feasible", "object at the goal", "arm back at ready")
 
 
-def predicted_stop(log, steps):
+def pivot_method(cfg):
+    """Time scaling of the pivots, as run_plan reads it from execution.pivot."""
+    return (cfg["execution"].get("pivot") or {}).get("method", "quintic")
+
+
+def predicted_stop(log, steps, method="quintic"):
     """Where a simulated run stops if it stops by an infeasible QP in a pivot: dict(step, angle_deg, of_deg, time_frac);
-    None if it does not stop, or stops for another reason."""
+    None if it does not stop, or stops for another reason. method: the time scaling of the pivots (pivot_method)."""
     failed = next((sg for sg in log.segments if not sg["ok"]), None)
     if failed is None or failed["name"] != "pivot" or failed["cause"] != "infeasible QP":
         return None
@@ -97,7 +102,7 @@ def predicted_stop(log, steps):
     k = sum(1 for sg in log.segments[:log.segments.index(failed)] if sg["name"] == "pivot" and sg["step"] == failed["step"])
     theta = steps[failed["step"]].plan.screws[k][1]
     tau = (failed["t_end"] - failed["t0"]) / failed["Tf"]
-    s = time_scaling(failed["t_end"] - failed["t0"], failed["Tf"])[0]
+    s = time_scaling(failed["t_end"] - failed["t0"], failed["Tf"], method)[0]
     return dict(step=failed["step"], angle_deg=math.degrees(s * theta), of_deg=math.degrees(theta), time_frac=tau)
 
 
@@ -124,7 +129,7 @@ def preflight(res, cfg, expect_stop=False):
         return out
     ep, er = pose_error(res["T0"], res["Tg"], symmetric(cfg))
     out.append(check("start and goal differ", ep > 1e-3 or er > 1e-2))
-    stop = predicted_stop(res["log"], plan.steps) if expect_stop else None
+    stop = predicted_stop(res["log"], plan.steps, pivot_method(cfg)) if expect_stop else None
     if expect_stop:
         out.append(check("simulation stops by an infeasible QP in a pivot (expected: the robot then holds the tilted box)",
                          stop is not None, f"step {stop['step']} at {stop['angle_deg']:.0f} of {stop['of_deg']:.0f} deg"
@@ -535,7 +540,7 @@ def main(argv=None):
             print("NO-GO: the robot is not moved")
             return 2
         if args.expect_stop:
-            st = predicted_stop(res["log"], res["plan"].steps)
+            st = predicted_stop(res["log"], res["plan"].steps, pivot_method(cfg))
             print(f"\nEXPECTED STOP: the simulation stops in step {st['step']} (pivot) at {st['angle_deg']:.0f} of "
                   f"{st['of_deg']:.0f} deg. The robot will then hold the tilted box: support it, open the gripper from Desk.")
         execute(res, cfg, run_dir, args.host, args.level, speed)

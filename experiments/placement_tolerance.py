@@ -39,7 +39,9 @@ from pandaSim.planning.collision import ArmCollision  # noqa: E402
 
 TASKS = [("0.50,0.00,0,lying", "0.50,0.00,0,standing"), ("0.55,0.20,90,standing", "0.55,0.20,90,lying")]
 APPROACH_MIN = 0.002            # m: required distance of fingers and hand to the box while they come down
-RHO_S = 0.05                    # rad: the QP stops phi this far inside its limits
+# rad: phi is evaluated this far inside its limits. The QP's damper stops phi at qp.rho_s inside them (0.13 in
+# box_real.yaml); 0.05 looks closer to the limits than the robot goes, so the hand distances are the cautious ones
+RHO_S = 0.05
 
 
 def displaced(T_obj, T_grasp, e_n=0.0, e_x=0.0, yaw=0.0):

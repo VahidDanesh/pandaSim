@@ -562,3 +562,22 @@ def test_a_failing_zero_command_keeps_the_segment_record():
         run_segment(backend, jm, jm.ref, jm.Tf, log, "ready", done=jm.done)
     assert len(log.segments) == 1 and log.segments[0]["name"] == "ready"
     assert log.segments[0]["cause"] == "robot error: communication_constraints_violation" and not log.segments[0]["ok"]
+
+
+def test_predicted_stop_uses_the_configured_time_scaling():
+    """The stop angle follows from the time at the stop through the pivot's time scaling (execution.pivot.method)."""
+    from types import SimpleNamespace
+
+    from pandaSim.control.primitive_executor import Log
+    from pandaSim.planning.primitives import time_scaling
+
+    log = Log()
+    log.segments = [dict(name="pre", ok=True, step=0), dict(name="pivot", ok=False, cause="infeasible QP", step=0,
+                                                            t0=10.0, t_end=13.0, Tf=10.0)]
+    steps = [SimpleNamespace(plan=SimpleNamespace(screws=[(None, np.pi / 2)]))]
+    cfg = rp.load_config(rb.REAL_CONFIG)
+    assert rb.pivot_method(cfg) == "quintic"
+    for method in ("quintic", "cubic", "linear"):
+        cfg["execution"]["pivot"] = {**(cfg["execution"].get("pivot") or {}), "method": method}
+        stop = rb.predicted_stop(log, steps, rb.pivot_method(cfg))
+        assert stop["angle_deg"] == pytest.approx(90.0 * time_scaling(3.0, 10.0, method)[0]) and stop["time_frac"] == 0.3

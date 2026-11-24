@@ -46,7 +46,7 @@ def check_entry(protocol, spec, grasp, config=rb.REAL_CONFIG):
     res = rb.plan_and_simulate(cfg, rb.parse_pose(spec["start"]), rb.parse_pose(spec["goal"]), spec["speed"],
                                tracking=True, gait=spec["gait"])
     found = res["plan"].found
-    stop = rb.predicted_stop(res["log"], res["plan"].steps) if found and grasp == "rigid" else None
+    stop = rb.predicted_stop(res["log"], res["plan"].steps, rb.pivot_method(cfg)) if found and grasp == "rigid" else None
     items = rb.preflight(res, cfg, expect_stop=stop is not None)
     flags = (["--gait"] if spec["gait"] else []) + (["--rigid"] if grasp == "rigid" else []) \
         + (["--expect-stop"] if stop else []) + (["--lead"] if protocol["lead"] else [])
