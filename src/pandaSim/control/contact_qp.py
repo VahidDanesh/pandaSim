@@ -93,7 +93,7 @@ class ContactQP:
         return self._jacobians(q)[0]
 
     def _jacobians(self, q):
-        q8 = q if self.n == 8 else np.r_[q, 0.0]
+        q8 = q if self.n == 8 else np.append(q, 0.0)
         Je = self.ets.jacobe(q8)
         return Je[OMEGA_V, : self.n], Je, q8
 
