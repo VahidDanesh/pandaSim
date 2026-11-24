@@ -102,3 +102,16 @@ def test_one_gait_step_through_the_executor_and_run_box():
     assert rb.go(items), [c for c in items if not c["ok"]]
     assert rb.pivot_path_error(res["log"], res["plan"].steps, res["robot"]) < 1e-3
     assert res["tracking"]["ok"]
+
+
+def test_constraint_jacobian_of_the_angles_matches_finite_differences():
+    """gait._apply_jac (the Jacobian SLSQP gets for the position constraint) against central differences."""
+    rng = np.random.default_rng(3)
+    for k in (1, 2, 3, 5):
+        verts = [rng.uniform(-0.15, 0.15, 2) for _ in range(4)]
+        seq, a, p = list(rng.integers(0, 4, k)), rng.uniform(-0.8, 0.8, k), rng.uniform(-0.5, 0.5, 2)
+        J = gait._apply_jac(p, verts, seq, a)
+        h = 1e-6
+        fd = np.stack([(gait._apply(p, 0.0, verts, seq, a + h * e)[0] - gait._apply(p, 0.0, verts, seq, a - h * e)[0]) / (2 * h)
+                       for e in np.eye(k)], axis=1)
+        assert J.shape == (2, k) and np.abs(J - fd).max() < 1e-8

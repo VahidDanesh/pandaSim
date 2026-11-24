@@ -119,6 +119,17 @@ def _apply(p, psi, verts, seq, alphas):
     return p, psi
 
 
+def _apply_jac(p, verts, seq, alphas):
+    """d p / d alphas of _apply (psi = 0 at the start): the turn by alpha_i about the vertex pv_i turns all that
+    follows rigidly about pv_i, so column i is the final centre minus pv_i, turned by 90 deg."""
+    pv, psi = [], 0.0
+    for v, a in zip(seq, alphas):
+        pv.append(p + _rot(psi) @ verts[v])
+        p, psi = pv[-1] + _rot(a) @ (p - pv[-1]), psi + a
+    d = p - np.array(pv)
+    return np.stack([-d[:, 1], d[:, 0]])
+
+
 def solve_angles(T0, Tg, size, k_max=5, alpha_max=math.radians(45), restarts=4, k_min=1):
     """Vertex sequences and angles that turn the box from T0 to Tg (same face down) by k_min..k_max rotations about
     support vertices, consecutive vertices at opposite ends: list of (seq of (end, side), alphas), fewest steps first,
@@ -135,10 +146,12 @@ def solve_angles(T0, Tg, size, k_max=5, alpha_max=math.radians(45), restarts=4, 
         for first, sides in itertools.product((1.0, -1.0), itertools.product((1.0, -1.0), repeat=k)):
             seq = [next(i for i, (e, s, _) in enumerate(verts) if e == first * (-1) ** j and s == sides[j]) for j in range(k)]
             res = lambda a, seq=seq: _apply(p0, 0.0, pts, seq, a)[0] - pg
+            jac = lambda a, seq=seq: _apply_jac(p0, pts, seq, a)      # analytic: SLSQP need not difference res
             for target in (dpsi, dpsi + 2 * math.pi, dpsi - 2 * math.pi):
                 if abs(target) > k * alpha_max:
                     continue
-                cons = [dict(type="eq", fun=res), dict(type="eq", fun=lambda a, t=target: np.sum(a) - t)]
+                cons = [dict(type="eq", fun=res, jac=jac),
+                        dict(type="eq", fun=lambda a, t=target: np.sum(a) - t, jac=lambda a: np.ones((1, len(a))))]
                 best = None
                 for r in range(restarts):
                     a0 = np.full(k, target / k) + (np.random.default_rng(r).normal(0, 0.3, k) if r else 0.0)
