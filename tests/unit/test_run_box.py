@@ -536,3 +536,29 @@ def test_theta_after_a_gripper_call_is_the_current_state(monkeypatch):
     assert backend.open()
     assert np.allclose(backend.theta(), q1 - 0.001)
     backend.stop()
+
+
+def test_a_failing_zero_command_keeps_the_segment_record():
+    """A robot error, and then the zero command of run_segment raises too (a controller already gone): the segment
+    is still recorded with the robot error, and the second exception goes on to run_plan's abort procedure."""
+    from pandaSim.control.backends import SimBackend
+    from pandaSim.control.primitive_executor import JointMove, Log, run_segment
+
+    class Gone(SimBackend):
+        def tick(self):
+            if self._t > 0.2:
+                raise RuntimeError("communication_constraints_violation")
+            return super().tick()
+
+        def command(self, qd7):
+            if self._t > 0.2 and not np.any(qd7):
+                raise RuntimeError("the controller is not running")
+            super().command(qd7)
+
+    q0 = np.zeros(7)
+    backend, log = Gone(q0), Log()
+    jm = JointMove(q0, q0 + 0.3)
+    with pytest.raises(RuntimeError, match="not running"):
+        run_segment(backend, jm, jm.ref, jm.Tf, log, "ready", done=jm.done)
+    assert len(log.segments) == 1 and log.segments[0]["name"] == "ready"
+    assert log.segments[0]["cause"] == "robot error: communication_constraints_violation" and not log.segments[0]["ok"]

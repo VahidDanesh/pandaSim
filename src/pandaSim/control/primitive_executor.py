@@ -178,8 +178,10 @@ def run_segment(backend, ctrl, ref, Tf, log, name, phi=0.0, done=None, settle=2.
         cause = f"{type(e).__name__}: {e}".rstrip(": ")
         raise
     finally:
-        backend.command(np.zeros(7))
-        log.segments.append(dict(name=name, ok=cause is None, cause=cause, t0=t0, t_end=backend.time(), Tf=Tf))
+        try:
+            backend.command(np.zeros(7))
+        finally:                       # recorded even if the zero command raises (its exception then goes on)
+            log.segments.append(dict(name=name, ok=cause is None, cause=cause, t0=t0, t_end=backend.time(), Tf=Tf))
     return cause is None, phi
 
 
