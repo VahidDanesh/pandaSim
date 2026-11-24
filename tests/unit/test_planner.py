@@ -1,7 +1,9 @@
 """Planner: parity with reference plans exported from the original (torch) planner, and basic properties.
 
 tests/data/planner_reference.json holds, for random box tasks, the 12 cheapest candidate plans
-(costs, step kinds, object pose after each step, grasp pose of each step)."""
+(costs, step kinds, object pose after each step, grasp pose of each step). The original planner charged kappa only
+for the second grasp of a split slide; the sequencer charges it once per grasp (eq:seq_a), so the reference plans are
+re-costed from their steps here: work plus kappa per step."""
 import json
 import math
 from pathlib import Path
@@ -11,7 +13,8 @@ import pytest
 
 from pandaSim.planning import box_primitives as P
 from pandaSim.planning import se3
-from pandaSim.planning.sequencer import Box, Sequencer, box_symmetric_goals, down_axis, pose_error, snap_stable
+from pandaSim.planning.sequencer import (G, REGRASP_COST, Box, Sequencer, box_symmetric_goals, down_axis, pivot_rise,
+                                         pose_error, slide_cost, snap_stable)
 
 REF = json.loads((Path(__file__).parents[1] / "data" / "planner_reference.json").read_text())
 BOX = Box(tuple(REF["size"]), REF["mass"], REF["mu"])
@@ -24,21 +27,40 @@ def _same(steps, ref):
             and all(np.abs(s.plan.T_grasp - np.array(T)).max() < TOL_T for s, T in zip(steps, ref["T_grasp"])))
 
 
+def _work(T0, kinds, T_after):
+    """Quasi-static work of a plan from its poses: slides mu m g (|path| + r_eff |yaw|), pivots m g (rise of the
+    centre; the box tips towards the object axis that points down after the pivot)."""
+    w, T = 0.0, np.array(T0)
+    for kind, Ta in zip(kinds, map(np.array, T_after)):
+        w += slide_cost(BOX, T, Ta) if kind == "slide" else BOX.mass * G * pivot_rise(BOX, T, down_axis(Ta))
+        T = Ta
+    return w
+
+
 @pytest.mark.parametrize("i", range(len(REF["tasks"])))
 def test_candidates_match_reference(i):
-    """Same costs in the same order; every reference plan cheaper than the last cost (plans that tie
-    with the last one may be cut differently) is found with the same steps, poses and grasps."""
+    """Every candidate costs its work plus kappa per grasp (eq:seq_a), in increasing order. The reference costs are
+    the same work plus kappa per extra grasp of a split slide (the original rule). Every reference plan, re-costed
+    with kappa per grasp, that is cheaper than the last candidate (plans that tie with it may be cut differently) is
+    found with the same steps, poses and grasps."""
     task = REF["tasks"][i]
     seq = Sequencer(y_ref=REF["y_ref"])
     cands = seq.candidates(BOX, np.array(task["T0"]), np.array(task["Tg"]), k=REF["k"])
-    ref = task["candidates"]
-    assert len(cands) == len(ref)
-    assert np.allclose([c for c, _ in cands], [r["cost"] for r in ref], atol=TOL_C, rtol=0)
-    full = len(ref) == REF["k"]
-    for r in ref:
-        if full and r["cost"] > ref[-1]["cost"] - TOL_C:
+    assert len(cands) == REF["k"] or len(cands) == len(task["candidates"])
+    costs = [c for c, _ in cands]
+    assert costs == sorted(costs)
+    for c, steps in cands:
+        assert c == pytest.approx(_work(task["T0"], [s.kind for s in steps], [s.T_after for s in steps])
+                                  + REGRASP_COST * len(steps), abs=TOL_C)
+    full = len(cands) == REF["k"]
+    for r in task["candidates"]:
+        work = _work(task["T0"], r["kinds"], r["T_after"])
+        extra = (r["cost"] - work) / REGRASP_COST        # grasps the original rule charged: a whole number
+        assert extra == pytest.approx(round(extra), abs=1e-6) and 0 <= round(extra) < len(r["kinds"])
+        cost = work + REGRASP_COST * len(r["kinds"])
+        if full and cost > costs[-1] - TOL_C:
             continue
-        assert any(abs(c - r["cost"]) < TOL_C and _same(steps, r) for c, steps in cands)
+        assert any(abs(c - cost) < TOL_C and _same(steps, r) for c, steps in cands)
 
 
 def _pose(x, y, yaw, tilt=0.0):

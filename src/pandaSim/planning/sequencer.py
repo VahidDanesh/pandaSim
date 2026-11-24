@@ -10,7 +10,9 @@ The box looks the same after 180 deg turns about its axes, so four goal poses ar
 
 Checks, cheap first: base keep-out, slide tipping margin, reach of the grasp points; then the
 kinematic check of the whole hand path (`kin`, see feasibility.py) on candidates in cost order.
-Cost (quasi-static work): slides mu m g (|path| + r_eff |yaw|), pivots m g (rise of the centre).
+Cost (eq:seq_a): quasi-static work, slides mu m g (|path| + r_eff |yaw|), pivots m g (rise of the centre), plus
+kappa = REGRASP_COST per grasp. Every step is one grasp (approach, grasp, motion, release), so kappa is charged once
+per step, a slide split into two grasps included.
 
 All poses are in the world (table) frame, z up, table at z = 0.
 """
@@ -28,7 +30,7 @@ from pandaSim.planning import se3
 G = 9.81
 REACH = (0.30, 0.78)               # m, horizontal distance of grasp points from the base axis
 SLIDE_MAX_ROT = math.radians(100)  # max object rotation in one slide grasp
-REGRASP_COST = 0.3                 # J-equivalent of one extra grasp
+REGRASP_COST = 0.3                 # J-equivalent of one grasp (kappa of eq:seq_a), charged once per step
 Z = np.array([0.0, 0.0, 1.0])
 
 
@@ -203,7 +205,8 @@ class Sequencer:
         return self._reach_ok([plan.T_grasp[:3, 3], P.grasp_end(plan)[:3, 3]])
 
     def _pivot_step(self, o, T, d_o, pl):
-        return Step("pivot", T, pl.T_goal, pl), o.mass * G * pivot_rise(o, T, d_o)
+        """The step and its cost: work against gravity plus one grasp."""
+        return Step("pivot", T, pl.T_goal, pl), o.mass * G * pivot_rise(o, T, d_o) + REGRASP_COST
 
     # ---- search ---------------------------------------------------------------------------------
     def _pivot_seqs(self, o, T, depth):
@@ -217,8 +220,8 @@ class Sequencer:
             for seq, Tc, c in frontier:
                 for d_o, pl in self._box_pivots(o, Tc):
                     if self._pivot_ok(o, pl):
-                        step, rise = self._pivot_step(o, Tc, d_o, pl)
-                        nxt.append((seq + [step], pl.T_goal, c + rise))
+                        step, cost = self._pivot_step(o, Tc, d_o, pl)
+                        nxt.append((seq + [step], pl.T_goal, c + cost))
             out += nxt
             frontier = nxt
         return out
@@ -247,25 +250,25 @@ class Sequencer:
             Ts = _planar(T0, x, y, dyaw)
             st = self._slide_steps(o, T0, Ts)
             if st:
-                starts.append((st, Ts, slide_cost(o, T0, Ts) + REGRASP_COST * (len(st) - 1)))
+                starts.append((st, Ts, slide_cost(o, T0, Ts) + REGRASP_COST * len(st)))
         return starts
 
     def _chain(self, o, X, ds):
         """Pivot steps ds from X and their costs, or None if one is not allowed."""
-        T, steps, rises = X, [], []
+        T, steps, costs = X, [], []
         for d_o in ds:
             pl = P.plan_box_pivot(T, o.size, d_o, math.pi / 2, self.y_ref)
             if not self._pivot_ok(o, pl):
                 return None
-            step, rise = self._pivot_step(o, T, d_o, pl)
+            step, cost = self._pivot_step(o, T, d_o, pl)
             steps.append(step)
-            rises.append(rise)
+            costs.append(cost)
             T = pl.T_goal
-        return steps, rises
+        return steps, costs
 
     def _cycle_protos(self, o, starts, Tg, goal_down):
-        """Candidates before their middle slide is planned: (cost bound, finish). The bound is the cost
-        without the regrasp of a two-grasp slide; finish() plans the slide and returns (cost, steps) or None."""
+        """Candidates before their middle slide is planned: (cost bound, finish). The bound counts one grasp for
+        the middle slide (it may need two); finish() plans the slide and returns (cost, steps) or None."""
         shapes = {}
         for pre, Ts, c0 in starts:
             for seqA, Tm, cA in self._pivot_seqs(o, Ts, self.max_pivots if not pre else 2):
@@ -289,7 +292,7 @@ class Sequencer:
                         continue              # already at the goal
                     bound = c0 + cA
                     if slide:
-                        bound += slide_cost(o, Tm, X)
+                        bound += slide_cost(o, Tm, X) + REGRASP_COST
                     for r in chain[1]:
                         bound += r
                     yield bound, (lambda pre=pre, seqA=seqA, c0=c0, cA=cA, Tm=Tm, X=X, chain=chain, slide=slide:
@@ -302,7 +305,7 @@ class Sequencer:
             if not st:
                 return None
             steps = steps + st
-            c += slide_cost(o, Tm, X) + REGRASP_COST * (len(st) - 1)
+            c += slide_cost(o, Tm, X) + REGRASP_COST * len(st)
         for r in chain[1]:
             c += r
         return c, steps + chain[0]
