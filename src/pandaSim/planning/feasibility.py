@@ -33,6 +33,9 @@ class Rollout:
 
     def check(self, step):
         pl = step.plan
+        # The key omits T_before, width and phi_lim: the planners derive the grasp from the box pose, so with the
+        # same grasp and screws these can only differ by a turn of the box by pi about one of its axes, which
+        # leaves the volume it occupies, and so the rollout and its clearance test, unchanged (tested).
         key = (step.kind, pl.T_grasp.tobytes(), tuple((S.tobytes(), float(th)) for S, th in pl.screws))
         if key not in self._cache:
             self._cache[key] = self._run(step)

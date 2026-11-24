@@ -252,3 +252,27 @@ def test_arm_collision_sphere_skip_keeps_every_distance(robot):
         assert (d, who, ac.obstacle) == plain(fingers)
         counts[ac.obstacle or "none"] += 1
     assert min(counts.values()) >= 10, counts     # near the box, near the table, and nothing within the cutoff
+
+
+@pytest.mark.parametrize("axis", [0, 1, 2])
+def test_rollout_cache_key_may_omit_the_box_pose(robot, axis):
+    """Rollout caches by (kind, T_grasp, screws). A step with the same grasp and screws whose box is turned by pi
+    about one of its own axes has the same width, phi limits and rollout result (feasibility and margin)."""
+    import dataclasses
+
+    pytest.importorskip("coal")
+    T = pose(0.5, 0.2, math.pi / 2, -math.pi / 2)
+    (_, pl), _ = Sequencer(y_ref=np.array([0.0, 1.0, 0.0]))._box_pivots(BOX, T)
+    w = np.zeros(3)
+    w[axis] = math.pi
+    T_sym = T @ se3.rp(se3.exp3(w), np.zeros(3))                       # the same volume, other labels
+    (S, theta), = pl.screws
+    T_c_obj = se3.inv(pl.T_grasp) @ T_sym
+    pl_sym = dataclasses.replace(pl, T_start=T_sym, T_goal=se3.exp6(S * theta) @ T_sym,
+                                 width=float(2 * np.abs(T_c_obj[1, :3]) @ (np.asarray(BOX.size) / 2)),
+                                 phi_lim=clearance.phi_limits(T_c_obj, BOX.size))
+    assert pl_sym.width == pytest.approx(pl.width) and pl_sym.phi_lim == pytest.approx(pl.phi_lim)
+    a, b = Step("pivot", T, pl.T_goal, pl), Step("pivot", T_sym, pl_sym.T_goal, pl_sym)
+    kin = Rollout(robot, size=BOX.size)
+    assert kin.check(a) == kin.check(b)                                 # the second one is a cache hit
+    assert kin._run(b) == kin._run(a) and kin._run(a)[0]               # and it is what its own rollout gives
