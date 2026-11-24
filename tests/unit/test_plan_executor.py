@@ -191,3 +191,25 @@ def test_planned_runs_are_clear_of_the_box_with_the_arm(robot, plans):
     log, _ = run_plan(backend, robot, plan.steps, T0, free_rotation=True)
     c = check_clearance(log, robot, T0, BOX.size, arm=ArmCollision(robot, BOX.size))
     assert c["arm_ok"] and c["arm_min"] > 0.002
+
+
+def test_obb_overlap_early_out_keeps_the_separating_axis_answer():
+    """The sphere early-out of clearance.obb_overlap returns what the plain separating-axis test returns."""
+    def sat(Ta, ha, Tb, hb):
+        Ra, Rb = Ta[:3, :3], Tb[:3, :3]
+        L = np.vstack([Ra.T, Rb.T, np.cross(Ra.T[:, None, :], Rb.T[None, :, :]).reshape(9, 3)])
+        n = np.linalg.norm(L, axis=1)
+        L = L[n > 1e-9] / n[n > 1e-9, None]
+        gap = np.abs(L @ (Tb[:3, 3] - Ta[:3, 3])) - np.abs(L @ Ra) @ ha - np.abs(L @ Rb) @ hb
+        return bool(np.all(gap <= 0))
+
+    rng = np.random.default_rng(0)
+    hits = 0
+    for _ in range(10000):
+        ha, hb = rng.uniform(0.01, 0.15, 3), rng.uniform(0.01, 0.15, 3)
+        Ta = se3.rp(se3.exp3(rng.normal(size=3)), rng.uniform(-0.1, 0.1, 3))
+        Tb = se3.rp(se3.exp3(rng.normal(size=3)), rng.uniform(-0.3, 0.3, 3))
+        got = clearance.obb_overlap(Ta, ha, Tb, hb)
+        assert got == sat(Ta, ha, Tb, hb)
+        hits += got
+    assert 1000 < hits < 9000                                           # both answers occur often (1981)

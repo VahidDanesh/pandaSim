@@ -39,6 +39,9 @@ CLEARANCE = 0.005                               # m, the palm is grown by this m
 
 def obb_overlap(Ta, ha, Tb, hb):
     """True if two boxes (pose 4x4, half extents) overlap: separating axis test."""
+    d = Tb[:3, 3] - Ta[:3, 3]
+    if d @ d > (math.sqrt(ha @ ha) + math.sqrt(hb @ hb)) ** 2:
+        return False                    # the spheres that enclose the boxes are apart, so are the boxes
     Ra, Rb = Ta[:3, :3], Tb[:3, :3]
     L = np.vstack([Ra.T, Rb.T, np.cross(Ra.T[:, None, :], Rb.T[None, :, :]).reshape(9, 3)])
     n = np.linalg.norm(L, axis=1)
