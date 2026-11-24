@@ -18,7 +18,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import analyze_run as ar  # noqa: E402
 
-OKABE_ITO = ["#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9", "#000000"]
+OKABE_ITO = ar.OKABE_ITO
 STYLES = ["-", "--", "-", "--", "-", "--", "-"]       # second encoding of the joints besides the colour
 
 

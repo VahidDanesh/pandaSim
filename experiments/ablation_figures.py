@@ -10,7 +10,6 @@ vector PDF and a 600 dpi PNG. Print width: --width (default 6.5 in; a column of 
 """
 import argparse
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -21,17 +20,10 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+from paper_numbers import wilson  # noqa: E402  (95 % Wilson interval of a rate)
 INK = "#1a1a1a"
 BLUE, VERM, GREY, ORANGE = "#0072B2", "#D55E00", "#8c8c8c", "#E69F00"
 MODES = [("rigid", "Rigid"), ("rigid_tilt", "Rigid,\n5 tilts"), ("free", "Free,\nlimits"), ("free_nolimit", "Free,\nno limits")]
-
-
-def wilson(k, n, z=1.96):
-    p = k / n
-    d = 1 + z * z / n
-    c = (p + z * z / (2 * n)) / d
-    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
-    return max(c - h, 0.0), min(c + h, 1.0)
 
 
 def phi_history(trial, config):

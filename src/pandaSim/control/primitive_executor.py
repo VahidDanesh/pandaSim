@@ -388,10 +388,9 @@ def check_clearance(log, robot, T_w_obj, size, period=0.01, clearance=0.002, arm
     T_rest = [np.asarray(T_w_obj, float)] + [np.asarray(st["T_obj"], float) for st in log.steps]   # before step i, after it
     hits, table_ok = [], True
     arm_hits, arm_min, count = [], np.inf, 0
-    width = np.full(len(t), OPEN_WIDTH)                    # finger opening at each sample
-    for _, t_ev, ok, *w in log.events:
-        if ok and w:
-            width[np.searchsorted(t, t_ev):] = w[0]
+    from pandaSim.control.viewer import finger_widths
+
+    width = finger_widths(t, log.events)                   # finger opening at each sample
     T_c_obj = {}
     for j, sg in enumerate(log.segments):
         idx = np.flatnonzero(seg == j)
