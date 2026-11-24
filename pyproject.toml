@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name             = "pandaSim"
 version          = "0.1.0"
-description      = "A SOLID-compliant, backend-agnostic framework for robotic simulation"
+description      = "Planning and executing primitive motions of a box with environmental contact on a Franka Panda"
 readme           = "README.md"
 requires-python  = ">=3.10,<3.11"
 
@@ -30,17 +30,12 @@ sim  = [
     "spatialmath-python",
     "spatialgeometry",
     "swift-sim>=2.0",
-    "qpsolvers[quadprog]",
+    "qpsolvers[quadprog]",  # quadprog: the contact QP; qpsolvers: used by roboticstoolbox
     "pytransform3d",
-    "modern_robotics",
-    "trimesh",
+    "trimesh",       # mesh collision shapes of spatialgeometry (planning/collision.py)
     "xacrodoc",      # URDF packages (geometry/utils.py); also a dependency of roboticstoolbox
     "coal",          # collision checking of the arm (planning/collision.py)
     "pyyaml",
-]
-genesis = [
-    "torch",
-    "genesis-world",
 ]
 # Real robot: panda-python must match the robot's libfranka version (0.8.0 for the
 # lab FER). The PyPI wheel bundles libfranka 0.9.2, so the 0.8.0 build of 1.1.1 from

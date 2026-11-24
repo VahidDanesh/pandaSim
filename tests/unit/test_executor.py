@@ -13,23 +13,21 @@ from pandaSim.control.primitive_executor import (
     Log, approach_reference, check_profile, contact_pose, run_pivot, run_segment)
 from pandaSim.planning.primitives import lifting_angle, planned_pose, pose_error_twist
 
-BASE_Z = 0.013                                  # lab: robot base above the object table (tests/rtb.ipynb)
+BASE_Z = 0.013                                  # lab: robot base above the object table (measured)
 BOX = [0.27, 0.065, 0.207]
 
 
 @pytest.fixture(scope="module")
 def scene():
-    from pandaSim.geometry.rtb_adapter import RoboticsToolboxAdapter
     from pandaSim.geometry.utils import create_virtual_panda
-    from pandaSim.planning.screw_motion_planner import ScrewMotionPlanner
 
     robot = create_virtual_panda()
     robot.base = sm.SE3(0, 0, BASE_Z)
-    adapter = RoboticsToolboxAdapter({"viewer": None})
     box = sg.Cuboid(scale=BOX, pose=sm.SE3(0.5, 0.0, BOX[2] / 2))
-    T_wd, qs, s_axes = ScrewMotionPlanner(adapter).compute_grasp(
-        box, adapter, grasp_height="top", prefer_closer_grasp=True, gripper_offset=sm.SE3.Rx(np.pi).A)
-    q_axis, s_axis = qs.reshape(-1, 3)[0], s_axes.reshape(-1, 3)[0]
+    # top grasp 0.03 m inside the end face nearer the robot and 0.02 m below the top, fingers across the 0.065 m side,
+    # pivot about the bottom edge of the far end face (the grasp of the former bounding-box planner, recorded)
+    T_wd = (sm.SE3(0.395, 0.0, 0.187) * sm.SE3.Rx(np.pi)).A
+    q_axis, s_axis = np.array([0.635, 0.0, 0.0]), np.array([0.0, 1.0, 0.0])
     pivot = dict(q=q_axis, s_axis=s_axis, theta=lifting_angle(q_axis, s_axis, np.pi / 2, box.T[:3, 3]), Tf=5.0)
     return dict(robot=robot, T_wd=T_wd, pivot=pivot, T_w_obj=box.T.copy())
 

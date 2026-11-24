@@ -71,4 +71,4 @@ The box stays on the same face and turns about its vertices without sliding (man
 ## 5. Known limits
 
 The hand model for the limits of phi is set by `planner.hand_model` (`box`: bounding box of the hand, cautious, used on the robot; `mesh`: collision mesh with 5 mm, used in the simulation study). 
-Kinematic simulation (no slip or contact forces); only collisions of the arm, hand and box with the box and table are checked (no other objects), fingers are modelled closed; the box pose on the table is not measured (place it with marks or a jig); `planning/screw_motion_planner.generate_twist_trajectory_dq` (old code) is broken and unused.
+Kinematic simulation (no slip or contact forces); only collisions of the arm, hand and box with the box and table are checked (no other objects), fingers are modelled closed; the box pose on the table is not measured (place it with marks or a jig).

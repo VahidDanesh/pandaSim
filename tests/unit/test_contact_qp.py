@@ -117,16 +117,14 @@ def test_rejects_bad_damper_distances(robot):
 # --- closed loop: pivot a cuboid by 90 deg from a grasp, Euler integration at 1 kHz ---
 
 def pivot_run(robot, free, Tf=5.0, dt=1e-3):
-    from pandaSim.geometry.rtb_adapter import RoboticsToolboxAdapter
     from pandaSim.planning.primitives import time_scaling
-    from pandaSim.planning.screw_motion_planner import ScrewMotionPlanner
 
-    adapter = RoboticsToolboxAdapter({"viewer": None})
     box_size = [0.27, 0.065, 0.207]
     box = sg.Cuboid(scale=box_size, pose=sm.SE3(0.5, 0.0, box_size[2] / 2))
-    grasp_pose, qs, s_axes = ScrewMotionPlanner(adapter).compute_grasp(
-        box, adapter, grasp_height="top", prefer_closer_grasp=True, gripper_offset=sm.SE3.Rx(np.pi).A)
-    q_axis, s_axis = qs.reshape(-1, 3)[0], s_axes.reshape(-1, 3)[0]
+    # top grasp 0.03 m inside the end face nearer the robot and 0.02 m below the top, fingers across the 0.065 m side,
+    # pivot about the bottom edge of the far end face (the grasp of the former bounding-box planner, recorded)
+    grasp_pose = (sm.SE3(0.395, 0.0, 0.187) * sm.SE3.Rx(np.pi)).A
+    q_axis, s_axis = np.array([0.635, 0.0, 0.0]), np.array([0.0, 1.0, 0.0])
     theta = lifting_angle(q_axis, s_axis, np.pi / 2, box.T[:3, 3])
 
     ets = robot.ets(end=EE)

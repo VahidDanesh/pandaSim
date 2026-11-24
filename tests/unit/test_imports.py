@@ -10,17 +10,18 @@ SIM_MODULES = [
     "pandaSim.control",
     "pandaSim.geometry",
     "pandaSim.geometry.utils",
-    "pandaSim.geometry.rtb_adapter",
-    "pandaSim.planning.screw_motion_planner",
-    "pandaSim.control.qp",
     "pandaSim.control.contact_qp",
     "pandaSim.control.backends",
     "pandaSim.control.primitive_executor",
     "pandaSim.control.viewer",
     "pandaSim.planning.primitives",
-    "pandaSim.control.robot_executor",
-    "pandaSim.control.data_collector",
-    "pandaSim.control.config",
+    "pandaSim.planning.se3",
+    "pandaSim.planning.box_primitives",
+    "pandaSim.planning.sequencer",
+    "pandaSim.planning.gait",
+    "pandaSim.planning.feasibility",
+    "pandaSim.planning.clearance",
+    "pandaSim.planning.collision",
 ]
 HEAVY = ["torch", "genesis", "swift"]
 
@@ -36,16 +37,6 @@ def test_sim_modules_do_not_import_heavy_backends():
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert out.returncode == 0, out.stderr
     assert out.stdout.strip().splitlines()[-1] == "[]"
-
-
-def test_lazy_names_resolve():
-    import pandaSim
-    from pandaSim.control import QPController, RobotExecutor
-
-    assert pandaSim.QPController is QPController
-    assert RobotExecutor.__name__ == "RobotExecutor"
-    with pytest.raises(AttributeError):
-        pandaSim.does_not_exist
 
 
 @pytest.fixture(scope="module")
@@ -79,22 +70,6 @@ def test_manipulability_jacobian_matches_finite_difference(panda):
     assert np.allclose(Jm, fd, atol=1e-6)
 
 
-def test_headless_adapter_integrates_joint_velocities(panda):
-    from pandaSim.geometry.rtb_adapter import RoboticsToolboxAdapter
-
-    adapter = RoboticsToolboxAdapter({"viewer": None, "rate": 200})
-    assert adapter.dt == pytest.approx(1 / 200)
-    adapter.env.add(panda)
-
-    q0 = panda.q.copy()
-    qd = np.linspace(0.1, 0.8, panda.n)
-    adapter.control_joint_velocities(panda, qd)
-    for _ in range(10):
-        adapter.step_simulation(adapter.dt)
-    assert np.allclose(panda.q, q0 + qd * 10 * adapter.dt)
-    panda.q, panda.qd = q0, np.zeros(panda.n)
-
-
 def test_model_folder_is_found_and_missing_folder_is_reported(monkeypatch):
     from pandaSim.geometry import utils
 
@@ -105,11 +80,3 @@ def test_model_folder_is_found_and_missing_folder_is_reported(monkeypatch):
         utils._find_panda_virtual()
     monkeypatch.setenv("PANDASIM_MODEL_DIR", str(__import__("pathlib").Path(__file__).resolve().parents[2] / "model"))
     assert utils._find_panda_virtual().endswith("frankaEmikaPandaVirtual.urdf")
-
-
-def test_real_robot_executor_needs_panda_py(monkeypatch):
-    from pandaSim.control import robot_executor
-
-    monkeypatch.setattr(robot_executor, "REAL_ROBOT_AVAILABLE", False)
-    with pytest.raises(RuntimeError, match="panda-py"):
-        robot_executor._require_panda_py()
