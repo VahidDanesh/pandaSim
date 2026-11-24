@@ -75,13 +75,15 @@ def exec_kwargs(cfg):
 def scale_speed(cfg, factor):
     """Slow the execution down by `factor` (0 < factor <= 1): approach, joint moves, pivots and the joint velocity
     bound of the QP (eq:qp_d), so that a run that is slowed down also cannot speed a joint up beyond the same fraction
-    (near a singularity the QP drives the joints to its bound). The geometry of the plan does not change; the rollouts
-    of the planner run at the nominal speed."""
+    (near a singularity the QP drives the joints to its bound). The nominal values are the config's (defaults below,
+    those of the executor); a config is scaled once (run_box.plan_and_simulate copies it before). The geometry of the
+    plan does not change; the rollouts of the planner run at the nominal speed."""
     e = cfg["execution"]
-    e["pivot"] = {**(e.get("pivot") or {}), "w_max": 0.3 * factor}
-    e["approach"] = {**(e.get("approach") or {}), "v_max": 0.1 * factor, "w_max": 0.3 * factor}
-    e["ready"] = {**(e.get("ready") or {}), "qd_max": 0.5 * factor}
-    e["qp"] = {**(e.get("qp") or {}), "qd_scale": QD_SCALE * factor}
+    for key, nominal in (("pivot", dict(w_max=0.3)), ("approach", dict(v_max=0.1, w_max=0.3)),
+                         ("ready", dict(qd_max=0.5)), ("qp", dict(qd_scale=QD_SCALE))):
+        sub = dict(e.get(key) or {})
+        sub.update({k: sub.get(k, v) * factor for k, v in nominal.items()})
+        e[key] = sub
     return cfg
 
 

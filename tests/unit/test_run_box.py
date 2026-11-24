@@ -4,6 +4,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -566,8 +567,6 @@ def test_a_failing_zero_command_keeps_the_segment_record():
 
 def test_predicted_stop_uses_the_configured_time_scaling():
     """The stop angle follows from the time at the stop through the pivot's time scaling (execution.pivot.method)."""
-    from types import SimpleNamespace
-
     from pandaSim.control.primitive_executor import Log
     from pandaSim.planning.primitives import time_scaling
 
@@ -581,3 +580,25 @@ def test_predicted_stop_uses_the_configured_time_scaling():
         cfg["execution"]["pivot"] = {**(cfg["execution"].get("pivot") or {}), "method": method}
         stop = rb.predicted_stop(log, steps, rb.pivot_method(cfg))
         assert stop["angle_deg"] == pytest.approx(90.0 * time_scaling(3.0, 10.0, method)[0]) and stop["time_frac"] == 0.3
+
+
+def test_speed_factor_scales_the_configured_nominal_speeds(monkeypatch):
+    """scale_speed multiplies the config's own speeds (defaults: those of the executor), and plan_and_simulate plans
+    at the config's nominal speed while it simulates at the factor."""
+    cfg = rp.load_config(rb.REAL_CONFIG)
+    assert cfg["execution"]["pivot"]["w_max"] == 0.3
+    e = rp.scale_speed(copy.deepcopy(cfg), 0.5)["execution"]
+    assert e["pivot"]["w_max"] == 0.15 and e["approach"] == dict(v_max=0.05, w_max=0.15)
+    assert e["ready"] == dict(qd_max=0.25) and e["qp"]["qd_scale"] == pytest.approx(0.4) and e["qp"]["rho_s"] == 0.13
+    cfg["execution"]["pivot"]["w_max"] = 0.2                            # a config value is honoured, not replaced
+    cfg["execution"]["approach"] = dict(v_max=0.08)
+    e = rp.scale_speed(copy.deepcopy(cfg), 0.5)["execution"]
+    assert e["pivot"]["w_max"] == 0.1 and e["approach"] == dict(v_max=0.04, w_max=0.15)
+
+    seen = {}
+    real_make_planner = rp.make_planner
+    monkeypatch.setattr(rp, "make_planner", lambda c, robot, gait=False: seen.update(plan=c) or real_make_planner(c, robot, gait))
+    monkeypatch.setattr(rp, "run_task", lambda c, robot, name, planner: seen.update(run=c) or dict(plan=SimpleNamespace(found=False)))
+    rb.plan_and_simulate(cfg, rb.parse_pose(START), rb.parse_pose(GOAL), speed=0.3)
+    assert seen["plan"]["execution"]["pivot"]["w_max"] == 0.2 and seen["plan"]["execution"]["approach"]["v_max"] == 0.08
+    assert seen["run"]["execution"]["pivot"]["w_max"] == pytest.approx(0.06) and seen["run"] is cfg

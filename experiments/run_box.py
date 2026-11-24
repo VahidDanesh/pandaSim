@@ -220,10 +220,9 @@ def plan_and_simulate(cfg, start, goal, speed=1.0, tracking=False, gait=False):
     tracking=True adds res["tracking"]: the same plan simulated with the joint controller's lag (simulate_tracking).
     gait=True: object gaiting (planning/gait.py) instead of the sequence of slides and pivots."""
     cfg["tasks"]["custom"] = dict(start=start, goal=goal)
+    cfg_plan = rp.scale_speed(json.loads(json.dumps(cfg)), 1.0)   # the rollouts of the planner run at the nominal speed
     rp.scale_speed(cfg, speed)
     robot = rp.make_robot(cfg)
-    cfg_plan = json.loads(json.dumps(cfg))
-    rp.scale_speed(cfg_plan, 1.0)                     # the rollouts of the planner run at the nominal speed
     res = rp.run_task(cfg, robot, "custom", rp.make_planner(cfg_plan, robot, gait))
     res["robot_limits"] = (robot.qlim[0, :7], robot.qlim[1, :7])
     res["robot"] = robot
