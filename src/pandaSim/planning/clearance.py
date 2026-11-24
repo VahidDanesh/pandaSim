@@ -27,8 +27,10 @@ import numpy as np
 HAND_MESH = Path(__file__).resolve().parents[3] / "model" / "franka_description" / "meshes" / "collision" / "hand.stl"
 E_TO_HAND = -0.1034                             # m: origin of the hand link (and of hand.stl) along z of {E}
 # model of the hand for the phi limits and for the palm test of check_clearance: "mesh" or "box" (see above).
-# PANDASIM_HAND_MODEL=box gives the limits used before the mesh model existed.
-HAND_MODEL = os.environ.get("PANDASIM_HAND_MODEL", "mesh")
+# PANDASIM_HAND_MODEL=box gives the limits used before the mesh model existed. A config's planner.hand_model
+# replaces it (run_plan.make_planner), and a config without one sets the default back.
+DEFAULT_HAND_MODEL = os.environ.get("PANDASIM_HAND_MODEL", "mesh")
+HAND_MODEL = DEFAULT_HAND_MODEL
 
 PALM_CENTRE = np.array([0.0, 0.0, -0.0834])     # m, in {E}: hand.stl spans z = -0.026 .. 0.066 in panda_hand,
 PALM_HALF = np.array([0.0316, 0.104, 0.046])    # and {E} is 0.1034 m further along z

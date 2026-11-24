@@ -44,3 +44,20 @@ def test_slide_task_passes(tmp_path):
     data = np.load(path, allow_pickle=True)
     assert path.name == "slide_free.npz"
     assert np.allclose(data["Tg"], res["Tg"]) and np.allclose(data["size"], cfg["box"]["size"])
+
+
+def test_hand_model_does_not_carry_over_between_configs(monkeypatch):
+    """planner.hand_model is a module setting: a config without one must get the default back, not the model of a
+    planner made before it in the same process (box_real.yaml sets "box", box_plan.yaml relies on the default)."""
+    import run_box as rb
+
+    from pandaSim.planning import clearance
+
+    monkeypatch.setattr(clearance, "HAND_MODEL", clearance.HAND_MODEL)
+    real, sim = rp.load_config(rb.REAL_CONFIG), rp.load_config()
+    assert real["planner"]["hand_model"] == "box" and not sim["planner"].get("hand_model")
+    robot = rp.make_robot(sim)
+    rp.make_planner(real, robot)
+    assert clearance.HAND_MODEL == "box"
+    rp.make_planner(sim, robot)
+    assert clearance.HAND_MODEL == clearance.DEFAULT_HAND_MODEL

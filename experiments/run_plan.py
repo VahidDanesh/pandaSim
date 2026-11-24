@@ -89,8 +89,9 @@ def make_planner(cfg, robot, gait=False):
     """Sequencer (gait=True: GaitPlanner, object gaiting) whose feasibility check rolls each step out with the
     executor (model: plan_free_rotation)."""
     p = cfg["planner"]
-    if p.get("hand_model"):                            # model of the hand for the phi limits and the clearance test
-        clearance.HAND_MODEL = p["hand_model"]
+    # model of the hand for the phi limits and the clearance test; always set, so that it does not carry over
+    # from a planner made earlier in the same process with another config
+    clearance.HAND_MODEL = p.get("hand_model") or clearance.DEFAULT_HAND_MODEL
     kin = Rollout(robot, free_rotation=cfg["plan_free_rotation"], dt=p["dt"], size=make_box(cfg).size, **exec_kwargs(cfg))
     if gait:
         g = p["gait"]
