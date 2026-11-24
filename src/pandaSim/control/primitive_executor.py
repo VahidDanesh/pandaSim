@@ -11,10 +11,10 @@ from __future__ import annotations
 import time
 
 import numpy as np
-from pytransform3d import transformations as pt
 
 from pandaSim.control.backends import OPEN_WIDTH
 from pandaSim.control.contact_qp import EE, FER_QD_MAX, ContactQP
+from pandaSim.planning import se3
 from pandaSim.planning.clearance import hand_hits_box, palm_lowest
 from pandaSim.planning.primitives import pose_error_twist, screw_twist, time_scaling
 
@@ -42,7 +42,7 @@ def approach_reference(fk, T_wc0, T_wd, K_e=1.0, v_max=0.1, w_max=0.3, method="q
 
     def ref(t, q):
         s, sdot = time_scaling(t, Tf, method)
-        T_plan = T_wc0 @ pt.transform_from_exponential_coordinates(V1 * s)
+        T_plan = T_wc0 @ se3.exp6(V1 * s)
         return sdot * V1 + K_e * pose_error_twist(fk(q), T_plan)
 
     return ref, Tf
@@ -328,7 +328,7 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
                     Tf = max(pivot.get("Tf_min", 1.0), PEAK_SDOT[method[0].lower()] * abs(theta) / pivot.get("w_max", 0.3))
                     ok, phi = segment(ctrl, pivot_reference(screw_twist(S, theta, T_c), Tf, method), Tf, "pivot", phi)
                 else:
-                    ok, phi = move(ctrl, pt.transform_from_exponential_coordinates(np.asarray(S) * theta) @ T_c, "slide")
+                    ok, phi = move(ctrl, se3.exp6(np.asarray(S) * theta) @ T_c, "slide")
                 if not ok:
                     return log, fk(q_now()) @ T_c_obj
             T_w_obj = fk(q_now()) @ T_c_obj

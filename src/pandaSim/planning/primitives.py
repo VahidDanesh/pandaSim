@@ -11,6 +11,8 @@ from __future__ import annotations
 import numpy as np
 from pytransform3d import transformations as pt
 
+from pandaSim.planning import se3
+
 
 def time_scaling(t: float, Tf: float, method: str = "quintic") -> tuple[float, float]:
     """Path parameter s(t) and its rate s_dot(t); s_dot = 0 outside [0, Tf].
@@ -57,7 +59,7 @@ def planned_pose(q: np.ndarray, s_axis: np.ndarray, theta: float, T0: np.ndarray
 
 def pose_error_twist(T_wc: np.ndarray, T_wd: np.ndarray) -> np.ndarray:
     """Body twist log(T_wc^-1 T_wd) that moves {c} to the target in unit time (approach phase)."""
-    return pt.exponential_coordinates_from_transform(pt.invert_transform(T_wc, check=False) @ T_wd, check=False)
+    return se3.log6(se3.inv(T_wc) @ T_wd)
 
 
 def screw_twist(S: np.ndarray, theta: float, T_wc0: np.ndarray) -> np.ndarray:
