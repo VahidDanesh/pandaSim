@@ -503,3 +503,36 @@ def test_a_rigid_pivot_that_is_predicted_to_stop_runs_only_with_expect_stop(tmp_
     c = rb.execute(res, cfg, run_dir, None, "low", 0.3, ask=lambda p: f"RUN low {run_dir.name}", panda=panda, gripper=gripper)
     assert c["abort"]["cause"] == "infeasible QP" and c["abort"]["holding"] and stopped(panda)
     assert [g[0] for g in gripper.calls] == ["move", "grasp"]                              # the box stays in the hand
+
+
+def test_theta_after_a_gripper_call_is_the_current_state(monkeypatch):
+    """A gripper call blocks without ticks while the arm can move (the fingers centre the box against the compliant
+    controller): the next theta() of PandaBackend must be the robot's state after the call, not the last tick's."""
+    from panda_py import controllers
+
+    from pandaSim.control.backends import PandaBackend
+
+    monkeypatch.setattr(controllers, "IntegratedVelocity", Ctrl)
+
+    class Centring(Gripper):
+        def grasp(self, *args):
+            panda.q = panda.q + 0.002                       # 2 mrad of compliance while the fingers close
+            return super().grasp(*args)
+
+        def move(self, *args):
+            panda.q = panda.q - 0.001
+            return super().move(*args)
+
+    q0 = rp.exec_kwargs(rp.load_config(rb.REAL_CONFIG))["q_ready"]
+    gripper = Centring()
+    panda = Panda(q0, gripper=gripper)
+    backend = PandaBackend(panda, gripper, stall_timeout=0)
+    backend.start()
+    assert backend.tick() and np.array_equal(backend.theta(), q0)
+    assert backend.grasp(0.06, 20.0)
+    assert np.allclose(backend.theta(), q0 + 0.002)
+    assert backend.tick()                                   # the controller pulls the arm back towards q_d
+    q1 = backend.theta()
+    assert backend.open()
+    assert np.allclose(backend.theta(), q1 - 0.001)
+    backend.stop()

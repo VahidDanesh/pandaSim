@@ -102,7 +102,8 @@ class PandaBackend:
 
     `panda` is a connected panda_py.Panda, `gripper` a panda_py.libfranka.Gripper (or None).
     Gripper calls block; the controller holds the arm meanwhile (send zeros first).
-    The robot state is read once per tick; theta() and wrench() use that same state.
+    The robot state is read once per tick; theta() and wrench() use that same state (theta() reads it afresh after
+    a gripper call).
     air=True: dry run without an object; "grasp" only closes the fingers to the object width (gripper.move), so
     a missing object is not an error.
 
@@ -219,10 +220,19 @@ class PandaBackend:
         return np.asarray(s.O_F_ext_hat_K, float), np.asarray(s.tau_ext_hat_filtered, float)
 
     # ---- gripper ----
+    # The calls block for 1-3 s without a tick, and the arm can move meanwhile (the fingers centre the object
+    # against the compliant joint controller): the state of the last tick is dropped, so that the next theta()
+    # (run_plan builds the next reference and the grasp frame from it) reads the robot's current state.
     def grasp(self, width: float, force: float, speed: float = 0.05, epsilon: float = 0.01) -> bool:
-        if self.air:
-            return self.gripper.move(width, speed)
-        return self.gripper.grasp(width, speed, force, epsilon, epsilon)
+        try:
+            if self.air:
+                return self.gripper.move(width, speed)
+            return self.gripper.grasp(width, speed, force, epsilon, epsilon)
+        finally:
+            self._state = None
 
     def open(self, width: float = OPEN_WIDTH, speed: float = 0.05) -> bool:
-        return self.gripper.move(width, speed)
+        try:
+            return self.gripper.move(width, speed)
+        finally:
+            self._state = None
