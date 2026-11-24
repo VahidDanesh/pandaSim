@@ -1,7 +1,6 @@
 """Pivot and slide experiments, identical in simulation and on the FER.
 
-run_pivot: open gripper -> approach the grasp -> grasp -> pivot -> release.
-run_plan:  a sequence of planner steps (pivots and slides), each from the ready configuration.
+run_plan: a sequence of planner steps (pivots, slides, gait steps), each from the ready configuration.
 Every segment is the same loop: read theta, build q, reference twist V_c (omega, v)
 in {c}, ContactQP -> joint velocities, send theta_dot, integrate phi_hat (free mode).
 Both references are constant screw motions with time scaling, so they start and
@@ -17,7 +16,7 @@ from pytransform3d import transformations as pt
 from pandaSim.control.backends import OPEN_WIDTH
 from pandaSim.control.contact_qp import EE, FER_QD_MAX, ContactQP
 from pandaSim.planning.clearance import hand_hits_box, palm_lowest
-from pandaSim.planning.primitives import pivot_twist, pose_error_twist, screw_twist, time_scaling
+from pandaSim.planning.primitives import pose_error_twist, screw_twist, time_scaling
 
 PEAK_SDOT = {"q": 1.875, "c": 1.5, "l": 1.0}   # max of s_dot * Tf per time scaling
 
@@ -185,61 +184,6 @@ def run_segment(backend, ctrl, ref, Tf, log, name, phi=0.0, done=None, settle=2.
     return cause is None, phi
 
 
-def run_pivot(backend, robot, T_wd, pivot, free_rotation=True, qp=None, approach=None, grasp=None, safety=None,
-              viewer=None, T_w_obj=None):
-    """Open gripper, approach {c} to the grasp pose T_wd, grasp, pivot, release.
-
-    pivot: dict(q, s_axis, theta, Tf, method="quintic"), axis in the world frame.
-    The approach always uses the free-rotation model (shared by all modes);
-    the pivot uses free_rotation and qp as given. qp: ContactQP kwargs; approach: approach_reference kwargs plus tol;
-    grasp: dict(width, force); safety: run_segment kwargs (f_max, tau_max, settle).
-    viewer: LiveViewer or None; T_w_obj: object pose (world), so the viewer can carry it.
-    The object is released only after a successful pivot.
-    """
-    qp, approach, grasp, safety = dict(qp or {}), dict(approach or {}), dict(grasp or {}), dict(safety or {})
-    tol = approach.pop("tol", 1e-3)
-    fk = lambda q: contact_pose(robot, q)
-    log = Log()
-
-    def gripper(name, call, *args):
-        backend.command(np.zeros(7))
-        ok = call(*args)
-        width = args[0] if args else OPEN_WIDTH        # finger opening after the call
-        log.events.append((name, backend.time(), bool(ok), float(width)))
-        if ok and viewer is not None:
-            viewer.fingers(width)
-        return ok
-
-    backend.start()
-    try:
-        if not gripper("open", backend.open):
-            return log
-        # approach, free model, phi_hat starts at 0
-        approach_qp = ContactQP(robot, free_rotation=True, **qp)
-        q = np.r_[backend.theta(), 0.0]
-        ref, Tf = approach_reference(fk, fk(q), T_wd, **approach)
-        done = lambda q: np.linalg.norm(pose_error_twist(fk(q), T_wd)) < tol
-        ok, phi = run_segment(backend, approach_qp, ref, Tf, log, "approach", phi=0.0, done=done, viewer=viewer, **safety)
-        if not ok or not gripper("grasp", backend.grasp, grasp["width"], grasp.get("force", 20.0)):
-            return log
-        # pivot from the reached frame: {c} (free) or {E} (rigid)
-        ctrl = ContactQP(robot, free_rotation=free_rotation, **qp)
-        q = np.r_[backend.theta(), phi] if free_rotation else backend.theta()
-        if viewer is not None and T_w_obj is not None:
-            viewer.attach(np.linalg.inv(fk(q)) @ T_w_obj)
-        V1 = pivot_twist(pivot["q"], pivot["s_axis"], pivot["theta"], fk(q))
-        method = pivot.get("method", "quintic")
-        ok, phi = run_segment(backend, ctrl, pivot_reference(V1, pivot["Tf"], method), pivot["Tf"], log, "pivot",
-                              phi=phi, viewer=viewer, **safety)
-        if ok:
-            gripper("release", backend.open)
-            if viewer is not None:
-                viewer.detach()
-        return log
-    finally:
-        backend.stop()
-
-
 class JointMove:
     """Joint-space move theta0 -> theta_goal, with the controller interface of run_segment (rigid model):
     theta_dot = s_dot (theta_goal - theta0) + K (theta_plan(s) - theta). Tf makes the peak joint speed qd_max."""
@@ -274,7 +218,7 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
     Each step starts and ends at the ready configuration q_ready (default robot.qr):
         pre (above the grasp) -> approach -> close -> pivot | slide -> open -> retreat (straight up) -> ready
     Pivot: approach with the free-rotation model (phi_hat starts at 0 at every grasp), then the pivot screw
-    with free_rotation as given, feed-forward only (as run_pivot). phi stays within plan.phi_lim, the interval
+    with free_rotation as given, feed-forward only. phi stays within plan.phi_lim, the interval
     in which the palm is clear of the object (qp["phi_lim"] replaces it; None: no limits).
     approach_free=False: the hand reaches plan.T_grasp as planned, without turning about the finger axis
     (a rigid grasp with a prescribed hand orientation; used by experiments/ablation.py). Slide: rigid model throughout, the hand

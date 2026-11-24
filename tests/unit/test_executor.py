@@ -1,35 +1,36 @@
 """Primitive executor, backends, viewer plumbing and the read-only connection check (no robot)."""
 import time
 
+import math
+
 import numpy as np
 import pytest
-import spatialgeometry as sg
 import spatialmath as sm
 from pytransform3d import rotations as pr
 
 from pandaSim.control.backends import PandaBackend, SimBackend
 from pandaSim.control.contact_qp import FER_QD_MAX, ContactQP
-from pandaSim.control.primitive_executor import (
-    Log, approach_reference, check_profile, contact_pose, run_pivot, run_segment)
-from pandaSim.planning.primitives import lifting_angle, planned_pose, pose_error_twist
+from pandaSim.control.primitive_executor import Log, approach_reference, check_profile, contact_pose, run_plan, run_segment
+from pandaSim.planning import se3
+from pandaSim.planning.primitives import pose_error_twist
+from pandaSim.planning.sequencer import Box, Sequencer, Step, snap_stable
 
 BASE_Z = 0.013                                  # lab: robot base above the object table (measured)
-BOX = [0.27, 0.065, 0.207]
+BOX = Box((0.15, 0.06, 0.25), 1.0, 0.5)
 
 
 @pytest.fixture(scope="module")
 def scene():
+    """One planned pivot step: the box lying on its 0.06 x 0.25 face, tipped by 90 deg about a bottom edge."""
     from pandaSim.geometry.utils import create_virtual_panda
 
     robot = create_virtual_panda()
     robot.base = sm.SE3(0, 0, BASE_Z)
-    box = sg.Cuboid(scale=BOX, pose=sm.SE3(0.5, 0.0, BOX[2] / 2))
-    # top grasp 0.03 m inside the end face nearer the robot and 0.02 m below the top, fingers across the 0.065 m side,
-    # pivot about the bottom edge of the far end face (the grasp of the former bounding-box planner, recorded)
-    T_wd = (sm.SE3(0.395, 0.0, 0.187) * sm.SE3.Rx(np.pi)).A
-    q_axis, s_axis = np.array([0.635, 0.0, 0.0]), np.array([0.0, 1.0, 0.0])
-    pivot = dict(q=q_axis, s_axis=s_axis, theta=lifting_angle(q_axis, s_axis, np.pi / 2, box.T[:3, 3]), Tf=5.0)
-    return dict(robot=robot, T_wd=T_wd, pivot=pivot, T_w_obj=box.T.copy())
+    R = se3.exp3(np.array([0.0, 0.0, math.pi / 2])) @ se3.exp3(np.array([0.0, -math.pi / 2, 0.0]))
+    T = snap_stable(BOX, se3.rp(R, np.array([0.5, 0.2, 0.0])))
+    (_, pl), _ = Sequencer(y_ref=np.array([0.0, 1.0, 0.0]))._box_pivots(BOX, T)
+    T_wd = pl.T_grasp
+    return dict(robot=robot, step=Step("pivot", T, pl.T_goal, pl), T_wd=T_wd, T_w_obj=T)
 
 
 def pose_err(T_a, T_b):
@@ -64,21 +65,21 @@ def test_approach_reference_is_smooth_bounded_and_converges(scene):
 
 
 def test_free_rotation_run(scene):
-    r = scene["robot"]
+    r, step = scene["robot"], scene["step"]
     backend = SimBackend(r.qr[:7])
-    log = run_pivot(backend, r, scene["T_wd"], scene["pivot"], free_rotation=True, grasp=dict(width=0.065, force=20))
+    log, _ = run_plan(backend, r, [step], scene["T_w_obj"], free_rotation=True)
     assert log.ok, log.segments
-    assert [s["name"] for s in log.segments] == ["approach", "pivot"]
+    assert [s["name"] for s in log.segments] == ["pre", "approach", "pivot", "retreat", "ready"]
     assert [e[0] for e in log.events] == ["open", "grasp", "release"]
 
     a = log.arrays()
-    piv = a["segment"] == 1
+    piv = a["segment"] == 2
     q_start = np.r_[a["theta"][piv][0], a["phi"][piv][0]]
     q_end = np.r_[a["theta"][piv][-1], a["phi"][piv][-1]]
-    T_plan = planned_pose(scene["pivot"]["q"], scene["pivot"]["s_axis"], scene["pivot"]["theta"],
-                          contact_pose(r, q_start), 1.0)
+    (S, theta), = step.plan.screws
+    T_plan = se3.exp6(S * theta) @ contact_pose(r, q_start)            # ScLERP of {c} at s = 1
     pos, rot = pose_err(T_plan, contact_pose(r, q_end))
-    print(f"free: {pos * 1e3:.3f} mm, {rot:.4f} deg; phi {a['phi'][0]:.3f} -> {a['phi'][-1]:.3f} rad")
+    print(f"free: {pos * 1e3:.3f} mm, {rot:.4f} deg; phi {a['phi'][piv][0]:.3f} -> {a['phi'][piv][-1]:.3f} rad")
     assert pos < 1e-3 and rot < 0.1
 
     prof = check_profile(log)
@@ -89,15 +90,13 @@ def test_free_rotation_run(scene):
 
 def test_rigid_run_stops_and_reports(scene):
     r = scene["robot"]
-    log = run_pivot(SimBackend(r.qr[:7]), r, scene["T_wd"], scene["pivot"], free_rotation=False,
-                    grasp=dict(width=0.065, force=20))
-    pivot = log.segments[-1]
+    log, _ = run_plan(SimBackend(r.qr[:7]), r, [scene["step"]], scene["T_w_obj"], free_rotation=False)
+    pivot = next(s for s in log.segments if s["name"] == "pivot")
     s = (pivot["t_end"] - pivot["t0"]) / pivot["Tf"]
     print(f"rigid: {pivot}")
-    assert pivot["name"] == "pivot"
     if not pivot["ok"]:                                       # stopped safely, not raised
         assert pivot["cause"] == "infeasible QP" and "release" not in [e[0] for e in log.events]
-        assert 0 < s < 1
+        assert 0 < s < 1 and log.abort["holding"] and log.segments[-1] is pivot
 
 
 class WrenchBackend(SimBackend):
@@ -108,9 +107,9 @@ class WrenchBackend(SimBackend):
 def test_external_wrench_stops_with_zero_velocity(scene):
     r = scene["robot"]
     backend = WrenchBackend(r.qr[:7])
-    log = run_pivot(backend, r, scene["T_wd"], scene["pivot"], grasp=dict(width=0.065, force=20))
-    assert log.segments[0]["cause"] == "external wrench"
-    assert np.all(backend._qd == 0)
+    log, _ = run_plan(backend, r, [scene["step"]], scene["T_w_obj"])
+    assert len(log.segments) == 1 and log.segments[0]["cause"] == "external wrench"
+    assert np.all(backend._qd == 0) and log.abort["cause"] == "external wrench" and not log.abort["holding"]
 
 
 # --- PandaBackend wiring against fakes of panda-py ---
@@ -187,8 +186,8 @@ def fake_controllers(monkeypatch):
 def test_panda_backend_stops_controller_on_robot_error(scene, fake_controllers):
     r = scene["robot"]
     panda = FakePanda(r.qr[:7], fail_after=50)
-    log = run_pivot(PandaBackend(panda, FakeGripper()), r, scene["T_wd"], scene["pivot"], grasp=dict(width=0.065))
-    assert log.segments[0]["cause"].startswith("robot error")
+    log, _ = run_plan(PandaBackend(panda, FakeGripper()), r, [scene["step"]], scene["T_w_obj"])
+    assert len(log.segments) == 1 and log.segments[0]["cause"].startswith("robot error")
     assert [c for c in panda.calls if c != "get_state"] == ["start", "stop"]
     assert len(panda.ctrl.commands) > 40 and np.all(panda.ctrl.commands[-1] == 0)
 
@@ -200,9 +199,10 @@ def test_failed_grasp_aborts_before_pivot(scene, fake_controllers, monkeypatch):
     monkeypatch.setattr("pandaSim.control.primitive_executor.approach_reference",
                         lambda fk, T0, Td, **kw: ((lambda t, q: np.zeros(6)), 0.01))
     monkeypatch.setattr("pandaSim.control.primitive_executor.pose_error_twist", lambda a, b: np.zeros(6))
-    log = run_pivot(PandaBackend(panda, gripper), r, scene["T_wd"], scene["pivot"], grasp=dict(width=0.065))
-    assert [s["name"] for s in log.segments] == ["approach"]
+    log, _ = run_plan(PandaBackend(panda, gripper), r, [scene["step"]], scene["T_w_obj"])
+    assert [s["name"] for s in log.segments] == ["pre", "approach"]
     assert gripper.calls == ["move", "grasp"] and [c for c in panda.calls if c != "get_state"] == ["start", "stop"]
+    assert log.abort["cause"].startswith("gripper grasp failed") and log.abort["holding"]
 
 
 # --- viewer plumbing (no Swift: a stand-in target in the child process) ---
