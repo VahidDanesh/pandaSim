@@ -590,10 +590,13 @@ def test_speed_factor_scales_the_configured_nominal_speeds(monkeypatch):
     e = rp.scale_speed(copy.deepcopy(cfg), 0.5)["execution"]
     assert e["pivot"]["w_max"] == 0.15 and e["approach"] == dict(v_max=0.05, w_max=0.15)
     assert e["ready"] == dict(qd_max=0.25) and e["qp"]["qd_scale"] == pytest.approx(0.4) and e["qp"]["rho_s"] == 0.13
+    assert (e["qp"]["K"], e["qp"]["lam"], e["qp"]["eta"]) == (0.1, 0.1, 0.5)   # the rates of eq:qp (defaults 0.2, 0.2, 1)
     cfg["execution"]["pivot"]["w_max"] = 0.2                            # a config value is honoured, not replaced
     cfg["execution"]["approach"] = dict(v_max=0.08)
+    cfg["execution"]["qp"] = dict(K=[0.4] * 7, lam=0.3)
     e = rp.scale_speed(copy.deepcopy(cfg), 0.5)["execution"]
     assert e["pivot"]["w_max"] == 0.1 and e["approach"] == dict(v_max=0.04, w_max=0.15)
+    assert e["qp"]["K"] == [0.2] * 7 and e["qp"]["lam"] == 0.15 and e["qp"]["eta"] == 0.5
 
     seen = {}
     real_make_planner = rp.make_planner
@@ -602,3 +605,42 @@ def test_speed_factor_scales_the_configured_nominal_speeds(monkeypatch):
     rb.plan_and_simulate(cfg, rb.parse_pose(START), rb.parse_pose(GOAL), speed=0.3)
     assert seen["plan"]["execution"]["pivot"]["w_max"] == 0.2 and seen["plan"]["execution"]["approach"]["v_max"] == 0.08
     assert seen["run"]["execution"]["pivot"]["w_max"] == pytest.approx(0.06) and seen["run"] is cfg
+
+
+def test_speed_factor_keeps_the_joint_path():
+    """With the rates of the QP scaled with the speed (scale_speed), one pivot step run at speed
+    0.3 follows the joint path of speed 1.0 as a function of the path parameter t / Tf of every segment (the rollouts
+    of the planner see the path that the robot runs). Same discretization per unit of path: dt / speed. Without the
+    scaled rates the null-space motion of the QP depends on the speed (D4 of the design review: ~0.1 rad)."""
+    from pandaSim.control.backends import SimBackend
+    from pandaSim.control.primitive_executor import run_plan
+    from pandaSim.planning.sequencer import Sequencer, Step
+
+    cfg0 = rp.load_config(rb.REAL_CONFIG)
+    robot, box = rp.make_robot(cfg0), rp.make_box(cfg0)
+    T = rp.box_pose(box, rb.parse_pose("0.50,0.00,90,lying"))
+    _, pl = Sequencer(y_ref=np.array([0.0, 1.0, 0.0]))._box_pivots(box, T)[0]
+    step = Step("pivot", T, pl.T_goal, pl)
+
+    def paths(speed, rates=True):
+        cfg = rp.scale_speed(copy.deepcopy(cfg0), speed)
+        if not rates:                                     # the rates as before the fix: not scaled
+            cfg["execution"]["qp"].update(K=0.2, lam=0.2, eta=1.0)
+        kw = rp.exec_kwargs(cfg)
+        log, _ = run_plan(SimBackend(kw["q_ready"], dt=0.01 / speed), robot, [step], T, **kw)
+        assert log.ok
+        a = log.arrays()
+        return [(sg["name"], (a["t"][a["segment"] == j] - sg["t0"]) / sg["Tf"], a["theta"][a["segment"] == j])
+                for j, sg in enumerate(log.segments) if sg["name"] != "ready"]   # JointMove: its own gain, same goal
+
+    def largest_difference(p, q):
+        assert [n for n, *_ in p] == [n for n, *_ in q] == ["pre", "approach", "pivot", "retreat"]
+        d = 0.0
+        for (_, s, th), (_, s2, th2) in zip(p, q):
+            m = s2 <= s[-1]
+            d = max(d, float(np.abs(np.array([np.interp(s2[m], s, th[:, k]) for k in range(7)]).T - th2[m]).max()))
+        return d
+
+    nominal = paths(1.0)
+    assert largest_difference(nominal, paths(0.3)) < 1e-3
+    assert largest_difference(nominal, paths(0.3, rates=False)) > 0.05
