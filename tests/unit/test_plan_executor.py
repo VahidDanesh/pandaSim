@@ -276,3 +276,19 @@ def test_rollout_cache_key_may_omit_the_box_pose(robot, axis):
     kin = Rollout(robot, size=BOX.size)
     assert kin.check(a) == kin.check(b)                                 # the second one is a cache hit
     assert kin._run(b) == kin._run(a) and kin._run(a)[0]               # and it is what its own rollout gives
+
+
+def test_rollout_tests_the_arm_at_every_sample(robot, monkeypatch):
+    """The planner's collision test (Rollout with a box size) checks the palm and every arm link at every sample of
+    the rollout, so a link moves at most one time step (a few mm at dt 0.01 s) between two tests."""
+    pytest.importorskip("coal")
+    T = pose(0.5, 0.2, math.pi / 2, -math.pi / 2)
+    (_, pl), _ = Sequencer(y_ref=np.array([0.0, 1.0, 0.0]))._box_pivots(BOX, T)
+    kin = Rollout(robot, size=BOX.size)
+    calls = []
+    real_ok = kin.arm.ok
+    monkeypatch.setattr(kin.arm, "ok", lambda *a, **k: calls.append(a[0]) or real_ok(*a, **k))
+    log, fail = kin._rollout(Step("pivot", T, pl.T_goal, pl))
+    a = log.arrays()
+    assert fail is None and len(calls) == len(a["t"]) + len(log.segments)   # every sample, and each segment's last again
+    assert np.array_equal(np.array(calls[:3]), a["theta"][:3])

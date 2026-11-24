@@ -64,7 +64,9 @@ class Rollout:
             bad = next((s for s in log.segments if not s["ok"]), None)
             return log, (bad["name"], bad["cause"]) if bad else (log.abort["segment"], log.abort["cause"])
         if self.size is not None:
-            c = check_clearance(log, self.robot, step.T_before, self.size, period=0.02, arm=self.arm)
+            # every sample of the rollout (dt 0.01 s: a few mm of link travel), arm links included: the 2 mm margin
+            # means little if a link can move 13 mm between two tests
+            c = check_clearance(log, self.robot, step.T_before, self.size, period=self.dt, arm=self.arm, arm_every=1)
             if not c["box_ok"]:
                 return log, (c["hits"][0][1], "hand too close to the box")
             if not c["table_ok"]:
