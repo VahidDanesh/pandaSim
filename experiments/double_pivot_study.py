@@ -286,8 +286,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--no-rollouts", action="store_true")
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--plot", action="store_true", help="only redraw the figure from the saved json")
     ap.add_argument("--sweep", action="store_true", help="also roll out every start pose of a coarser grid (free, rigid)")
     args = ap.parse_args()
+    if args.plot:
+        return figure(json.load(open(OUT.with_suffix(".json"))))
     C.HAND_MODEL = "box"                           # box_real.yaml planner.hand_model
     out = dict(size=SIZE, step_deg=STEP, dth_deg=DTH, table_margin=TABLE_MARGIN, clearance=C.CLEARANCE,
                rhos=RHOS, insets=INSETS.tolist())
@@ -362,17 +365,24 @@ def main():
             ok = [p for p in rows if p["keepout"] and p["reach"][corner] >= 0]
             print(f"{face}/{corner}: {len(ok)} of {len(rows)} start poses with reach and keep-out "
                   f"({sum(p['end_in_region'] for p in ok)} of them end inside the table area)")
-    json.dump(out, open(OUT.with_suffix(".json"), "w"), indent=1)
+    save(out)
 
     # 5. confirmation rollouts of the best few start poses
     if not args.no_rollouts:
         out["rollouts"] = rollouts(out, usable_corners, args.workers)
-        json.dump(out, open(OUT.with_suffix(".json"), "w"), indent=1)
+        save(out)
     if args.sweep:
         out["sweep"] = sweep(out, [k for k in usable_corners if k.endswith("tilt90")], args.workers)
-        json.dump(out, open(OUT.with_suffix(".json"), "w"), indent=1)
+        save(out)
     figure(out)
     return out
+
+
+def save(out):
+    """The results as json, floats to 5 significant digits (size)."""
+    r = lambda v: (float(f"{v:.5g}") if isinstance(v, float) else {k: r(x) for k, x in v.items()} if isinstance(v, dict)
+                   else [r(x) for x in v] if isinstance(v, (list, tuple)) else v)
+    json.dump(r(out), open(OUT.with_suffix(".json"), "w"))
 
 
 def _pose_job(job):
@@ -446,14 +456,14 @@ def direct_rollout(job):
     if err > 1e-6 or np.any(theta < lb) or np.any(theta > ub):
         return dict(res, ok=False, cause="no IK solution within the joint limits at the grasp", angle_deg=0.0)
     qp = dict(cfg["execution"]["qp"], **job["qp"])
-    ctrl = ContactQP(robot, free_rotation=free, phi_lim=phi_lim, **qp)
+    ctrl = ContactQP(robot, free_rotation=free, **{"phi_lim": phi_lim, **qp})    # qp phi_lim None: phi unconstrained
     q = np.r_[theta, 0.0] if free else theta.copy()
     fk = lambda q: contact_pose(robot, q)
     T_c_obj = se3.inv(fk(q)) @ T0
     arm = ArmCollision(robot, SIZE)
     w_max = cfg["execution"]["pivot"]["w_max"]
     trace = dict(angle=[], alpha=[], phi=[], table=[], arm=[], margin=[])
-    box_hit, cause, done = False, None, 0.0
+    box_hit, hit_deg, cause, done = False, None, None, 0.0
     for S, th in ((pl1.S, pl1.theta), (pl2.S, pl2.theta)):
         V1, Tf = screw_twist(S, th, fk(q)), PEAK_SDOT["q"] * th / w_max
         n = int(round(Tf / dt))
@@ -467,7 +477,7 @@ def direct_rollout(job):
                 ls = np.linalg.pinv(J7) @ (sdot * V1)
                 near = [f"j{j + 1} {rho[j]:.2f} rad" for j in np.flatnonzero(rho < ctrl.rho_e)]
                 stop = ""
-                if free:
+                if free and ctrl.phi_lim is not None:
                     r_phi = min(q[7] - phi_lim[0], phi_lim[1] - q[7])
                     stop = f"phi {math.degrees(q[7]):.0f} deg, {math.degrees(r_phi):.1f} deg from its limit; "
                 cause = (f"infeasible QP at {math.degrees(done + s * th):.0f} of 180 deg; {stop}within rho_e of a "
@@ -480,7 +490,8 @@ def direct_rollout(job):
                 T_E, T_c = fk(q[:7]), fk(q)
                 T_obj = T_c @ T_c_obj
                 p = -T_E[:3, 2]
-                box_hit |= C.palm_hits_box(T_E, T_obj, SIZE, 0.002)
+                if C.palm_hits_box(T_E, T_obj, SIZE, 0.002) and not box_hit:
+                    box_hit, hit_deg = True, math.degrees(done + s * th)
                 trace["angle"].append(math.degrees(done + s * th))
                 trace["alpha"].append(math.degrees(math.atan2(p[2], p @ u)))
                 trace["phi"].append(math.degrees(q[7]) if free else 0.0)
@@ -490,12 +501,15 @@ def direct_rollout(job):
         if cause:
             break
         done += th
+    if not trace["angle"]:                         # infeasible at the first tick: the start itself is out
+        return dict(res, ok=False, cause=cause + " (at the start)", angle_deg=0.0)
     T_end = fk(q) @ T_c_obj
     E = se3.inv(pl2.T_goal) @ T_end
     trace["alpha"] = np.degrees(np.unwrap(np.radians(trace["alpha"])))
     a = trace["alpha"]
     res.update(ok=bool(cause is None and not box_hit and min(trace["table"]) > TABLE_MARGIN and min(trace["arm"]) >= 0.002),
                cause=cause, angle_deg=trace["angle"][-1] if trace["angle"] else 0.0, box_hit=bool(box_hit),
+               box_hit_deg=hit_deg,
                table_min=min(trace["table"]), arm_min=min(trace["arm"]), margin_min=min(trace["margin"]),
                alpha_range=[float(a.min()), float(a.max())],
                phi_range=[min(trace["phi"]), max(trace["phi"])],
@@ -535,7 +549,7 @@ def _run(job):
 def roll_class(T0, u):
     """Direction of the roll relative to the base: out, in (radial), left, right (tangential)."""
     r = T0[:2, 3] / np.linalg.norm(T0[:2, 3])
-    c, s = float(u[:2] @ r), float(np.cross(r, u[:2]))
+    c, s = float(u[:2] @ r), float(r[0] * u[1] - r[1] * u[0])
     return "out" if c > 0.71 else "in" if c < -0.71 else ("left" if s > 0 else "right")
 
 
@@ -567,7 +581,8 @@ def rollouts(out, usable_corners, workers):
         # without the centering and manipulability terms (K = lam = 0: the hand turns only when phi is at its stop)
         # the executor with its lift of 0.10 m and with 0.25 m (pre pose and retreat straight up above the grasp)
         for kind, free, qp in (("direct", True, {}), ("direct", False, {}), ("direct", True, dict(rho_s=0.05)),
-                               ("direct", True, dict(K=0.0, lam=0.0)), ("executor", True, {}), ("executor", False, {}),
+                               ("direct", True, dict(K=0.0, lam=0.0)), ("direct", True, dict(phi_lim=None)),
+                               ("executor", True, {}), ("executor", False, {}),
                                ("executor", True, dict(lift=0.25)), ("executor", False, dict(lift=0.25))):
             jobs.append(dict(label=c["label"], kind=kind, free=free, qp=qp, pose=pose))
         # the rigid grasp also from its own best start orientation (largest palm-table distance with phi fixed)
@@ -599,20 +614,23 @@ def sweep(out, keys, workers):
                 continue
             pose = dict(face=face, x=float(p["x"]), y=float(p["y"]), yaw=float(p["yaw"]), corner=corner, a=g["a"],
                         b=g["b"], alpha0=g["lazy_alpha0"])
-            for free, alpha0 in ((True, g["lazy_alpha0"]), (False, g["lazy_alpha0"]), (False, g["rigid_alpha0"])):
-                jobs.append(dict(label=key, kind="direct", free=free, qp={}, pose=dict(pose, alpha0=alpha0)))
+            for free, alpha0, qp in ((True, g["lazy_alpha0"], {}), (False, g["lazy_alpha0"], {}),
+                                     (False, g["rigid_alpha0"], {}), (True, g["lazy_alpha0"], dict(phi_lim=None))):
+                jobs.append(dict(label=key, kind="direct", free=free, qp=qp, pose=dict(pose, alpha0=alpha0)))
     with ProcessPoolExecutor(workers) as ex:
         res = list(ex.map(_run, jobs, chunksize=4))
     for r in res:
         r.pop("trace", None)
     for key in keys:
         rows = [r for r in res if r["label"] == key]
-        n = len(rows) // 3
-        free = [r for r in rows if r["free"]]
+        n = len(rows) // 4
+        free = [r for r in rows if r["free"] and not r["qp"]]
+        unc = [r for r in rows if r["free"] and r["qp"]]
         rig = [r for r in rows if not r["free"]]
         poses_rigid = {(r["pose"]["x"], r["pose"]["y"], r["pose"]["yaw"]) for r in rig if r["ok"]}
         print(f"sweep {key}: {n} start poses; free {sum(r['ok'] for r in free)}, rigid {len(poses_rigid)} "
-              f"(either start orientation); no IK {sum('IK' in (r['cause'] or '') for r in free)}")
+              f"(either start orientation); no IK {sum('IK' in (r['cause'] or '') for r in free)}; phi unconstrained: "
+              f"{sum(r.get('cause') is None for r in unc)} complete, {sum(r['ok'] for r in unc)} ok, palm into the box in {sum(r.get('box_hit', False) for r in unc)}")
     return res
 
 
@@ -631,38 +649,41 @@ def figure(out):
     window = grid(lambda r: min(r["rho0.13"]["start_window_connected"], r["rho0.13"]["end_window_connected"]))
     fig, ax = plt.subplots(2, 2, figsize=(7.0, 5.6), constrained_layout=True)
     ext = [ins[0] - 1.25, ins[-1] + 1.25, ins[0] - 1.25, ins[-1] + 1.25]
-    for k, (A, title, vmax) in enumerate(((usable_arc, "(a) usable free arc of $\\phi$ [deg]", 140),
+    for k, (A, title, vmax) in enumerate(((usable_arc, "(a) usable arc of $\\phi$ [deg], back-top", 140),
                                           (window, "(b) min(start, end window) [deg]", 30))):
         im = ax[0, k].imshow(A, origin="lower", extent=ext, cmap="cividis", vmin=0, vmax=vmax, aspect="equal")
-        ax[0, k].contour(ins, ins, A, levels=[MIN_MARGIN], colors="w", linewidths=1.0)
+        ax[0, k].contour(ins, ins, A, levels=[90.0 if k == 0 else MIN_MARGIN], colors="w", linewidths=1.0)
         ax[0, k].set(xlabel="inset from the back face $a$ [mm]", ylabel="inset from the top face $b$ [mm]", title=title)
         fig.colorbar(im, ax=ax[0, k], shrink=0.85)
+    ax[0, 0].text(0.97, 0.95, "white: 90 deg (tilt 90 deg)", transform=ax[0, 0].transAxes, ha="right", va="top",
+                  color="w", fontsize=8)
     ax[0, 1].text(0.97, 0.95, "white: 10 deg", transform=ax[0, 1].transAxes, ha="right", va="top", color="w", fontsize=8)
-    roll = {r["label"]: r for r in out.get("rollouts", []) if r["kind"] == "direct" and r["free"] and not r["qp"]}
+    # (c, d): the sweep: start poses by roll direction, stacked by the outcome of the chain (direct rollouts;
+    # free: either back corner; rigid: either back corner and either start orientation)
+    colours = {"free and rigid": "#E69F00", "free only": "#0072B2", "rigid only": "#D55E00", "neither": "#BBBBBB"}
+    classes = ("left", "right", "in", "out")
     for k, face in enumerate(FACES):
-        keys = [key for key in out["best"] if key.startswith(face) and key.endswith("tilt90")
-                and out["best"][key]["score"] >= MIN_MARGIN]
-        corner = keys[0].split("/", 1)[1] if keys else None
-        rows = [p for p in out["poses"] if p["face"] == face]
-        xs, ys = sorted({p["x"] for p in rows}), sorted({p["y"] for p in rows})
-        cnt = np.zeros((len(ys), len(xs)))
-        for p in rows:
-            if corner and p["keepout"] and p["reach"][corner] >= 0:
-                cnt[ys.index(p["y"]), xs.index(p["x"])] += 1
-        im = ax[1, k].imshow(cnt, origin="lower", cmap="viridis", vmin=0, vmax=24, aspect="equal",
-                             extent=[xs[0] - 0.025, xs[-1] + 0.025, ys[0] - 0.025, ys[-1] + 0.025])
-        for lab, r in roll.items():
-            if lab.startswith(f"{face}/{corner}") or (face == "lying" and lab.startswith("seq_flip/" + corner)):
-                p = r["pose"]
-                ax[1, k].plot(p["x"], p["y"], "o" if r["ok"] else "x", color="#E69F00" if r["ok"] else "#D55E00",
-                              mfc="none" if r["ok"] else None, ms=7, mew=1.5)
-        ax[1, k].set(xlabel="start $x$ [m]", ylabel="start $y$ [m]",
-                     title=f"({'cd'[k]}) {face}: yaws (of 24) with reach, {corner}")
-        fig.colorbar(im, ax=ax[1, k], shrink=0.85)
-    if roll:
-        ax[1, 1].plot([], [], "o", color="#E69F00", mfc="none", label="chain rollout passes (free)")
-        ax[1, 1].plot([], [], "x", color="#D55E00", label="chain rollout fails (free)")
-        ax[1, 1].legend(loc="lower right", fontsize=7)
+        res = {}
+        for r in out.get("sweep", []):
+            p = r["pose"]
+            if p["face"] != face:
+                continue
+            key = (p["x"], p["y"], p["yaw"])
+            f, g = res.get(key, (False, False))
+            res[key] = (f or (r["free"] and not r["qp"] and r["ok"]), g or (not r["free"] and r["ok"]))
+        cnt = {c: dict.fromkeys(colours, 0) for c in classes}
+        for (x, y, yaw), (f, g) in res.items():
+            T0 = rest_pose(face, x, y, yaw)
+            cnt[roll_class(T0, roll_chain(T0)[2])]["free and rigid" if f and g else "free only" if f else
+                                                    "rigid only" if g else "neither"] += 1
+        bottom = np.zeros(len(classes))
+        for lab, c in colours.items():
+            v = np.array([cnt[cl][lab] for cl in classes])
+            ax[1, k].bar(classes, v, bottom=bottom, color=c, label=f"{lab} ({v.sum()})")
+            bottom += v
+        ax[1, k].set(xlabel="roll direction seen from the base", ylabel="start poses of the sweep",
+                     title=f"({'cd'[k]}) {face}: chain in one grasp")
+        ax[1, k].legend(fontsize=7, frameon=False)
     for ext_ in ("pdf", "png"):
         fig.savefig(OUT.with_suffix("." + ext_), dpi=200)
 
