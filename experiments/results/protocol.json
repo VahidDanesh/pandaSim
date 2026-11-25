@@ -7,6 +7,7 @@
   "start": "0.50,0.00,0,lying",
   "goal": "0.60,0.10,20,lying",
   "gait": false,
+  "chain": false,
   "repetitions": 5,
   "speed": 0.3,
   "lead": false,
@@ -28,6 +29,7 @@
   "start": "0.50,0.00,90,lying",
   "goal": "0.50,-0.20,90,standing_flip",
   "gait": false,
+  "chain": false,
   "repetitions": 5,
   "speed": 0.3,
   "lead": false,
@@ -51,6 +53,7 @@
   "start": "0.50,0.10,0,lying",
   "goal": "0.55,-0.08,30,lying",
   "gait": true,
+  "chain": false,
   "repetitions": 5,
   "speed": 0.3,
   "lead": true,
@@ -79,6 +82,7 @@
   "start": "0.55,0.10,0,standing",
   "goal": "0.55,-0.05,0,standing",
   "gait": true,
+  "chain": false,
   "repetitions": 5,
   "speed": 0.3,
   "lead": true,
@@ -108,6 +112,7 @@
   "start": "0.50,0.00,0,lying",
   "goal": "0.55,0.10,30,standing",
   "gait": false,
+  "chain": false,
   "repetitions": 5,
   "speed": 0.3,
   "lead": false,
@@ -130,6 +135,7 @@
   "start": "0.50,0.00,0,lying",
   "goal": "0.50,0.00,0,lying_flip",
   "gait": false,
+  "chain": false,
   "repetitions": 5,
   "speed": 0.3,
   "lead": false,
@@ -157,6 +163,7 @@
   "start": "0.55,0.10,90,standing",
   "goal": "0.50,-0.10,0,lying_flip",
   "gait": false,
+  "chain": false,
   "repetitions": 5,
   "speed": 0.3,
   "lead": false,
@@ -183,6 +190,7 @@
   "start": "0.50,0.10,90,lying",
   "goal": "0.50,-0.10,90,standing_flip",
   "gait": false,
+  "chain": false,
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
@@ -204,6 +212,7 @@
   "start": "0.50,0.10,90,lying",
   "goal": "0.50,-0.10,90,standing_flip",
   "gait": false,
+  "chain": false,
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
@@ -229,6 +238,7 @@
   "start": "0.60,0.15,90,lying",
   "goal": "0.60,-0.05,90,standing_flip",
   "gait": false,
+  "chain": false,
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
@@ -250,6 +260,7 @@
   "start": "0.60,0.15,90,lying",
   "goal": "0.60,-0.05,90,standing_flip",
   "gait": false,
+  "chain": false,
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
@@ -275,6 +286,7 @@
   "start": "0.50,0.00,90,lying",
   "goal": "0.50,0.20,90,standing",
   "gait": false,
+  "chain": false,
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
@@ -298,6 +310,7 @@
   "start": "0.50,0.00,90,lying",
   "goal": "0.50,0.20,90,standing",
   "gait": false,
+  "chain": false,
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
@@ -327,6 +340,7 @@
   "start": "0.50,-0.20,90,lying",
   "goal": "0.50,0.00,90,standing",
   "gait": false,
+  "chain": false,
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
@@ -348,6 +362,7 @@
   "start": "0.50,-0.20,90,lying",
   "goal": "0.50,0.00,90,standing",
   "gait": false,
+  "chain": false,
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
@@ -377,6 +392,7 @@
   "start": "0.45,0.00,0,lying",
   "goal": "0.65,0.00,0,standing",
   "gait": false,
+  "chain": false,
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
@@ -398,6 +414,7 @@
   "start": "0.45,0.00,0,lying",
   "goal": "0.65,0.00,0,standing",
   "gait": false,
+  "chain": false,
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
@@ -419,6 +436,129 @@
   "failed": [],
   "warnings": [
    "joint accelerations within the limits (13.39 of the limit)"
+  ]
+ },
+ {
+  "name": "chain_a_free",
+  "experiment": "chain",
+  "task": "a",
+  "grasp": "free",
+  "start": "0.50,-0.20,90,lying",
+  "goal": "0.50,0.20,90,lying_flip",
+  "gait": false,
+  "chain": true,
+  "repetitions": 3,
+  "speed": 0.15,
+  "lead": false,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 323.73899999925646,
+  "stop": null,
+  "flags": [
+   "--chain"
+  ],
+  "failed": [],
+  "warnings": [
+   "joint-limit margin comfortable (0.13 rad < 0.15 rad)",
+   "  object at the goal with the lag (3.2 mm, 0.83 deg)",
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.9 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
+  ]
+ },
+ {
+  "name": "chain_a_rigid",
+  "experiment": "chain",
+  "task": "a",
+  "grasp": "rigid",
+  "start": "0.50,-0.20,90,lying",
+  "goal": "0.50,0.20,90,lying_flip",
+  "gait": false,
+  "chain": true,
+  "repetitions": 3,
+  "speed": 0.15,
+  "lead": false,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 185.87700000052348,
+  "stop": {
+   "step": 0,
+   "angle_deg": 1.5484488936705008,
+   "of_deg": 90.0,
+   "time_frac": 0.12814392074093758
+  },
+  "flags": [
+   "--chain",
+   "--rigid",
+   "--expect-stop"
+  ],
+  "failed": [],
+  "warnings": [
+   "joint-limit margin comfortable (0.14 rad < 0.15 rad)"
+  ]
+ },
+ {
+  "name": "chain_b_free",
+  "experiment": "chain",
+  "task": "b",
+  "grasp": "free",
+  "start": "0.45,-0.15,90,lying",
+  "goal": "0.45,0.25,90,lying_flip",
+  "gait": false,
+  "chain": true,
+  "repetitions": 3,
+  "speed": 0.15,
+  "lead": false,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 323.73899999925646,
+  "stop": null,
+  "flags": [
+   "--chain"
+  ],
+  "failed": [],
+  "warnings": [
+   "joint-limit margin comfortable (0.13 rad < 0.15 rad)",
+   "  object at the goal with the lag (4.4 mm, 1.05 deg)",
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 4.0 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
+  ]
+ },
+ {
+  "name": "chain_b_rigid",
+  "experiment": "chain",
+  "task": "b",
+  "grasp": "rigid",
+  "start": "0.45,-0.15,90,lying",
+  "goal": "0.45,0.25,90,lying_flip",
+  "gait": false,
+  "chain": true,
+  "repetitions": 3,
+  "speed": 0.15,
+  "lead": false,
+  "go": true,
+  "steps": [
+   "pivot"
+  ],
+  "duration_s": 226.81200000071894,
+  "stop": {
+   "step": 0,
+   "angle_deg": 81.02059778628177,
+   "of_deg": 90.0,
+   "time_frac": 0.7535846499087306
+  },
+  "flags": [
+   "--chain",
+   "--rigid",
+   "--expect-stop"
+  ],
+  "failed": [],
+  "warnings": [
+   "joint-limit margin comfortable (0.13 rad < 0.15 rad)",
+   "joints stay out of the walls' damping zone (joint 2: 0.131 rad < 0.180 rad (more tracking lag there))"
   ]
  }
 ]
