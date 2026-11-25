@@ -45,3 +45,14 @@ experiments:
       c: {start: "0.50,0.00,90,lying", goal: "0.50,0.20,90,standing"}
       d: {start: "0.50,-0.20,90,lying", goal: "0.50,0.00,90,standing"}
       e: {start: "0.45,0.00,0,lying", goal: "0.65,0.00,0,standing"}
+
+  chain:              # 7.5 two pivots in one grasp (a roll by pi onto the opposite face, 0.40 m along y; run_box.py
+                      # --chain, planning/chain.py): grasp near the bottom back corner, hand tilted, lift 0.25 m.
+                      # Free rotation completes both pivots; the rigid grasp stops in the second (infeasible QP)
+    repetitions: 3
+    chain: true
+    speed: 0.15       # as fr: the rigid grasp stops, and the hand must coast little after it
+    grasps: [free, rigid]
+    tasks:
+      a: {start: "0.50,-0.20,90,lying", goal: "0.50,0.20,90,lying_flip"}     # rigid: stops at 92 of 180 deg (joint 7)
+      b: {start: "0.45,-0.15,90,lying", goal: "0.45,0.25,90,lying_flip"}     # rigid: stops at 171 of 180 deg (joint 2)
