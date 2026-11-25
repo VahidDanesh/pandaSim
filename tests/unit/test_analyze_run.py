@@ -57,7 +57,7 @@ def test_complete_run(planned, tmp_path, monkeypatch):
     run_dir = run(planned, tmp_path, monkeypatch, Panda)
     lines = ar.analyze(run_dir, f_max=30.0)
     assert "all finished" in lines[0]
-    assert any("object pose" in l for l in lines)
+    assert any("object tracking (model)" in l and "not measured" in l for l in lines)
     for name in ("analysis.pdf", "analysis.png", "summary.txt"):
         assert (run_dir / name).stat().st_size > 0
 

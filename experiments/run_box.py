@@ -283,7 +283,8 @@ def save_run(res, cfg, run_dir, speed):
 # ---- comparison of a real run with the simulation ------------------------------------------------------
 def compare(expected, real, T_end=None, T_goal=None, symmetric=True):
     """Per segment (same order in both logs): joint tracking against the simulated trajectory over the common
-    time, in rad; plus the largest wrench, the loop timing and the final object pose error."""
+    time, in rad; plus the largest wrench, the loop timing and the final object pose error from forward kinematics
+    (object_error_*: tracking of the model, blind to slip and compliance, not accuracy; see object_error_source)."""
     ea, ra = expected.arrays(), real.arrays()
     segs = []
     for j, sr in enumerate(real.segments):
@@ -315,7 +316,9 @@ def compare(expected, real, T_end=None, T_goal=None, symmetric=True):
                    lag_measured_s=lag, lag_model_s=PANDA_LAG.round(3).tolist())
     if T_end is not None and T_goal is not None:
         ep, er = pose_error(T_end, T_goal, symmetric)
-        out.update(object_error_mm=float(ep * 1e3), object_error_deg=float(math.degrees(er)))
+        out.update(object_error_mm=float(ep * 1e3), object_error_deg=float(math.degrees(er)),
+                   object_error_source="tracking (model): forward kinematics at the release, not measured; "
+                                       "the measured error is measured.json (calibrate_box.py --measure)")
     return out
 
 
@@ -331,8 +334,8 @@ def print_compare(c):
               f"joint error rms {s['rms_joint_error'] * 1e3:6.1f} mrad, max {s['max_joint_error'] * 1e3:6.1f} mrad   "
               f"max force {s['max_force']:5.1f} N   {'ok' if s['ok'] else s['cause']}")
     if "object_error_mm" in c:
-        print(f"  object pose by forward kinematics at the release: {c['object_error_mm']:.2f} mm, {c['object_error_deg']:.2f} deg "
-              f"from the goal (not measured)")
+        print(f"  object tracking (model), FK at the release, not measured: {c['object_error_mm']:.2f} mm, "
+              f"{c['object_error_deg']:.2f} deg from the goal")
     ab = c.get("abort")
     if ab:
         print(f"\nABORTED in '{ab['segment']}' (step {ab['step']}): {ab['cause']}")

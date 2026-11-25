@@ -166,7 +166,7 @@ def report(res):
         print(f"  step {s['step']}  {s['name']:9s} {s['t_end'] - s['t0']:6.2f} s  {'ok' if s['ok'] else s['cause']}")
     a = log.arrays()
     print(f"duration {a['t'][-1]:.1f} s (computed in {res['wall_s']:.1f} s)   "
-          f"object error {res['err_pos'] * 1e3:.2f} mm, {math.degrees(res['err_rot']):.3f} deg   "
+          f"object tracking (model, FK) {res['err_pos'] * 1e3:.2f} mm, {math.degrees(res['err_rot']):.3f} deg   "
           f"max joint speed {res['profile']['vel_ratio'].max():.2f} of the limit   "
           f"max |phi| {math.degrees(np.abs(a['phi']).max()):.0f} deg")
     for k, v in res["checks"].items():

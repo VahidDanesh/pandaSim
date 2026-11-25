@@ -224,6 +224,7 @@ def test_execute_on_a_fake_panda_matches_the_simulation(planned, tmp_path, monke
     assert panda.moves == [0.1] and c["ok"] and c["n_segments"] == c["expected_segments"]
     assert max(s["max_joint_error"] for s in c["segments"]) < 5e-3     # with lag compensation the joints follow the plan
     assert c["object_error_mm"] < 3.0
+    assert c["object_error_source"].startswith("tracking (model)") and "not measured" in c["object_error_source"]
     assert [g[0] for g in gripper.calls] == ["move", "grasp", "move"]
     assert json.loads((run_dir / "compare.json").read_text())["ok"]
     assert stopped(panda) and c["abort"] is None
