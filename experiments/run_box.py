@@ -335,10 +335,28 @@ def load_rows(res, cfg):
     return res["load_rows"][1]
 
 
+def session_reflex(reflex, rows):
+    """The collision reflex of the whole run (libfranka sets it once, before the controller starts): the config's,
+    with alpha raised if needed so that every upper threshold sits above the predicted peak load plus its band
+    (closed chain, load_rows). Returns (reflex, alpha needed, dict of the needs: force [N per axis], moment [Nm per
+    axis], torque [Nm per joint]). A need above the maximum joint torque cannot be met by any alpha."""
+    need = dict(force=np.zeros(3), moment=np.zeros(3), torque=np.zeros(7))
+    for r in rows:
+        F, M = np.abs(r["W_b"][:3]), np.abs(r["W_b"][3:])
+        need["force"] = np.maximum(need["force"], F + r["band"])
+        need["moment"] = np.maximum(need["moment"], M + 0.2 * M + 0.5)          # 0.5 Nm: 5 N at 0.1 m
+        need["torque"] = np.maximum(need["torque"], np.maximum(r["tau_a"], r["tau_b"]) + r["tau_band"])
+    base = reflex_thresholds(dict(reflex, alpha=1.0))
+    up_t = np.asarray(reflex["torque_fraction"]["upper"], float) * FER_TAU_MAX
+    up_f = np.asarray(base["force"]["upper"], float)
+    alpha = float(max(np.max(need["force"] / up_f[:3]), np.max(need["moment"] / up_f[3:]), np.max(need["torque"] / up_t)))
+    return dict(reflex, alpha=max(float(reflex.get("alpha", 1.0)), alpha)), alpha, need
+
+
 def load_checks(res, cfg, stop=None):
     """Pre-flight checks of the quasi-static load of the box (planning/load.py) along the simulated run, each with its
     margin: payload, joint torques, grasp pads, table friction, the edge, the deflection, the wrench stop, the
-    tracking-torque stop, and the load held at an expected stop."""
+    tracking-torque stop, the collision reflex, and the load held at an expected stop."""
     from pandaSim.control.backends import TRACK_TAU_MAX
     from pandaSim.planning import load as L
     from pandaSim.planning.box_primitives import GRIP_SAFETY
@@ -408,6 +426,16 @@ def load_checks(res, cfg, stop=None):
                      f"{w['dF_ab']:.1f} N apart, band {w['band']:.1f} N (step {w['step']}); the run stops on a force more "
                      f"than band + f_max from the prediction: {peak_b['band'] + f_max:.0f} N at its peak of "
                      f"{peak_b['F_b']:.1f} N, {L.BAND_N + f_max:.0f} N at no load", hard=False))
+    if rs["reflex"]:
+        chosen, alpha, nd = session_reflex(rs["reflex"], rows)
+        th = reflex_thresholds(chosen)
+        ok = bool(np.all(nd["torque"] <= FER_TAU_MAX)) and float(chosen["alpha"]) <= REFLEX_ALPHA_MAX
+        out.append(check("collision reflex above the predicted load and its band (one setting for the run)", ok,
+                         f"alpha {chosen['alpha']:.2f} (config {rs['reflex'].get('alpha', 1.0)}, the load needs {alpha:.2f}, "
+                         f"at most {REFLEX_ALPHA_MAX}): force upper {th['force']['upper'][0]:.0f} N against "
+                         f"{nd['force'].max():.1f} N, joint torques upper {np.round(th['torque']['upper'], 1).tolist()} Nm "
+                         f"against {np.round(nd['torque'], 1).tolist()} Nm; the free-space phases (approach, retreat, "
+                         f"ready) run with the same thresholds"))
     if stop:
         r = [r for r in rows if r["step"] == stop["step"]][-1]
         ok = max(r["pad_a"], r["pad_b"]) <= GRIP_SAFETY and r.get("mu_b", 0.0) <= box.mu
@@ -551,6 +579,7 @@ def confirm(phrase, ask=input):
 
 
 FER_TAU_MAX = np.array([87.0, 87.0, 87.0, 87.0, 12.0, 12.0, 12.0])     # Nm, maximum joint torques
+REFLEX_ALPHA_MAX = 2.0              # the session reflex may be raised to at most twice the config's fractions
 
 
 def reflex_thresholds(reflex):
@@ -564,7 +593,10 @@ def reflex_thresholds(reflex):
 
 def set_reflex(panda, reflex):
     """Collision thresholds of the robot itself (libfranka setCollisionBehavior): lower = contact, upper = stop.
-    panda-py does not set them, so without this call they are whatever the robot was left with."""
+    panda-py does not set them, so without this call they are whatever the robot was left with. Called once, before
+    the controller starts (libfranka does not take robot commands while a control loop runs), so one setting holds
+    for the whole run (session_reflex). Switching it between the free and the held phases would mean stopping and
+    restarting the controller with the box in the hand: a user decision, not implemented (design review D17)."""
     th = reflex_thresholds(reflex)
     t, f = th["torque"], th["force"]
     panda.get_robot().set_collision_behavior(t["lower"], t["upper"], f["lower"], f["upper"])
@@ -606,9 +638,13 @@ def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, grippe
     print(f"\nrun {run_dir.name}: level {level}, speed {speed}, {len(res['plan'].steps)} steps "
           f"({' -> '.join(s.kind for s in res['plan'].steps)}), about {res['log'].arrays()['t'][-1]:.0f} s, "
           f"lag compensation {'on' if lead else 'off'}")
-    if rs["reflex"]:
-        th = reflex_thresholds(rs["reflex"])
-        print(f"the robot's collision reflex (alpha {rs['reflex'].get('alpha', 1.0)}) will stop it above: force "
+    reflex = rs["reflex"]
+    if reflex and level != "air":                      # one setting for the whole run, from its predicted peak load
+        reflex = session_reflex(reflex, load_rows(res, cfg))[0]
+    if reflex:
+        th = reflex_thresholds(reflex)
+        print(f"the robot's collision reflex (alpha {reflex.get('alpha', 1.0):.2f}, config {rs['reflex'].get('alpha', 1.0)}; "
+              f"one setting for the whole run, free-space phases included) will stop it above: force "
               f"{[round(x, 1) for x in th['force']['upper'][:3]]} N, torque {[round(x, 1) for x in th['torque']['upper']]} Nm")
     if not confirm(f"RUN {level} {run_dir.name}", ask):
         print("cancelled; the robot was not moved")
@@ -617,8 +653,8 @@ def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, grippe
         import panda_py
 
         panda_py.Desk(host, *creds, platform="panda").unlock()
-    if rs["reflex"]:
-        set_reflex(panda, rs["reflex"])
+    if reflex:
+        set_reflex(panda, reflex)
     if np.abs(np.asarray(panda.get_state().q) - kw["q_ready"]).max() > 1e-3:
         print("moving to the ready configuration (panda-py joint motion, slow)")
         reached = panda.move_to_joint_position(kw["q_ready"], speed_factor=0.1)

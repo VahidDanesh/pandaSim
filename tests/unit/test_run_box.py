@@ -776,3 +776,20 @@ def test_load_checks_block_on_payload_torques_pads_and_friction_and_warn_on_the_
     held = {c["name"]: c for c in rb.load_checks(res, cfg, stop=dict(step=0))}["load held at the expected stop until the user acts"]
     assert not held["ok"] and held["hard"]
 
+
+def test_one_collision_reflex_for_the_run_chosen_from_its_predicted_peak_load(planned, tmp_path, monkeypatch):
+    cfg, res = planned
+    reflex = cfg["execution"]["robot"]["reflex"]
+    rows = [load_row(), load_row(W_b=np.r_[0, 0, -50.0, 0, 0, 0], band=15.0)]
+    chosen, alpha, need = rb.session_reflex(reflex, rows)
+    assert need["force"][2] == pytest.approx(65.0) and alpha == pytest.approx(65.0 / 40.0) and chosen["alpha"] == alpha
+    assert rb.session_reflex(reflex, [load_row()])[0]["alpha"] == 1.0          # never below the config
+    c = checks_with(planned, W_b=np.r_[0, 0, -50.0, 0, 0, 0], band=15.0)
+    assert c["collision reflex above the predicted load and its band (one setting for the run)"]["ok"]
+    c = checks_with(planned, W_b=np.r_[0, 0, -90.0, 0, 0, 0], band=15.0)    # alpha 2.6 > 2: no
+    assert not c["collision reflex above the predicted load and its band (one setting for the run)"]["ok"]
+    # on the (fake) robot the thresholds of the whole run are set once, before the motion; level air: the config's
+    for level, upper in (("low", 65.0), ("air", 40.0)):
+        res_r = dict(res, load_rows=((res["box"], cfg["execution"]["grasp"]["force"]), rows))
+        c, panda, _, _ = run_fake((cfg, res_r), tmp_path, monkeypatch, level=level, lead=True)
+        assert panda.robot.collision[3][:3] == pytest.approx([upper] * 3), level
