@@ -47,6 +47,8 @@ Output of a run: `experiments/runs/box/<name>/` with `plan.json`, `expected.npz`
 
 ## 3. The sequencer
 
+The whole algorithm, the reasons behind each decision and the code map: [PLANNER.md](PLANNER.md).
+
 Input: box (size, mass, friction), start pose, goal pose. Output: a list of steps, each a **slide** or a **pivot**, with the grasp pose, the screw motion and the grasp width, plus the cost.
 
 - **State.** A resting pose is labelled by the box axis that points down. A pivot needs a thin box axis (< 8 cm, the gripper stroke) horizontal: it is the edge about which the box tips. Pivots only change the box between lying on the 0.06 x 0.25 face and standing; the largest face is neither grasped nor reached.
