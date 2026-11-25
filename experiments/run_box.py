@@ -359,7 +359,7 @@ def load_checks(res, cfg, stop=None):
     tracking-torque stop, the collision reflex, and the load held at an expected stop."""
     from pandaSim.control.backends import TRACK_TAU_MAX
     from pandaSim.planning import load as L
-    from pandaSim.planning.box_primitives import GRIP_SAFETY
+    from pandaSim.planning.box_primitives import GRIP_N, GRIP_SAFETY
 
     rows, box, out = load_rows(res, cfg), res["box"], []
     if not rows:
@@ -390,6 +390,8 @@ def load_checks(res, cfg, stop=None):
                      and bool(np.all(track <= FER_TAU_MAX)), f"joint {j + 1}: {need[j]:.1f} Nm predicted with the band, "
                      f"stop at {track[j]:.1f} Nm (limit {FER_TAU_MAX[j]:.0f} Nm); all joints {np.round(need, 1).tolist()} Nm"))
     w = max(rows, key=lambda r: max(r["pad_a"], r["pad_b"]))
+    out.append(check("grasp force is the one the planner assumes", f_g >= GRIP_N,
+                     f"{f_g:.0f} N; the tipping margin of the slides counts on {GRIP_N:.0f} N"))
     out.append(check("grasp: the pads hold the force and the moment perpendicular to n", max(w["pad_a"], w["pad_b"]) <= GRIP_SAFETY,
                      f"uses {max(w['pad_a'], w['pad_b']):.2f} of the pads' friction in step {w['step']} (closed chain "
                      f"{w['pad_b']:.2f}, minimum norm {w['pad_a']:.2f}), at most {GRIP_SAFETY}; moment {w['M_b']:.2f} Nm; "

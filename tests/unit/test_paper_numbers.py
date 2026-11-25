@@ -21,8 +21,9 @@ def test_check_accepts_the_paper_spelling_and_catches_a_wrong_value(tmp_path):
     tex = fake_tex(rows)
     assert pn.check(rows, tex) == []
     assert pn.check(rows, tex.replace("$0.3$~rad/s", "$0.30$~rad/s")) == []          # same value, other spelling
-    wrong = tex.replace("grasp force & $20$~N", "grasp force & $25$~N")
+    wrong = tex.replace("grasp force & $70$~N", "grasp force & $25$~N")
     assert [sym for sym, _ in pn.check(rows, wrong)] == ["f_g"]
+    assert [sym for sym, _ in pn.check(rows, tex.replace("~m and $5$~kg", "~m and $1$~kg"))] == ["m"]
     path = tmp_path / "main.tex"
     path.write_text(wrong)
     assert pn.main(["--tex", str(path)]) == 1

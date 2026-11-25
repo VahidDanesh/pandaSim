@@ -1,13 +1,14 @@
 # Box experiments on the real Panda (experiments/run_box.py). Same planner and executor as box_plan.yaml; differences:
-# a light box (the Panda carries 3 kg, the hand included, and part of the weight is on the arm in a pivot), a wider
-# gripper tolerance, and the safety thresholds written out. Lengths in metres, angles in degrees.
+# the 5 kg box of the paper (more than the Panda's 3 kg payload, the hand included: the table always carries part of
+# it; run_box.py checks the predicted load of the hand along the run, planning/load.py), a wider gripper tolerance,
+# and the safety thresholds written out. Lengths in metres, angles in degrees.
 # CHECK BEFORE THE FIRST RUN: box.size and box.mass of the real box, robot.base (height of the robot mount above the
 # table, 0.013 m measured in the lab), the table area in which the box can be placed (x 0.30 to 0.75, |y| < 0.35).
 
 box:
   size: [0.15, 0.06, 0.25]      # along the object x, y, z axes; the fingers can only span the 0.06 side
-  mass: 1.0                     # kg  PLACEHOLDER: weigh the real box
-  mu: 0.5                       # box-table friction
+  mass: 5.0                     # kg  PLACEHOLDER (the paper's 5 kg): weigh the real box and put its mass here
+  mu: 0.5                       # box-table friction  ASSUMED, not measured: the pre-flight's friction checks use it
 
 robot:
   base: [0.0, 0.0, 0.013]
@@ -36,20 +37,25 @@ execution:
   dt: 0.001
   lift: 0.10
   pivot: {w_max: 0.3}
-  grasp: {force: 20.0, speed: 0.05, epsilon: 0.015}   # N, m/s, m: the box width may differ from the plan by 15 mm
+  # N, m/s, m. 70 N: the Franka Hand's maximum continuous force, and what the planner's tipping margin of the slides
+  # assumes (box_primitives.GRIP_N; with pad friction 1.2 ASSUMED, not measured); the box width may differ by 15 mm
+  grasp: {force: 70.0, speed: 0.05, epsilon: 0.015}
   # panda-py adds virtual walls to every torque controller: a spring pushes back within 0.12 rad (joint 1) or
   # 0.09 rad (joints 2 to 4) of a joint limit. rho_s keeps the QP out of that zone (0.05 rad in the simulation config).
   qp: {rho_s: 0.13, rho_e: 0.40}
-  # stop on |F_ext| > f_max N or |tau_ext| > tau_max Nm (the weight of the held box is removed first), on more than
-  # dt_max s between two ticks, or if a segment has not arrived settle s after its planned end
+  # stop on |F_ext| > f_max N or |tau_ext| > tau_max Nm (while the box is held, its predicted load and a band of
+  # 5 N + 20 % around it are removed first: primitive_executor.predicted_load), on more than dt_max s between two
+  # ticks, or if a segment has not arrived settle s after its planned end
   safety: {f_max: 30.0, tau_max: 15.0, settle: 5.0, dt_max: 0.05}
   robot:                        # real robot only (run_box.py --execute); see PandaBackend
     stall_timeout: 0.05         # s without a new velocity command before the watchdog zeroes it
     track_tau_max: [20.0, 20.0, 20.0, 20.0, 6.0, 6.0, 4.0]   # Nm of tracking torque Kp (q_d - q) - Kd dq before a stop
     lead: false                 # lag compensation of the joint controller (run_box.py --lead); switch on only after
                                 # an air run has shown that the measured lag matches the model (compare.json)
-    # the robot's own collision reflex (libfranka setCollisionBehavior), set before the motion so it is known:
+    # the robot's own collision reflex (libfranka setCollisionBehavior), set once before the motion so it is known:
     # contact is flagged above `lower`, the robot stops by itself above `upper`. Above the software stops on purpose.
+    # One setting for the whole run (free-space phases included): run_box.py raises alpha if the predicted peak load
+    # of the run plus its band needs it (session_reflex) and prints the value used.
     # Joint torques: alpha x torque_fraction x the maximum torque of each joint (87 Nm joints 1-4, 12 Nm joints 5-7),
     # at most the maximum; the wrist has larger fractions because the held box loads it as much as the shoulder.
     # Forces and moments: alpha x force. Change alpha only (smaller: the robot stops on lighter contact).

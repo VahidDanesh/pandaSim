@@ -18,7 +18,10 @@
   "stop": null,
   "flags": [],
   "failed": [],
-  "warnings": []
+  "warnings": [
+   "  with the weight of the hand, which the payload includes (24.3 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 22.7 mm (rigid hinge) / 22.7 mm (closed chain) / 22.7 mm (free moments), step 0 (slide))"
+  ]
  },
  {
   "name": "prim_pivot_free",
@@ -40,7 +43,10 @@
   "flags": [],
   "failed": [],
   "warnings": [
-   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)",
+   "  with the weight of the hand, which the payload includes (23.6 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 979 of 1638 samples: the hinge asks up to 0.26 Nm roll / 3.89 Nm twist, the edge gives 0.83 / 0.21 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 5.6 mm (rigid hinge) / 15.0 mm (closed chain) / 18.0 mm (free moments), step 0 (edge); the box lands on its face 0.8 to 2.5 deg before the end of the pivot, then the table carries it)"
   ]
  },
  {
@@ -54,7 +60,7 @@
   "repetitions": 5,
   "speed": 0.3,
   "lead": true,
-  "go": true,
+  "go": false,
   "steps": [
    "gait",
    "gait",
@@ -66,9 +72,16 @@
    "--gait",
    "--lead"
   ],
-  "failed": [],
+  "failed": [
+   "hand force on the box within the payload (closed chain 27.9 N (step 0), minimum norm 22.4 N (step 1), at most 26.5 N = 90% of the 3 kg payload)",
+   "table friction at the edge and the vertex (needs mu 0.73 at the edge in step 1 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
   "warnings": [
-   "  object at the goal with the lag (3.8 mm, 0.72 deg)"
+   "  object at the goal with the lag (3.8 mm, 0.72 deg)",
+   "  with the weight of the hand, which the payload includes (27.9 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 751 of 1644 samples: the hinge asks up to 7.48 Nm roll / 0.41 Nm twist, the edge gives 1.00 / 0.25 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 20.8 mm (rigid hinge) / 20.8 mm (closed chain) / 21.3 mm (free moments), step 2 (vertex); the box lands on its face 2.2 to 4.3 deg before the end of the pivot, then the table carries it)",
+   "wrench stop: the minimum-norm load lies inside the band of the predicted one (19.8 N apart, band 10.5 N (step 2); the run stops on a force more than band + f_max from the prediction: 41 N at its peak of 27.9 N, 35 N at no load)"
   ]
  },
  {
@@ -97,7 +110,10 @@
   ],
   "failed": [],
   "warnings": [
-   "  object at the goal with the lag (3.8 mm, 0.84 deg)"
+   "  object at the goal with the lag (3.8 mm, 0.84 deg)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 645 of 2192 samples: the hinge asks up to 4.57 Nm roll / 0.67 Nm twist, the edge gives 1.48 / 0.37 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 8.3 mm (rigid hinge) / 8.3 mm (closed chain) / 10.8 mm (free moments), step 1 (edge); the box lands on its face 0.8 to 2.0 deg before the end of the pivot, then the table carries it)",
+   "wrench stop: the minimum-norm load lies inside the band of the predicted one (11.0 N apart, band 8.4 N (step 3); the run stops on a force more than band + f_max from the prediction: 39 N at its peak of 18.1 N, 35 N at no load)"
   ]
  },
  {
@@ -113,14 +129,20 @@
   "lead": false,
   "go": true,
   "steps": [
+   "slide",
    "pivot",
    "slide"
   ],
-  "duration_s": 142.67100000031718,
+  "duration_s": 215.48000000066483,
   "stop": null,
   "flags": [],
   "failed": [],
-  "warnings": []
+  "warnings": [
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.3 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)",
+   "  with the weight of the hand, which the payload includes (23.8 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 979 of 1638 samples: the hinge asks up to 4.90 Nm roll / 2.10 Nm twist, the edge gives 1.33 / 0.33 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 13.0 mm (rigid hinge) / 15.2 mm (closed chain) / 18.3 mm (free moments), step 1 (edge); the box lands on its face 0.8 to 2.5 deg before the end of the pivot, then the table carries it)"
+  ]
  },
  {
   "name": "seq_flip_free",
@@ -133,7 +155,7 @@
   "repetitions": 5,
   "speed": 0.3,
   "lead": false,
-  "go": true,
+  "go": false,
   "steps": [
    "slide",
    "pivot",
@@ -143,10 +165,16 @@
   "duration_s": 337.88999999892184,
   "stop": null,
   "flags": [],
-  "failed": [],
+  "failed": [
+   "tracking-torque stop above the predicted load and its band (joint 1: 22.1 Nm predicted with the band, stop at 20.0 Nm (limit 87 Nm); all joints [22.1, 16.7, 20.3, 10.8, 1.8, 3.1, 1.9] Nm)",
+   "table friction at the edge and the vertex (needs mu 0.63 at the edge in step 2 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
   "warnings": [
    "  object at the goal with the lag (3.5 mm, 0.21 deg)",
-   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)",
+   "  with the weight of the hand, which the payload includes (24.1 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 1909 of 3276 samples: the hinge asks up to 6.78 Nm roll / 0.59 Nm twist, the edge gives 1.28 / 0.32 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 31.6 mm (rigid hinge) / 31.6 mm (closed chain) / 31.6 mm (free moments), step 3 (slide); the box lands on its face 0.9 to 4.6 deg before the end of the pivot, then the table carries it)"
   ]
  },
  {
@@ -160,7 +188,7 @@
   "repetitions": 5,
   "speed": 0.3,
   "lead": false,
-  "go": true,
+  "go": false,
   "steps": [
    "slide",
    "slide",
@@ -170,9 +198,16 @@
   "duration_s": 324.76699999923216,
   "stop": null,
   "flags": [],
-  "failed": [],
+  "failed": [
+   "grasp: the pads hold the force and the moment perpendicular to n (uses 0.56 of the pads' friction in step 2 (closed chain 0.56, minimum norm 0.10), at most 0.5; moment 2.15 Nm; f_g 70 N, mu_pad 1.2 (assumption, to measure))",
+   "table friction at the edge and the vertex (needs mu 0.57 at the edge in step 2 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
   "warnings": [
-   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)",
+   "  with the weight of the hand, which the payload includes (24.2 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 977 of 1638 samples: the hinge asks up to 4.60 Nm roll / 6.25 Nm twist, the edge gives 0.97 / 0.24 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 12.3 mm (rigid hinge) / 14.6 mm (closed chain) / 19.4 mm (free moments), step 2 (edge); the box lands on its face 1.4 to 4.2 deg before the end of the pivot, then the table carries it)",
+   "wrench stop: the minimum-norm load lies inside the band of the predicted one (9.7 N apart, band 9.2 N (step 2); the run stops on a force more than band + f_max from the prediction: 40 N at its peak of 24.2 N, 35 N at no load)"
   ]
  },
  {
@@ -194,7 +229,11 @@
   "stop": null,
   "flags": [],
   "failed": [],
-  "warnings": []
+  "warnings": [
+   "  with the weight of the hand, which the payload includes (23.2 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 2002 of 3274 samples: the hinge asks up to 1.11 Nm roll / 4.36 Nm twist, the edge gives 0.88 / 0.22 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 5.1 mm (rigid hinge) / 15.1 mm (closed chain) / 18.1 mm (free moments), step 0 (edge); the box lands on its face 0.9 to 2.4 deg before the end of the pivot, then the table carries it)"
+  ]
  },
  {
   "name": "fr_a_rigid",
@@ -218,7 +257,10 @@
   ],
   "failed": [],
   "warnings": [
-   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)",
+   "  with the weight of the hand, which the payload includes (23.2 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 2067 of 3274 samples: the hinge asks up to 1.11 Nm roll / 4.36 Nm twist, the edge gives 0.88 / 0.22 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 5.1 mm (rigid hinge) / 15.1 mm (closed chain) / 18.1 mm (free moments), step 0 (edge); the box lands on its face 0.5 to 2.4 deg before the end of the pivot, then the table carries it)"
   ]
  },
  {
@@ -232,15 +274,21 @@
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
-  "go": true,
+  "go": false,
   "steps": [
    "pivot"
   ],
   "duration_s": 180.9990000005002,
   "stop": null,
   "flags": [],
-  "failed": [],
-  "warnings": []
+  "failed": [
+   "table friction at the edge and the vertex (needs mu 0.52 at the edge in step 0 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
+  "warnings": [
+   "  with the weight of the hand, which the payload includes (23.1 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 1924 of 3274 samples: the hinge asks up to 7.33 Nm roll / 4.34 Nm twist, the edge gives 1.35 / 0.34 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 6.9 mm (rigid hinge) / 19.9 mm (closed chain) / 23.9 mm (free moments), step 0 (edge); the box lands on its face 1.2 to 3.1 deg before the end of the pivot, then the table carries it)"
+  ]
  },
  {
   "name": "fr_b_rigid",
@@ -253,7 +301,7 @@
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
-  "go": true,
+  "go": false,
   "steps": [
    "pivot"
   ],
@@ -262,9 +310,14 @@
   "flags": [
    "--rigid"
   ],
-  "failed": [],
+  "failed": [
+   "table friction at the edge and the vertex (needs mu 0.52 at the edge in step 0 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
   "warnings": [
-   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.3 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.3 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)",
+   "  with the weight of the hand, which the payload includes (23.1 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 1986 of 3274 samples: the hinge asks up to 3.85 Nm roll / 6.13 Nm twist, the edge gives 0.95 / 0.24 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 6.8 mm (rigid hinge) / 19.9 mm (closed chain) / 23.9 mm (free moments), step 0 (edge); the box lands on its face 0.5 to 2.9 deg before the end of the pivot, then the table carries it)"
   ]
  },
  {
@@ -278,16 +331,23 @@
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
-  "go": true,
+  "go": false,
   "steps": [
    "pivot"
   ],
   "duration_s": 203.48600000060756,
   "stop": null,
   "flags": [],
-  "failed": [],
+  "failed": [
+   "grasp: the pads hold the force and the moment perpendicular to n (uses 0.61 of the pads' friction in step 0 (closed chain 0.61, minimum norm 0.10), at most 0.5; moment 2.35 Nm; f_g 70 N, mu_pad 1.2 (assumption, to measure))",
+   "table friction at the edge and the vertex (needs mu 0.58 at the edge in step 0 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
   "warnings": [
-   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.6 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.6 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)",
+   "  with the weight of the hand, which the payload includes (25.3 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 2026 of 3274 samples: the hinge asks up to 4.14 Nm roll / 6.44 Nm twist, the edge gives 0.92 / 0.23 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 6.4 mm (rigid hinge) / 11.9 mm (closed chain) / 16.6 mm (free moments), step 0 (edge); the box lands on its face 0.9 to 2.4 deg before the end of the pivot, then the table carries it)",
+   "wrench stop: the minimum-norm load lies inside the band of the predicted one (11.6 N apart, band 9.9 N (step 0); the run stops on a force more than band + f_max from the prediction: 40 N at its peak of 25.3 N, 35 N at no load)"
   ]
  },
  {
@@ -301,7 +361,7 @@
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
-  "go": true,
+  "go": false,
   "steps": [
    "pivot"
   ],
@@ -316,8 +376,16 @@
    "--rigid",
    "--expect-stop"
   ],
-  "failed": [],
-  "warnings": []
+  "failed": [
+   "grasp: the pads hold the force and the moment perpendicular to n (uses 0.60 of the pads' friction in step 0 (closed chain 0.60, minimum norm 0.10), at most 0.5; moment 2.30 Nm; f_g 70 N, mu_pad 1.2 (assumption, to measure))",
+   "table friction at the edge and the vertex (needs mu 0.57 at the edge in step 0 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
+  "warnings": [
+   "  with the weight of the hand, which the payload includes (25.2 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 1206 of 1779 samples: the hinge asks up to 3.96 Nm roll / 6.03 Nm twist, the edge gives 0.90 / 0.23 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 7.2 mm (rigid hinge) / 11.9 mm (closed chain) / 16.4 mm (free moments), step 0 (edge); the box lands on its face 0.4 to 0.6 deg before the end of the pivot, then the table carries it)",
+   "wrench stop: the minimum-norm load lies inside the band of the predicted one (11.4 N apart, band 9.9 N (step 0); the run stops on a force more than band + f_max from the prediction: 40 N at its peak of 25.2 N, 35 N at no load)"
+  ]
  },
  {
   "name": "fr_d_free",
@@ -330,15 +398,22 @@
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
-  "go": true,
+  "go": false,
   "steps": [
    "pivot"
   ],
   "duration_s": 193.95100000056203,
   "stop": null,
   "flags": [],
-  "failed": [],
-  "warnings": []
+  "failed": [
+   "grasp: the pads hold the force and the moment perpendicular to n (uses 0.55 of the pads' friction in step 0 (closed chain 0.55, minimum norm 0.13), at most 0.5; moment 2.09 Nm; f_g 70 N, mu_pad 1.2 (assumption, to measure))",
+   "table friction at the edge and the vertex (needs mu 0.58 at the edge in step 0 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
+  "warnings": [
+   "  with the weight of the hand, which the payload includes (23.8 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 2015 of 3274 samples: the hinge asks up to 3.73 Nm roll / 5.11 Nm twist, the edge gives 1.01 / 0.25 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 6.4 mm (rigid hinge) / 13.0 mm (closed chain) / 17.9 mm (free moments), step 0 (edge); the box lands on its face 1.3 to 2.4 deg before the end of the pivot, then the table carries it)"
+  ]
  },
  {
   "name": "fr_d_rigid",
@@ -351,7 +426,7 @@
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
-  "go": true,
+  "go": false,
   "steps": [
    "pivot"
   ],
@@ -366,8 +441,15 @@
    "--rigid",
    "--expect-stop"
   ],
-  "failed": [],
-  "warnings": []
+  "failed": [
+   "grasp: the pads hold the force and the moment perpendicular to n (uses 0.52 of the pads' friction in step 0 (closed chain 0.52, minimum norm 0.10), at most 0.5; moment 1.97 Nm; f_g 70 N, mu_pad 1.2 (assumption, to measure))",
+   "table friction at the edge and the vertex (needs mu 0.58 at the edge in step 0 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
+  "warnings": [
+   "  with the weight of the hand, which the payload includes (23.7 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 1196 of 1780 samples: the hinge asks up to 3.33 Nm roll / 4.78 Nm twist, the edge gives 1.00 / 0.25 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 5.9 mm (rigid hinge) / 13.0 mm (closed chain) / 17.6 mm (free moments), step 0 (edge); the box lands on its face 0.4 to 0.6 deg before the end of the pivot, then the table carries it)"
+  ]
  },
  {
   "name": "fr_e_free",
@@ -380,15 +462,23 @@
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
-  "go": true,
+  "go": false,
   "steps": [
    "pivot"
   ],
   "duration_s": 139.27800000030098,
   "stop": null,
   "flags": [],
-  "failed": [],
-  "warnings": []
+  "failed": [
+   "hand force on the box within the payload (closed chain 36.4 N (step 0), minimum norm 22.3 N (step 0), at most 26.5 N = 90% of the 3 kg payload)",
+   "table friction at the edge and the vertex (needs mu 1.35 at the edge in step 0 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
+  "warnings": [
+   "  with the weight of the hand, which the payload includes (36.4 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 157 of 3274 samples: the hinge asks up to 0.64 Nm roll / 0.24 Nm twist, the edge gives 0.49 / 0.12 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 15.4 mm (rigid hinge) / 15.4 mm (closed chain) / 16.6 mm (free moments), step 0 (edge); the box lands on its face 0.3 to 1.0 deg before the end of the pivot, then the table carries it)",
+   "wrench stop: the minimum-norm load lies inside the band of the predicted one (25.9 N apart, band 11.8 N (step 0); the run stops on a force more than band + f_max from the prediction: 42 N at its peak of 36.4 N, 35 N at no load)"
+  ]
  },
  {
   "name": "fr_e_rigid",
@@ -401,7 +491,7 @@
   "repetitions": 3,
   "speed": 0.15,
   "lead": false,
-  "go": true,
+  "go": false,
   "steps": [
    "pivot"
   ],
@@ -416,8 +506,15 @@
    "--rigid",
    "--expect-stop"
   ],
-  "failed": [],
+  "failed": [
+   "hand force on the box within the payload (closed chain 36.4 N (step 0), minimum norm 22.3 N (step 0), at most 26.5 N = 90% of the 3 kg payload)",
+   "table friction at the edge and the vertex (needs mu 1.35 at the edge in step 0 (closed chain with +-5 N of internal force; minimum norm 0.40), mu 0.5 of the config (assumption, to measure))"
+  ],
   "warnings": [
+   "  with the weight of the hand, which the payload includes (36.4 N + 7.2 N (Franka Hand 0.73 kg; fingertips not weighed) against 29.4 N)",
+   "the edge holds the hand's rotations perpendicular to n (rigid hinge) (box may roll onto a corner of the edge or turn on the table in 156 of 1826 samples: the hinge asks up to 0.64 Nm roll / 0.24 Nm twist, the edge gives 0.49 / 0.12 Nm; there the closed chain is taken with the edge as a point)",
+   "deflection of the hand under the load (not compensated; measure it in a low run) (up to 15.3 mm (rigid hinge) / 15.3 mm (closed chain) / 16.6 mm (free moments), step 0 (edge); the box lands on its face 0.1 to 0.1 deg before the end of the pivot, then the table carries it)",
+   "wrench stop: the minimum-norm load lies inside the band of the predicted one (25.9 N apart, band 11.8 N (step 0); the run stops on a force more than band + f_max from the prediction: 42 N at its peak of 36.4 N, 35 N at no load)",
    "joint accelerations within the limits (13.39 of the limit)"
   ]
  }

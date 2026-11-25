@@ -65,6 +65,8 @@ def parameters(config=CONFIG):
         ("d_phi", "end-effector clearance (phi limits)", clearance.CLEARANCE, "m",
          [("end-effector clearance & ${}$~mm", [clearance.CLEARANCE * 1e3])]),
         ("omega_max", "peak pivoting velocity", e["pivot"]["w_max"], "rad/s", [("peak pivoting velocity & ${}$~rad/s", [e["pivot"]["w_max"]])]),
+        ("m", "box mass (box_real.yaml; placeholder until weighed)", cfg["box"]["mass"], "kg",
+         [("The object is a box of ${}\\times{}\\times{}$~m and ${}$~kg", [*cfg["box"]["size"], cfg["box"]["mass"]])]),
         ("f_g", "grasp force", e["grasp"]["force"], "N", [("grasp force & ${}$~N", [e["grasp"]["force"]])]),
         ("r_b", "base keep-out radius", box_primitives.BASE_KEEPOUT, "m", [("base keep-out radius & ${}$~m", [box_primitives.BASE_KEEPOUT])]),
         ("[r_min, r_max]", "reach of the grasp points", sequencer.REACH, "m",
