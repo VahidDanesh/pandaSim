@@ -23,6 +23,7 @@ from pandaSim.control.primitive_executor import check_clearance, check_profile, 
 from pandaSim.planning import clearance, se3
 from pandaSim.planning.collision import ArmCollision
 from pandaSim.planning.feasibility import Rollout
+from pandaSim.planning.chain import ChainPlanner
 from pandaSim.planning.gait import GaitPlanner
 from pandaSim.planning.sequencer import Box, Sequencer, pose_error, snap_stable
 
@@ -98,14 +99,16 @@ def _times(v, factor):
     return [x * factor for x in v] if isinstance(v, (list, tuple)) else v * factor
 
 
-def make_planner(cfg, robot, gait=False):
-    """Sequencer (gait=True: GaitPlanner, object gaiting) whose feasibility check rolls each step out with the
-    executor (model: plan_free_rotation)."""
+def make_planner(cfg, robot, gait=False, chain=False):
+    """Sequencer (gait=True: GaitPlanner, object gaiting; chain=True: ChainPlanner, a roll by pi in one grasp) whose
+    feasibility check rolls each step out with the executor (model: plan_free_rotation)."""
     p = cfg["planner"]
     # model of the hand for the phi limits and the clearance test; always set, so that it does not carry over
     # from a planner made earlier in the same process with another config
     clearance.HAND_MODEL = p.get("hand_model") or clearance.DEFAULT_HAND_MODEL
     kin = Rollout(robot, free_rotation=cfg["plan_free_rotation"], dt=p["dt"], size=make_box(cfg).size, **exec_kwargs(cfg))
+    if chain:
+        return ChainPlanner(kin, base_xy=tuple(cfg["robot"]["base"][:2]), symmetric=p.get("symmetric", True))
     if gait:
         g = p["gait"]
         return GaitPlanner(kin, gamma=math.radians(g["gamma_deg"]), beta=math.radians(g["beta_deg"]),

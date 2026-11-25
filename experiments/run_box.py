@@ -220,15 +220,20 @@ def plan_json(res, cfg, speed):
     return json.dumps(meta, indent=1, default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o))
 
 
-def plan_and_simulate(cfg, start, goal, speed=1.0, tracking=False, gait=False):
+def plan_and_simulate(cfg, start, goal, speed=1.0, tracking=False, gait=False, chain=False):
     """Plan with the feasibility model of the config and simulate the plan at `speed`; returns res (+ robot limits).
     tracking=True adds res["tracking"]: the same plan simulated with the joint controller's lag (simulate_tracking).
-    gait=True: object gaiting (planning/gait.py) instead of the sequence of slides and pivots."""
+    gait=True: object gaiting (planning/gait.py) instead of the sequence of slides and pivots.
+    chain=True: a roll by pi in one grasp (planning/chain.py), with the lift raised to chain.CHAIN_LIFT."""
     cfg["tasks"]["custom"] = dict(start=start, goal=goal)
+    if chain:
+        from pandaSim.planning.chain import CHAIN_LIFT
+
+        cfg["execution"]["lift"] = max(cfg["execution"]["lift"], CHAIN_LIFT)
     cfg_plan = rp.scale_speed(json.loads(json.dumps(cfg)), 1.0)   # the rollouts of the planner run at the nominal speed
     rp.scale_speed(cfg, speed)
     robot = rp.make_robot(cfg)
-    res = rp.run_task(cfg, robot, "custom", rp.make_planner(cfg_plan, robot, gait))
+    res = rp.run_task(cfg, robot, "custom", rp.make_planner(cfg_plan, robot, gait, chain))
     res["robot_limits"] = (robot.qlim[0, :7], robot.qlim[1, :7])
     res["robot"] = robot
     if tracking and res["plan"].found:
@@ -503,6 +508,7 @@ def main(argv=None):
     ap.add_argument("--expect-stop", action="store_true",
                     help="the simulation predicts an infeasible QP in a pivot (rigid grasp): run up to that stop")
     ap.add_argument("--gait", action="store_true", help="object gaiting (rotations about vertices) instead of slides and pivots")
+    ap.add_argument("--chain", action="store_true", help="two pivots in one grasp: a roll by pi (planning/chain.py)")
     ap.add_argument("--mass", type=float, help="box mass in kg (overrides the config)")
     ap.add_argument("--name", help="run folder name (default: timestamp)")
     ap.add_argument("--speed", type=float, help="speed factor of the execution, 0 < s <= 1 (default by level)")
@@ -526,7 +532,8 @@ def main(argv=None):
 
     if args.lead is not None:
         cfg["execution"]["robot"] = {**(cfg["execution"].get("robot") or {}), "lead": args.lead}
-    res = plan_and_simulate(cfg, parse_pose(args.start), parse_pose(args.goal), speed, tracking=True, gait=args.gait)
+    res = plan_and_simulate(cfg, parse_pose(args.start), parse_pose(args.goal), speed, tracking=True, gait=args.gait,
+                            chain=args.chain)
     grasp = lambda free: "free rotation" if free else "rigid grasp"
     print(f"\nplan {args.start}  ->  {args.goal}   (planned with {grasp(cfg['plan_free_rotation'])}, executed with "
           f"{grasp(cfg['free_rotation'])}, speed {speed})")

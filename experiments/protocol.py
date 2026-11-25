@@ -36,7 +36,7 @@ def entries(protocol, only=None):
             continue
         for task, spec in e["tasks"].items():
             for grasp in e.get("grasps", ["free"]):
-                yield exp, task, grasp, dict(spec, gait=bool(e.get("gait")), repetitions=e["repetitions"],
+                yield exp, task, grasp, dict(spec, gait=bool(e.get("gait")), chain=bool(e.get("chain")), repetitions=e["repetitions"],
                                              speed=e.get("speed", protocol["speed"]), lead=bool(e.get("lead", protocol["lead"])))
 
 
@@ -45,11 +45,11 @@ def check_entry(protocol, spec, grasp, config=rb.REAL_CONFIG):
     cfg = rp.load_config(config, grasp == "free", True)          # the plan of free rotation in both grasps
     cfg["execution"]["robot"] = {**(cfg["execution"].get("robot") or {}), "lead": spec["lead"]}
     res = rb.plan_and_simulate(cfg, rb.parse_pose(spec["start"]), rb.parse_pose(spec["goal"]), spec["speed"],
-                               tracking=True, gait=spec["gait"])
+                               tracking=True, gait=spec["gait"], chain=spec.get("chain", False))
     found = res["plan"].found
     stop = rb.predicted_stop(res["log"], res["plan"].steps, rb.pivot_method(cfg)) if found and grasp == "rigid" else None
     items = rb.preflight(res, cfg, expect_stop=stop is not None)
-    flags = (["--gait"] if spec["gait"] else []) + (["--rigid"] if grasp == "rigid" else []) \
+    flags = (["--gait"] if spec["gait"] else []) + (["--chain"] if spec.get("chain") else []) + (["--rigid"] if grasp == "rigid" else []) \
         + (["--expect-stop"] if stop else []) + (["--lead"] if spec["lead"] else [])
     return dict(go=rb.go(items), steps=[s.kind for s in res["plan"].steps] if found else [],
                 duration_s=float(res["log"].arrays()["t"][-1]) if found else None, stop=stop, flags=flags,
