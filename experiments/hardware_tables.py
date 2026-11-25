@@ -4,7 +4,8 @@
 
 A run folder experiments/runs/box/<experiment>_<task>_<grasp>_r<k> counts once it has compare.json (run_box.py
 --execute). Its final error is the measured one (measured.json of calibrate_box.py --measure) when it exists, else the
-forward kinematics at the release, marked with a dagger in the LaTeX rows (not measured). A run succeeds if it finished
+forward kinematics at the release, marked with a dagger in the LaTeX rows: a tracking number of the model (FK, not
+measured), blind to slip and compliance, not accuracy. A run succeeds if it finished
 every segment and its error is within the tolerance of box_real.yaml (and the box is on the right face, if measured).
 A stopped run is "infeasible" if the QP became infeasible, "stopped" for any other cause (force or torque threshold,
 robot error, tracking, Ctrl-C).
@@ -120,10 +121,10 @@ def main(argv=None):
     data = collect(protocol, args.runs)
     for (exp, task, grasp), recs in data.items():
         outcomes = ", ".join(f"{r['name'].rsplit('_', 1)[1]} {r['outcome']}" + (f" ({r['cause']})" if r["cause"] else "")
-                             + ("" if r["measured"] or not r["completed"] else " [FK]") for r in recs)
+                             + ("" if r["measured"] or not r["completed"] else " [FK, not measured]") for r in recs)
         print(f"{exp}_{task}_{grasp:6s} {len(recs)}/{protocol['experiments'][exp]['repetitions']} runs   {outcomes or '-'}")
     tex = rows(protocol, data)
-    text = "\n".join(f"% {k}\n" + "\n".join(v) for k, v in tex.items()) + "\n% $^\\dagger$ forward kinematics, not measured\n"
+    text = "\n".join(f"% {k}\n" + "\n".join(v) for k, v in tex.items()) + "\n% $^\\dagger$ tracking (model): forward kinematics, not measured\n"
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(text)
     print("\n" + text + f"\nwritten: {OUT}")

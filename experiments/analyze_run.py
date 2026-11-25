@@ -75,8 +75,8 @@ def summary(exp, real, comp=None, f_max=None):
                          f"rms {s['rms_joint_error'] * 1e3:6.1f} mrad  max {s['max_joint_error'] * 1e3:6.1f} mrad  "
                          f"|F| max {s['max_force']:5.1f} N  {'ok' if s['ok'] else s['cause']}")
         if "object_error_mm" in comp:
-            lines.append(f"object pose from forward kinematics at the release: {comp['object_error_mm']:.2f} mm, "
-                         f"{comp['object_error_deg']:.2f} deg from the goal (not measured)")
+            lines.append(f"object tracking (model), FK at the release, not measured: {comp['object_error_mm']:.2f} mm, "
+                         f"{comp['object_error_deg']:.2f} deg from the goal")
     return lines
 
 

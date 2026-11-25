@@ -224,6 +224,7 @@ def test_execute_on_a_fake_panda_matches_the_simulation(planned, tmp_path, monke
     assert panda.moves == [0.1] and c["ok"] and c["n_segments"] == c["expected_segments"]
     assert max(s["max_joint_error"] for s in c["segments"]) < 5e-3     # with lag compensation the joints follow the plan
     assert c["object_error_mm"] < 3.0
+    assert c["object_error_source"].startswith("tracking (model)") and "not measured" in c["object_error_source"]
     assert [g[0] for g in gripper.calls] == ["move", "grasp", "move"]
     assert json.loads((run_dir / "compare.json").read_text())["ok"]
     assert stopped(panda) and c["abort"] is None
@@ -590,10 +591,13 @@ def test_speed_factor_scales_the_configured_nominal_speeds(monkeypatch):
     e = rp.scale_speed(copy.deepcopy(cfg), 0.5)["execution"]
     assert e["pivot"]["w_max"] == 0.15 and e["approach"] == dict(v_max=0.05, w_max=0.15)
     assert e["ready"] == dict(qd_max=0.25) and e["qp"]["qd_scale"] == pytest.approx(0.4) and e["qp"]["rho_s"] == 0.13
+    assert (e["qp"]["K"], e["qp"]["lam"], e["qp"]["eta"]) == (0.1, 0.1, 0.5)   # the rates of eq:qp (defaults 0.2, 0.2, 1)
     cfg["execution"]["pivot"]["w_max"] = 0.2                            # a config value is honoured, not replaced
     cfg["execution"]["approach"] = dict(v_max=0.08)
+    cfg["execution"]["qp"] = dict(K=[0.4] * 7, lam=0.3)
     e = rp.scale_speed(copy.deepcopy(cfg), 0.5)["execution"]
     assert e["pivot"]["w_max"] == 0.1 and e["approach"] == dict(v_max=0.04, w_max=0.15)
+    assert e["qp"]["K"] == [0.2] * 7 and e["qp"]["lam"] == 0.15 and e["qp"]["eta"] == 0.5
 
     seen = {}
     real_make_planner = rp.make_planner
@@ -602,3 +606,80 @@ def test_speed_factor_scales_the_configured_nominal_speeds(monkeypatch):
     rb.plan_and_simulate(cfg, rb.parse_pose(START), rb.parse_pose(GOAL), speed=0.3)
     assert seen["plan"]["execution"]["pivot"]["w_max"] == 0.2 and seen["plan"]["execution"]["approach"]["v_max"] == 0.08
     assert seen["run"]["execution"]["pivot"]["w_max"] == pytest.approx(0.06) and seen["run"] is cfg
+
+
+def test_speed_factor_keeps_the_joint_path():
+    """With the rates of the QP scaled with the speed (scale_speed), one pivot step run at speed
+    0.3 follows the joint path of speed 1.0 as a function of the path parameter t / Tf of every segment (the rollouts
+    of the planner see the path that the robot runs). Same discretization per unit of path: dt / speed. Without the
+    scaled rates the null-space motion of the QP depends on the speed (D4 of the design review: ~0.1 rad)."""
+    from pandaSim.control.backends import SimBackend
+    from pandaSim.control.primitive_executor import run_plan
+    from pandaSim.planning.sequencer import Sequencer, Step
+
+    cfg0 = rp.load_config(rb.REAL_CONFIG)
+    robot, box = rp.make_robot(cfg0), rp.make_box(cfg0)
+    T = rp.box_pose(box, rb.parse_pose("0.50,0.00,90,lying"))
+    _, pl = Sequencer(y_ref=np.array([0.0, 1.0, 0.0]))._box_pivots(box, T)[0]
+    step = Step("pivot", T, pl.T_goal, pl)
+
+    def paths(speed, rates=True):
+        cfg = rp.scale_speed(copy.deepcopy(cfg0), speed)
+        if not rates:                                     # the rates as before the fix: not scaled
+            cfg["execution"]["qp"].update(K=0.2, lam=0.2, eta=1.0)
+        kw = rp.exec_kwargs(cfg)
+        log, _ = run_plan(SimBackend(kw["q_ready"], dt=0.01 / speed), robot, [step], T, **kw)
+        assert log.ok
+        a = log.arrays()
+        return [(sg["name"], (a["t"][a["segment"] == j] - sg["t0"]) / sg["Tf"], a["theta"][a["segment"] == j])
+                for j, sg in enumerate(log.segments) if sg["name"] != "ready"]   # JointMove: its own gain, same goal
+
+    def largest_difference(p, q):
+        assert [n for n, *_ in p] == [n for n, *_ in q] == ["pre", "approach", "pivot", "retreat"]
+        d = 0.0
+        for (_, s, th), (_, s2, th2) in zip(p, q):
+            m = s2 <= s[-1]
+            d = max(d, float(np.abs(np.array([np.interp(s2[m], s, th[:, k]) for k in range(7)]).T - th2[m]).max()))
+        return d
+
+    nominal = paths(1.0)
+    assert largest_difference(nominal, paths(0.3)) < 1e-3
+    assert largest_difference(nominal, paths(0.3, rates=False)) > 0.05
+
+
+def test_a_gait_off_the_goal_with_the_lag_needs_lag_compensation(planned, monkeypatch):
+    """'object at the goal with the lag' is hard for a gait plan without lag compensation (25 screw motions), a warning
+    otherwise; the pivot-arc line reports a deviation of the commanded path (a force on the box), not a squeeze."""
+    import dataclasses
+
+    cfg, res = planned
+    monkeypatch.setattr(rb, "grasp_observability", lambda st: (True, 1.0, ""))     # the slide steps relabelled as gait
+    gait = dict(res, plan=dataclasses.replace(res["plan"], steps=[dataclasses.replace(s, kind="gait") for s in res["plan"].steps]))
+    tr = dict(ok=True, fails=[], err_mm=13.0, err_deg=0.6, pivot_dev_mm=3.0)
+
+    def goal_item(r, lead):
+        items = rb.preflight(dict(r, tracking=dict(tr, lead=lead)), cfg)
+        return rb.go(items), next(c for c in items if "object at the goal with the lag" in c["name"]), items
+
+    go, c, items = goal_item(gait, False)
+    assert not go and not c["ok"] and c["hard"] and "--lead" in c["detail"]
+    go, c, _ = goal_item(gait, True)
+    assert go and not c["ok"] and not c["hard"]
+    go, c, _ = goal_item(res, False)                                    # not a gait: a warning
+    assert go and not c["ok"] and not c["hard"]
+    arc = next(c for c in items if "pivot arc" in c["name"])
+    assert not arc["ok"] and not arc["hard"] and "commanded" in arc["name"] and "internal force" in arc["detail"]
+    assert "squeeze" not in arc["detail"]
+
+
+def test_the_protocol_runs_the_gait_with_lag_compensation():
+    """protocol.yaml: lead stays off globally; the gait experiment sets its own (protocol.check_entry simulates and
+    flags each entry with spec["lead"])."""
+    import yaml
+
+    import protocol as proto
+
+    protocol = yaml.safe_load(proto.PROTOCOL.read_text())
+    assert protocol["lead"] is False
+    leads = {(exp, task, grasp): spec["lead"] for exp, task, grasp, spec in proto.entries(protocol)}
+    assert all(v == (k[0] == "gait") for k, v in leads.items()) and sum(leads.values()) == 2

@@ -28,6 +28,7 @@ from pandaSim.planning.sequencer import Box, Sequencer, pose_error, snap_stable
 
 HERE = Path(__file__).resolve().parent
 QD_SCALE = inspect.signature(ContactQP).parameters["qd_scale"].default     # nominal joint velocity bound, x limit
+QP_RATES = {k: inspect.signature(ContactQP).parameters[k].default for k in ("K", "lam", "eta")}    # rates of eq:qp
 DEFAULT_CONFIG = HERE / "configs" / "box_plan.yaml"
 
 
@@ -75,16 +76,26 @@ def exec_kwargs(cfg):
 def scale_speed(cfg, factor):
     """Slow the execution down by `factor` (0 < factor <= 1): approach, joint moves, pivots and the joint velocity
     bound of the QP (eq:qp_d), so that a run that is slowed down also cannot speed a joint up beyond the same fraction
-    (near a singularity the QP drives the joints to its bound). The nominal values are the config's (defaults below,
-    those of the executor); a config is scaled once (run_box.plan_and_simulate copies it before). The geometry of the
-    plan does not change; the rollouts of the planner run at the nominal speed."""
+    (near a singularity the QP drives the joints to its bound). The rates of the QP are scaled by the same factor:
+    the centering gain K, the manipulability weight lam (eq:qp_a) and the damper rate eta (eq:qp_c). The QP is then
+    homogeneous in the rates, so its null-space motion, and with it the joint path, is the same at every speed, only
+    slower: the planner's rollouts (nominal speed) see the path that the robot runs (design review D4). The pose
+    feedback gain K_e of the approach is not scaled: it acts only on tracking errors, not on the path (1e-5 rad), and
+    a slower K_e lets the lag of the robot's controller outlast safety.settle after a slide (timeout).
+    The nominal values are the config's (defaults: those of ContactQP); a config is scaled once
+    (run_box.plan_and_simulate copies it before). The geometry of the plan does not change."""
     e = cfg["execution"]
     for key, nominal in (("pivot", dict(w_max=0.3)), ("approach", dict(v_max=0.1, w_max=0.3)),
-                         ("ready", dict(qd_max=0.5)), ("qp", dict(qd_scale=QD_SCALE))):
+                         ("ready", dict(qd_max=0.5)), ("qp", dict(qd_scale=QD_SCALE, **QP_RATES))):
         sub = dict(e.get(key) or {})
-        sub.update({k: sub.get(k, v) * factor for k, v in nominal.items()})
+        sub.update({k: _times(sub.get(k, v), factor) for k, v in nominal.items()})
         e[key] = sub
     return cfg
+
+
+def _times(v, factor):
+    """v x factor for a number or a list (K may be given per joint), so the config stays plain YAML/JSON."""
+    return [x * factor for x in v] if isinstance(v, (list, tuple)) else v * factor
 
 
 def make_planner(cfg, robot, gait=False):
@@ -155,7 +166,7 @@ def report(res):
         print(f"  step {s['step']}  {s['name']:9s} {s['t_end'] - s['t0']:6.2f} s  {'ok' if s['ok'] else s['cause']}")
     a = log.arrays()
     print(f"duration {a['t'][-1]:.1f} s (computed in {res['wall_s']:.1f} s)   "
-          f"object error {res['err_pos'] * 1e3:.2f} mm, {math.degrees(res['err_rot']):.3f} deg   "
+          f"object tracking (model, FK) {res['err_pos'] * 1e3:.2f} mm, {math.degrees(res['err_rot']):.3f} deg   "
           f"max joint speed {res['profile']['vel_ratio'].max():.2f} of the limit   "
           f"max |phi| {math.degrees(np.abs(a['phi']).max()):.0f} deg")
     for k, v in res["checks"].items():
