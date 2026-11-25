@@ -112,6 +112,51 @@ def test_external_wrench_stops_with_zero_velocity(scene):
     assert np.all(backend._qd == 0) and log.abort["cause"] == "external wrench" and not log.abort["holding"]
 
 
+class LoadBackend(SimBackend):
+    """Reports the predicted load of the held box (its own predicted_load) plus a push F_push [N] after `at` s of
+    holding, as the robot's external wrench estimate would."""
+
+    def __init__(self, theta0, robot, step, box, push=(0.0, 0.0, 0.0), at=1.0):
+        from pandaSim.control.primitive_executor import predicted_load
+
+        super().__init__(theta0)
+        self.pred = predicted_load(robot, step, 0, step.plan.T_start, box)
+        self.push, self.at, self.t_hold = np.asarray(push, float), at, None
+
+    def wrench(self):
+        holding = bool(self.gripper_events) and self.gripper_events[-1][0] == "grasp"
+        if not holding:
+            return np.zeros(6), np.zeros(7)
+        self.t_hold = self.time() if self.t_hold is None else self.t_hold
+        f, tau, *_ = self.pred(self.theta())
+        push = self.push if self.time() - self.t_hold > self.at else np.zeros(3)
+        return np.r_[f + push, 0, 0, 0], tau
+
+
+def test_the_wrench_stop_expects_the_predicted_load_of_the_held_box_with_a_band(scene):
+    """5 kg box in the pivot (design review D14): the predicted load and a small push pass; a push of 45 N, downward
+    or sideways, stops the run (before, any downward force up to the weight, 49 N, was explained away)."""
+    r, step = scene["robot"], scene["step"]
+    heavy = Box(BOX.size, 5.0, BOX.mu)
+    runs = {}
+    for name, push in (("load", (0, 0, 0)), ("small", (8.0, 0, 0)), ("down", (0, 0, -45.0)), ("side", (0, 45.0, 0))):
+        backend = LoadBackend(r.qr[:7], r, step, heavy, push)
+        log, _ = run_plan(backend, r, [step], scene["T_w_obj"], box=heavy)
+        runs[name] = log
+    assert runs["load"].ok and runs["small"].ok
+    for name in ("down", "side"):
+        pivot = next(s for s in runs[name].segments if s["name"] == "pivot")
+        assert pivot["cause"] == "external wrench" and runs[name].abort["holding"]
+    # the load it expects: the closed chain of planning/load.py, about 23-29 N at the start of this pivot
+    from pandaSim.control.primitive_executor import predicted_load
+
+    a = runs["load"].arrays()
+    j = next(i for i, s in enumerate(runs["load"].segments) if s["name"] == "pivot")
+    f, tau, band_f, band_tau, lo = predicted_load(r, step, 0, step.plan.T_start, heavy)(a["theta"][a["segment"] == j][0])
+    assert 20.0 < np.linalg.norm(f) < 30.0 and f[2] < 0 and band_f == pytest.approx(5.0 + 0.2 * np.linalg.norm(f))
+    assert lo == 0.0                                         # at the very start the box is still on its face
+
+
 # --- PandaBackend wiring against fakes of panda-py ---
 
 class FakeCtrl:

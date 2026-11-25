@@ -93,6 +93,10 @@ class State:
         self.O_F_ext_hat_K, self.tau_ext_hat_filtered = np.zeros(6), np.zeros(7)
         if panda.gripper is not None and panda.gripper.holding:          # the box hangs on the fingers
             self.O_F_ext_hat_K[2] -= f.get("held_weight", 0.0)
+            if "held_load" in f:                                         # (q) -> (force, joint torques) of the box
+                F, tau = f["held_load"](panda.q)
+                self.O_F_ext_hat_K[:3] += F
+                self.tau_ext_hat_filtered = self.tau_ext_hat_filtered + tau
         if "wrench_at" in f and panda.n >= f["wrench_at"]:
             self.O_F_ext_hat_K = self.O_F_ext_hat_K + np.asarray(f["wrench"], float)
         self.current_errors = "[]"
@@ -292,30 +296,59 @@ def test_a_wrench_spike_stops_the_arm(planned, tmp_path, monkeypatch):
     assert c["abort"]["cause"] == "external wrench" and panda.n - 3000 < 5 and stopped(panda)
 
 
-def test_the_weight_of_the_held_box_is_not_a_collision_but_more_than_it_is(planned, tmp_path, monkeypatch):
-    def tight(cfg):                                    # 1 kg box: its weight alone is above this force threshold
-        cfg["execution"]["safety"]["f_max"] = 8.0
+def test_the_load_of_the_held_box_is_not_a_collision_but_a_push_beyond_it_is(planned, tmp_path, monkeypatch):
+    """5 kg box in the slide: the robot reports the predicted load (table friction), then a push of 45 N. Before
+    design review D14 any downward force up to the weight (49 N) was explained away."""
+    from pandaSim.control.primitive_executor import predicted_load
 
-    c, panda, gripper, _ = run_fake(planned, tmp_path, monkeypatch, dict(held_weight=9.81), cfg_edit=tight, lead=True)
-    assert c["ok"] and c["abort"] is None and max(s["max_force"] for s in c["segments"]) > 9.0
-    # level air has no box: the same force on the hand stops the run
-    c, panda, _, _ = run_fake(planned, tmp_path, monkeypatch, dict(wrench_at=3000, wrench=[0, 0, -9.81, 0, 0, 0]),
-                              cfg_edit=tight, level="air", lead=True)
+    cfg, res = planned
+    heavy = dict(res, box=type(res["box"])(res["box"].size, 5.0, res["box"].mu))
+    st = res["plan"].steps[0]
+    assert st.kind == "slide" and len(st.plan.screws) == 1
+
+    def held(push, after=500):
+        pred = predicted_load(res["robot"], st, 0, st.plan.T_start, heavy["box"])
+        n0 = []
+
+        def f(q):
+            F, tau, *_ = pred(q)
+            n0.append(1)
+            return F + (np.asarray(push, float) if len(n0) > after else 0.0), tau
+        return f
+
+    for push, stops in (((0, 0, 0), False), ((0, 0, -45.0), True), ((45.0, 0, 0), True), ((0, 45.0, 0), True)):
+        c, panda, _, _ = run_fake((cfg, heavy), tmp_path, monkeypatch, dict(held_load=held(push)), lead=True)
+        assert (c["abort"] is not None and c["abort"]["cause"] == "external wrench") == stops, (push, c["abort"])
+        assert stopped(panda) and (not stops or c["abort"]["holding"])
+        if not stops:
+            assert c["ok"] and max(s["max_force"] for s in c["segments"]) > 20.0      # the friction of 5 kg
+    # level air has no box: a force on the hand counts in full
+    c, panda, _, _ = run_fake(planned, tmp_path, monkeypatch, dict(wrench_at=3000, wrench=[0, 0, -31.0, 0, 0, 0]),
+                              level="air", lead=True)
     assert c["abort"]["cause"] == "external wrench" and stopped(panda)
 
 
-def test_wrench_excess_removes_only_what_the_weight_explains():
+def test_wrench_excess_removes_the_predicted_load_within_its_band():
     from pandaSim.control.primitive_executor import wrench_excess
 
     w, J = np.array([0.0, 0.0, -9.81]), np.linspace(-0.5, 0.5, 21).reshape(3, 7)
-    load = (w, J.T @ w)
-    ex = lambda F, load=load: wrench_excess(np.r_[F, 0, 0, 0], J.T @ np.asarray(F, float), 15.0, 15.0, load)
-    assert ex(w) < 1e-9 and ex(0.4 * w) < 1e-9                         # any part of the weight
+    ex = lambda F, load: wrench_excess(np.r_[F, 0, 0, 0], J.T @ np.asarray(F, float), 15.0, 15.0, load)
+    # lo = 0, no band: any part of the load (a box partly on a face, or in a slide)
+    load = (w, J.T @ w, 0.0, np.zeros(7), 0.0)
+    assert ex(w, load) < 1e-9 and ex(0.4 * w, load) < 1e-9
     assert ex(w, None) == pytest.approx(9.81 / 15.0)                    # no object: it counts
-    assert ex(-w) >= 9.81 / 15.0                                        # the same force upwards is not the weight
-    assert ex(2 * w) >= 9.81 / 15.0 - 1e-9                              # twice the weight: only one is removed
-    assert ex(w + [14.0, 0, 0]) < 1.0 < ex(w + [16.0, 0, 0])            # a sideways force counts in full
-    assert wrench_excess(np.r_[w + [12.0, 0, 0], 0, 0, 0], np.zeros(7), 15.0, 15.0, None) > 1.0
+    assert ex(-w, load) >= 9.81 / 15.0                                  # the same force upwards is not the load
+    assert ex(2 * w, load) >= 9.81 / 15.0 - 1e-9                        # twice the load: only one is removed
+    assert ex(w + [14.0, 0, 0], load) < 1.0 < ex(w + [16.0, 0, 0], load)   # a sideways force counts in full
+    # lo = 1 (on an edge): the load itself, not a part of it, plus the band
+    load = (w, J.T @ w, 6.0, 6.0 * np.linalg.norm(J, axis=0), 1.0)    # the torque band: that of the 6 N
+    assert ex(w, load) < 1e-9 and ex(0.4 * w, load) < 1e-9             # 5.9 N off: inside the band
+    assert ex(0.0 * w, load) == pytest.approx((9.81 - 6.0) / 15.0)     # the predicted load is missing: it counts
+    assert ex(w + [20.0, 0, 0], load) < 1.0 < ex(w + [22.0, 0, 0], load)   # 15 N past the 6 N band
+    assert ex(w + [0, 0, -20.0], load) < 1.0 < ex(w + [0, 0, -22.0], load)   # downward the same: not up to m g
+    big = np.full(7, 100.0)                                             # a torque band that removes every torque
+    assert wrench_excess(np.r_[w + [0, 0, -22.0], 0, 0, 0], J.T @ (w + [0, 0, -22.0]), 15.0, 15.0,
+                         (w, J.T @ w, 6.0, big, 1.0)) == pytest.approx((22.0 - 6.0) / 15.0)
 
 
 def test_gripper_failures_stop_the_run_and_never_open_the_hand(planned, tmp_path, monkeypatch):

@@ -473,7 +473,7 @@ def execute(res, cfg, run_dir, host, level, speed, ask=input, panda=None, grippe
     t0 = time.perf_counter()
     try:
         _, T_end = run_plan(backend, robot, res["plan"].steps, res["T0"], free_rotation=cfg["free_rotation"],
-                            payload=0.0 if level == "air" else res["box"].mass, lead=backend.lag if lead else None,
+                            box=None if level == "air" else res["box"], kp=backend.kp, lead=backend.lag if lead else None,
                             log=log, **kw)
     except KeyboardInterrupt:
         error = "interrupted with Ctrl-C"

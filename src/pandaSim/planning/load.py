@@ -27,8 +27,10 @@ The split between hand and table is statically indeterminate, so two bounds:
       moves only as the contact lets it (edge: rotation about u; vertex: any rotation about v), and the hand turns
       freely about n. With A = [(a x (c - p), a) for each allowed axis a] + [(0, n)] and Q_a = a . ((com - p) x m g):
           A^T K A alpha = (Q_a, 0),   x = A alpha  (hand displacement from its target),   (F, M) = -K x.
-      At an edge this is the stiffest case: the box holds the hand's rotations perpendicular to n, with a moment the
-      edge line contact must react (at most N L / 2 before the box rolls onto a corner of the edge).
+      At an edge the rigid hinge (axes [u]) is the stiffest case: the box holds the hand's rotations perpendicular to
+      n, with moments the edge line contact must react (roll at most N L / 2 before the box rolls onto a corner of
+      the edge, twist at most about mu N L / 4 before it turns on the table). Where it cannot, the hinge does not
+      hold and the chain is taken with the edge as a point at its middle (axes: all three), as at a vertex.
 Deflection of the hand (reported, not fed forward: design review D8): closed chain |x_v|; free moments: the hand
 loaded by the bound (a) wrench with every rotation free, |(C (F, M))_v|, C = J Kp^-1 J^T.
 """
@@ -192,7 +194,12 @@ def screw_angle(S, c0, c):
 def wrench(ct, T_obj, T_c, size, m, mu=0.5, C=None):
     """Both bounds of the hand's wrench at c for the contact ct (contact()) at the box pose T_obj, {c} at T_c.
     C: compliance J Kp^-1 J^T of {c} (6x6, (v, w)); without it only bound (a). Returns dict(F_a, M_a; with C also
-    F_b, M_b, x_b (closed-chain hand displacement), x_free (free-moment displacement under the bound (a) wrench))."""
+    F_b, M_b, x_b (closed chain: wrench and hand displacement), x_free (free-moment displacement under the bound (a)
+    wrench)). At an edge also the rigid hinge itself, F_h, M_h, x_h, and the moments it asks of the edge line
+    contact: roll (about the horizontal across the edge) against N L / 2, twist (about the vertical) against
+    mu N L / 4. If the edge cannot react them (rolls=True: the box may roll onto a corner of the edge or turn on the
+    table), the hinge does not hold, and bound (b) is the chain with the edge as a point at its middle, which asks no
+    moment of the edge (its line contact resists little: 0.8 and 0.2 Nm for 5 kg)."""
     c, n, com = T_c[:3, 3], T_c[:3, 1], T_obj[:3, 3]
     out = {}
     if ct["kind"] == "slide":
@@ -203,12 +210,26 @@ def wrench(ct, T_obj, T_c, size, m, mu=0.5, C=None):
         return out
     if ct["kind"] == "edge":
         out.update(F_a=edge_force_only(c, com, ct["p"], ct["u"], m), M_a=np.zeros(3))
-        axes = [ct["u"]]
     else:
         F, M = vertex_min_wrench(c, com, ct["p"], n, m)
         out.update(F_a=F, M_a=M)
-        axes = list(np.eye(3))
-    if C is not None:
-        F, M, x = closed_chain(np.linalg.inv(C), c, com, ct["p"], axes, n, m)
-        out.update(F_b=F, M_b=M, x_b=x, x_free=-(C @ np.r_[out["F_a"], out["M_a"]]))
+    if C is None:
+        return out
+    K = np.linalg.inv(C)
+    out["x_free"] = -(C @ np.r_[out["F_a"], out["M_a"]])
+    point = list(np.eye(3))
+    if ct["kind"] == "edge":
+        F, M, x = closed_chain(K, c, com, ct["p"], [ct["u"]], n, m)
+        Me = edge_moment(F, M, c, com, ct["p"], m)
+        N = max(float(table_reaction(F, m)[2]), 0.0)
+        h = np.cross(ct["u"], Z)
+        h = h / np.linalg.norm(h)
+        out.update(F_h=F, M_h=M, x_h=x, roll=abs(float(Me @ h)), roll_cap=N * ct["L"] / 2, twist=abs(float(Me[2])),
+                   twist_cap=mu * N * ct["L"] / 4)
+        out["rolls"] = out["roll"] > out["roll_cap"] or out["twist"] > out["twist_cap"]
+        if not out["rolls"]:
+            out.update(F_b=F, M_b=M, x_b=x)
+            return out
+    F, M, x = closed_chain(K, c, com, ct["p"], point, n, m)
+    out.update(F_b=F, M_b=M, x_b=x)
     return out

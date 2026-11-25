@@ -86,17 +86,71 @@ def wrench_excess(F_ext, tau_ext, f_max, tau_max, load=None):
     """External wrench estimate against its thresholds: max(|F| / f_max, max_j |tau_j| / tau_max); above 1 the
     run stops. F_ext: force part of O_F_ext_hat_K (base frame), tau_ext: tau_ext_hat_filtered.
 
-    load = (f, tau): force [N, base frame] and joint torques [Nm] with which the whole weight of the held object
-    would load the arm (the estimate includes the object; no load is configured on the robot). In a pivot or a
-    slide the table carries part of the weight, so any fraction alpha in [0, 1] of this load is expected: the
-    best-fitting fraction is removed and the rest is compared with the thresholds. A force that the weight cannot
-    explain (sideways, upwards, or more than the weight) counts in full.
+    load = (f, tau, band_f, band_tau, lo): the force [N, base frame] and joint torques [Nm] that the held object is
+    predicted to put on the arm (predicted_load; no load is configured on the robot), the half-widths of the band
+    around them (band_f [N], band_tau [Nm per joint]), and the smallest share lo of that load to expect (1 on an edge
+    or a vertex; 0 while the box is partly on a face or in a slide, where the table may carry any part of it).
+    The best-fitting share alpha in [lo, 1] of the load is removed, then up to the band of what is left; the rest
+    is compared with the thresholds (design review D14: no longer any fraction of the full weight).
     """
     w = np.r_[np.asarray(F_ext, float)[:3] / f_max, np.asarray(tau_ext, float) / tau_max]
-    if load is not None:
-        a = np.r_[np.asarray(load[0], float) / f_max, np.asarray(load[1], float) / tau_max]
-        w = w - np.clip(a @ w / max(a @ a, 1e-12), 0.0, 1.0) * a
-    return float(max(np.linalg.norm(w[:3]), np.abs(w[3:]).max()))
+    if load is None:
+        return float(max(np.linalg.norm(w[:3]), np.abs(w[3:]).max()))
+    f, tau, band_f, band_tau, lo = load
+    a = np.r_[np.asarray(f, float) / f_max, np.asarray(tau, float) / tau_max]
+    r = w - np.clip(a @ w / max(a @ a, 1e-12), lo, 1.0) * a
+    rf = max(float(np.linalg.norm(r[:3])) - band_f / f_max, 0.0)
+    rt = np.maximum(np.abs(r[3:]) - np.asarray(band_tau, float) / tau_max, 0.0)
+    return float(max(rf, rt.max()))
+
+
+def predicted_load(robot, step, k, T_obj, box, kp=None, every=10):
+    """The load of the held box on the arm during screw k of a planner step, for the wrench stop: a function
+    q -> (f, tau, band_f, band_tau, lo) of wrench_excess. T_obj: the box pose at the start of the screw; box: size,
+    mass, mu (sequencer.Box); kp: joint stiffness of the robot's controller (default PANDA_KP).
+    The load is the closed chain of planning/load.py (bound b, as design review D14 asks), from the measured hand
+    alone: at an edge or a vertex the box angle follows from the grasp point's turn about the screw axis (phi is
+    not measured), in a slide the box moves with the hand. External wrench = -(F, M) of the hand on the box, joint
+    torques -J^T (F, M). Band: load.band(F) on the force, 20 % of each joint torque plus the torque of load.BAND_N.
+    Recomputed every `every` calls (10 ms at 1 kHz; the load changes slowly)."""
+    from pandaSim.control.backends import PANDA_KP
+    from pandaSim.planning import load as L
+
+    ets = robot.ets(end=EE)
+    Kinv = np.diag(1.0 / np.asarray(PANDA_KP if kp is None else kp, float))
+    base = robot.base.A
+    T_obj0 = np.asarray(T_obj, float)
+    ct0 = L.contact(step, k, T_obj0, box.size)
+    memo = dict(n=0, T_c0=None, out=None)
+
+    def load(q):
+        memo["n"] += 1
+        if memo["out"] is not None and memo["n"] % every:
+            return memo["out"]
+        q8 = np.r_[np.asarray(q, float)[:7], 0.0]                 # c and n do not depend on phi
+        T_c = base @ ets.eval(q8)
+        if memo["T_c0"] is None:
+            memo["T_c0"] = T_c
+        if ct0["kind"] == "slide":
+            T_o = T_c @ np.linalg.inv(memo["T_c0"]) @ T_obj0
+        else:
+            th = L.screw_angle(ct0["S"], memo["T_c0"][:3, 3], T_c[:3, 3])
+            T_o = se3.exp6(ct0["S"] * th) @ T_obj0
+        J = ets.jacob0(q8)[:, :7]
+        ct = L.contact(step, k, T_o, box.size)
+        w = L.wrench(ct, T_o, T_c, box.size, box.mass, box.mu, J @ Kinv @ J.T)
+        W = -np.r_[w["F_b"], w["M_b"]]
+        tau = J.T @ W
+        lo = 0.0 if ct["kind"] == "slide" else 1.0
+        if ct["kind"] == "edge":                                   # partly on a face within the deflection angle
+            r = float(np.linalg.norm(L._perp(T_c[:3, 3] - ct["p"], ct["u"])))
+            d = float(np.linalg.norm(w["x_free"][:3])) / r
+            if L.face_ramp(th, ct["theta"], d, ct["starts_on_face"], ct["ends_on_face"]) < 1.0:
+                lo = 0.0
+        memo["out"] = (W[:3], tau, L.band(W[:3]), L.BAND_FRAC * np.abs(tau) + L.BAND_N * np.linalg.norm(J[:3], axis=0), lo)
+        return memo["out"]
+
+    return load
 
 
 def run_segment(backend, ctrl, ref, Tf, log, name, phi=0.0, done=None, settle=2.0, f_max=30.0, tau_max=15.0,
@@ -110,7 +164,7 @@ def run_segment(backend, ctrl, ref, Tf, log, name, phi=0.0, done=None, settle=2.
     when the motion stops, so nothing accumulates.
 
     Stops with zero velocity and logs the cause on: an infeasible QP; an external force/torque above
-    f_max (N) / tau_max (Nm) (wrench_excess; load(theta) -> (f, tau) is the weight of a held object, or None);
+    f_max (N) / tau_max (Nm) (wrench_excess; load(q) -> its load argument for a held object (predicted_load), or None);
     a fault reported by the backend (watchdog, tracking error); more than dt_max s between two ticks
     (the arm kept its last velocity meanwhile); a robot error; t > Tf + settle; a backend that stops ticking.
     Any other exception (Ctrl-C included) also zeroes the velocity and is recorded, then it propagates.
@@ -145,7 +199,7 @@ def run_segment(backend, ctrl, ref, Tf, log, name, phi=0.0, done=None, settle=2.
                 cause = "timeout"
                 break
             F_ext, tau_ext = backend.wrench()
-            if wrench_excess(F_ext, tau_ext, f_max, tau_max, None if load is None else load(theta)) > 1.0:
+            if wrench_excess(F_ext, tau_ext, f_max, tau_max, None if load is None else load(q)) > 1.0:
                 cause = "external wrench"
                 break
             V = ref(t, q)
@@ -211,8 +265,8 @@ class JointMove:
 
 
 def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, qp=None, approach=None, pivot=None,
-             ready=None, grasp=None, safety=None, lift=0.10, viewer=None, approach_free=True, payload=0.0, lead=None,
-             log=None):
+             ready=None, grasp=None, safety=None, lift=0.10, viewer=None, approach_free=True, box=None, lead=None,
+             log=None, kp=None):
     """Execute planner steps (sequencer.Step: kind, plan.T_grasp, plan.screws, plan.width) in order.
 
     Each step starts and ends at the ready configuration q_ready (default robot.qr):
@@ -227,8 +281,9 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
     qp: ContactQP kwargs; approach: approach_reference kwargs plus tol, used for
     pre, approach, slide and retreat; pivot: dict(w_max, method, Tf_min); ready: JointMove kwargs;
     grasp: dict(force, speed, epsilon); safety: run_segment kwargs (f_max, tau_max, settle, dt_max).
-    T_w_obj: object pose at the start (world). payload: mass [kg] of the object; while it is held, the part of
-    the external wrench that its weight explains does not count towards f_max / tau_max (wrench_excess).
+    T_w_obj: object pose at the start (world). box: the object (sequencer.Box: size, mass, mu) or None (level air,
+    simulation); while it is held, its predicted load on the arm (predicted_load, with kp the joint stiffness of
+    the robot's controller) and a band around it do not count towards f_max / tau_max (wrench_excess).
     lead: lag compensation of the robot's joint controller (run_segment; None: off).
     log: a Log to fill (so the caller keeps the records if an exception ends the run).
 
@@ -247,17 +302,10 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
     fk = lambda q: contact_pose(robot, q)
     log = Log() if log is None else log
     step = -1
-    state = dict(holding=False, cause=None, finished=False)
-
-    ets = robot.ets(end=EE)
-    f_load = robot.base.R.T @ np.array([0.0, 0.0, -9.81 * payload])      # weight of the object, robot base frame
-
-    def held_load(theta):
-        """(force, joint torques) of the whole weight acting at the fingertips."""
-        return f_load, ets.jacob0(np.r_[theta, 0.0])[:3, :7].T @ f_load
+    state = dict(holding=False, cause=None, finished=False, load=None)
 
     def segment(ctrl, ref, Tf, name, phi=0.0, done=None):
-        load = held_load if state["holding"] and payload > 0 else None
+        load = state["load"] if state["holding"] else None
         ok, phi = run_segment(backend, ctrl, ref, Tf, log, name, phi=phi, done=done, viewer=viewer, load=load,
                               lead=lead, **safety)
         log.segments[-1]["step"] = step
@@ -321,8 +369,12 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
             T_c_obj = np.linalg.inv(fk(q_now())) @ T_w_obj
             if viewer is not None:
                 viewer.attach(T_c_obj)
-            for S, theta in pl.screws:
+            T_o = pl.T_start                                  # planned box pose at the start of each screw
+            for k, (S, theta) in enumerate(pl.screws):
                 T_c = fk(q_now())
+                if box is not None:
+                    state["load"] = predicted_load(robot, st, k, T_o, box, kp)
+                T_o = se3.exp6(np.asarray(S) * theta) @ T_o
                 if is_pivot:
                     method = pivot.get("method", "quintic")
                     Tf = max(pivot.get("Tf_min", 1.0), PEAK_SDOT[method[0].lower()] * abs(theta) / pivot.get("w_max", 0.3))
@@ -334,7 +386,7 @@ def run_plan(backend, robot, steps, T_w_obj, free_rotation=True, q_ready=None, q
             T_w_obj = fk(q_now()) @ T_c_obj
             if not gripper("release", backend.open):
                 return log, T_w_obj
-            state["holding"] = False
+            state["holding"], state["load"] = False, None
             if viewer is not None:
                 viewer.detach()
             log.steps[-1].update(T_obj=T_w_obj)
