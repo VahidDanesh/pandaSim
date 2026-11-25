@@ -90,8 +90,10 @@ def test_the_planner_takes_the_first_candidate_that_passes_the_rollouts():
 
 def test_one_gait_step_through_the_executor_and_run_box():
     """A goal one rotation about a vertex away: one step, executed by run_plan (ideal and with the controller's lag),
-    the pre-flight of run_box.py is GO and the hand stays on every arc."""
+    the pre-flight of run_box.py is GO and the hand stays on every arc. The 5 kg box of the paper, grasped with 70 N
+    (at 1 kg the +-5 N of internal force of the friction check can unload the edge)."""
     cfg = rp.load_config(rb.REAL_CONFIG)
+    cfg["box"]["mass"], cfg["execution"]["grasp"]["force"] = 5.0, 70.0
     T0 = pose("0.55,0.10,0,standing")
     Tg = gait.gait_step(T0, BOX.size, -1.0, 1.0, math.radians(30), G, B).T_goal
     goal = dict(xy=Tg[:2, 3].tolist(), rpy=[0.0, 0.0, math.degrees(math.atan2(Tg[1, 0], Tg[0, 0]))])   # exact, not rounded

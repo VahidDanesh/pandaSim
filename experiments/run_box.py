@@ -46,6 +46,9 @@ MARK = rp.MARK                      # the marked corner of the real box, in unit
 LEVEL_SPEED = {"air": (0.3, 0.5), "low": (0.3, 0.5), "full": (1.0, 1.0)}      # default and maximum speed factor
 G = 9.81
 PAYLOAD = 3.0                       # kg, Franka Emika Panda (hand included)
+PAYLOAD_MARGIN = 0.9                # the hand's force on the box may use 90 % of the payload weight
+HAND_MASS = 0.73                    # kg, Franka Hand (franka_description); the bearing fingertips are not weighed
+TORQUE_MARGIN = 0.5                 # the load may use half the joint torque limits (the arm's own gravity is not modelled)
 REGION = dict(x=(0.30, 0.75), y=(-0.35, 0.35))
 JOINT_MARGIN = (0.05, 0.15)         # rad: below the first the run is refused, below the second it is a warning
 PIVOT_PATH_WARN = 2.0               # mm: warning if the commanded hand path leaves the pivot arc by more with the lag
@@ -186,9 +189,7 @@ def preflight(res, cfg, expect_stop=False):
                              f"it leaves the arc by {tr['pivot_dev_mm']:.1f} mm; the box holds the hand on the arc, so the "
                              "joint impedance presses on the box with the matching internal force", hard=False))
     out.append(check("arm and hand clearance", res["clearance"]["arm_min"] >= 0.005, f"smallest distance {res['clearance']['arm_min'] * 1e3:.1f} mm"))
-    m, f_max = box.mass, (cfg["execution"].get("safety") or {}).get("f_max", 30.0)
-    out.append(check("box mass within the payload", m <= PAYLOAD, f"{m:.2f} kg, payload {PAYLOAD} kg"))
-    out.append(check("box weight is not close to the force stop", m * G + 5.0 < f_max, f"{m * G:.1f} N weight, stop at {f_max:.0f} N", hard=False))
+    out += load_checks(res, cfg, stop)
     acc = check_profile(res["log"])["acc_ratio"].max()
     out.append(check("joint accelerations within the limits", acc <= 1.0, f"{acc:.2f} of the limit", hard=False))
     return out
@@ -256,6 +257,165 @@ def pivot_path_error(log, steps, robot):
         rad = np.linalg.norm(d - np.outer(ax, u), axis=1)
         dev = max(dev, float(np.abs(rad - rad[0]).max()), float(np.abs(ax - ax[0]).max()))
     return dev
+
+
+def load_profile(res, cfg, every=20):
+    """Quasi-static load of the box on the hand along the held segments (pivot, slide) of the simulated run
+    (planning/load.py), at every `every`-th tick: list of dicts (step, k (screw of the step), kind (edge, vertex,
+    slide), t) with, for both bounds (a: minimum norm, b: closed chain), the hand's force F_ [N], its moment
+    perpendicular to n M_ [Nm], the joint torques tau_ = |J^T (F, M)| [Nm, 7], the pad use pad_, and at an edge or
+    a vertex the table friction needed mu_ (mu_b over an internal force of load.BAND_N); the deflections of the hand
+    defl_free (free moments, upper), defl_b (closed chain used) and, at an edge, defl_hinge (rigid hinge, lower);
+    at an edge `rolls` (the hinge asks more moment than the edge gives) and `face` (the share carried by a face:
+    load.face_ramp, when the box leaves its face or lands on the next one within the deflection angle); W_b, the
+    external wrench (base frame, at {c}) the closed chain predicts, its band (force) and tau_band (joint torques),
+    and dF_ab, how far the two bounds of the force are apart."""
+    from pandaSim.planning import load as L
+
+    log, robot, plan, box = res["log"], res["robot"], res["plan"], res["box"]
+    m, mu, size = box.mass, box.mu, box.size
+    f_g = float((cfg["execution"].get("grasp") or {}).get("force", 20.0))
+    Kinv = np.diag(1.0 / PANDA_KP)
+    a = log.arrays()
+    out, count, T_c_obj = [], {}, {}
+    for j, sg in enumerate(log.segments):
+        if sg["name"] not in ("pivot", "slide"):
+            continue
+        i = sg["step"]
+        k = count[i] = count.get(i, -1) + 1                               # k-th screw of the step
+        idx = np.flatnonzero(a["segment"] == j)
+        if not len(idx):
+            continue
+        st = plan.steps[i]
+        T_c0 = contact_pose(robot, np.r_[a["theta"][idx[0]], a["phi"][idx[0]]])
+        T_c_obj.setdefault(i, np.linalg.inv(T_c0) @ np.asarray(st.T_before, float))   # the box moves with {c}
+        for t in np.r_[idx[::every], idx[-1]]:
+            q8 = np.r_[a["theta"][t], a["phi"][t]]
+            T_c = contact_pose(robot, q8)
+            T_obj = T_c @ T_c_obj[i]
+            J = robot.jacob0(q8)[:, :7]
+            ct = L.contact(st, k, T_obj, size)
+            w = L.wrench(ct, T_obj, T_c, size, m, mu, J @ Kinv @ J.T)
+            c, n = T_c[:3, 3], T_c[:3, 1]
+            row = dict(step=i, k=k, kind=ct["kind"], t=float(a["t"][t]))
+            if ct["kind"] == "edge":                                       # leaving and landing on a face
+                r = float(np.linalg.norm(L._perp(c - ct["p"], ct["u"])))
+                th = L.screw_angle(ct["S"], T_c0[:3, 3], c)
+                for b, x in (("a", "x_free"), ("b", "x_b")):
+                    f = L.face_ramp(th, ct["theta"], float(np.linalg.norm(w[x][:3])) / r, ct["starts_on_face"],
+                                    ct["ends_on_face"])
+                    w[f"F_{b}"], w[f"M_{b}"], w[x] = f * w[f"F_{b}"], f * w[f"M_{b}"], f * w[x]
+                    row["face"] = max(row.get("face", 0.0), 1.0 - f)
+                row.update(defl_hinge=float(np.linalg.norm(w["x_h"][:3])), rolls=bool(w["rolls"]) and row["face"] == 0.0,
+                           roll=w["roll"], roll_cap=w["roll_cap"], twist=w["twist"], twist_cap=w["twist_cap"],
+                           land_deg=[math.degrees(float(np.linalg.norm(w[x][:3])) / r) for x in ("x_h", "x_free")])
+            for b in ("a", "b"):
+                F, M = w[f"F_{b}"], w[f"M_{b}"]
+                row[f"F_{b}"] = float(np.linalg.norm(F))
+                row[f"M_{b}"] = float(np.linalg.norm(L._perp(M, n)))
+                row[f"tau_{b}"] = np.abs(J.T @ np.r_[F, M])
+                row[f"pad_{b}"] = L.pad_use(F, M, n, st.plan.width, f_g)
+            row.update(W_b=-np.r_[w["F_b"], w["M_b"]],
+                       dF_ab=0.0 if row.get("face", 0.0) > 0 else float(np.linalg.norm(w["F_a"] - w["F_b"])),
+                       band=L.band(w["F_b"]), tau_band=L.BAND_FRAC * row["tau_b"] + L.BAND_N * np.linalg.norm(J[:3], axis=0))
+            row.update(defl_free=float(np.linalg.norm(w["x_free"][:3])), defl_b=float(np.linalg.norm(w["x_b"][:3])))
+            if ct["kind"] != "slide":
+                e_r = (c - ct["p"]) / np.linalg.norm(c - ct["p"])
+                row["mu_a"] = L.friction_needed(w["F_a"], m)
+                row["mu_b"] = L.friction_needed(w["F_b"], m, [e_r] + ([ct["u"]] if ct["kind"] == "edge" else []), L.BAND_N)
+            out.append(row)
+    return out
+
+
+def load_rows(res, cfg):
+    """load_profile of the simulated run, computed once per res (and box and grasp force)."""
+    key = (res["box"], (cfg["execution"].get("grasp") or {}).get("force"))
+    if res.get("load_rows", (None, None))[0] != key:
+        res["load_rows"] = (key, load_profile(res, cfg))
+    return res["load_rows"][1]
+
+
+def load_checks(res, cfg, stop=None):
+    """Pre-flight checks of the quasi-static load of the box (planning/load.py) along the simulated run, each with its
+    margin: payload, joint torques, grasp pads, table friction, the edge, the deflection, the wrench stop, the
+    tracking-torque stop, and the load held at an expected stop."""
+    from pandaSim.control.backends import TRACK_TAU_MAX
+    from pandaSim.planning import load as L
+    from pandaSim.planning.box_primitives import GRIP_SAFETY
+
+    rows, box, out = load_rows(res, cfg), res["box"], []
+    if not rows:
+        return out
+    pick = lambda key: max(rows, key=lambda r: r.get(key, -1.0))
+    f_g = float((cfg["execution"].get("grasp") or {}).get("force", 20.0))
+    sf = cfg["execution"].get("safety") or {}
+    f_max = sf.get("f_max", 30.0)
+    rs = robot_settings(cfg)
+    track = np.asarray(TRACK_TAU_MAX if rs["track_tau_max"] is None else rs["track_tau_max"], float)
+    wa, wb = pick("F_a"), pick("F_b")
+    peak = max(wa["F_a"], wb["F_b"])
+    lim = PAYLOAD_MARGIN * PAYLOAD * G
+    out.append(check("hand force on the box within the payload", peak <= lim,
+                     f"closed chain {wb['F_b']:.1f} N (step {wb['step']}), minimum norm {wa['F_a']:.1f} N (step "
+                     f"{wa['step']}), at most {lim:.1f} N = {PAYLOAD_MARGIN:.0%} of the {PAYLOAD:.0f} kg payload"))
+    out.append(check("  with the weight of the hand, which the payload includes", peak + HAND_MASS * G <= PAYLOAD * G,
+                     f"{peak:.1f} N + {HAND_MASS * G:.1f} N (Franka Hand {HAND_MASS} kg; fingertips not weighed) against "
+                     f"{PAYLOAD * G:.1f} N", hard=False))
+    tau = np.max([np.maximum(r["tau_a"], r["tau_b"]) for r in rows], axis=0)
+    j = int(np.argmax(tau / FER_TAU_MAX))
+    out.append(check("joint torques of the load within the torque limits", tau[j] <= TORQUE_MARGIN * FER_TAU_MAX[j],
+                     f"joint {j + 1}: {tau[j]:.1f} Nm = {tau[j] / FER_TAU_MAX[j]:.2f} of {FER_TAU_MAX[j]:.0f} Nm, at most "
+                     f"{TORQUE_MARGIN} (the arm's own gravity is not in the model: the virtual Panda has no dynamics)"))
+    need = np.max([np.maximum(r["tau_a"], r["tau_b"]) + r["tau_band"] for r in rows], axis=0)
+    j = int(np.argmax(need / track))
+    out.append(check("tracking-torque stop above the predicted load and its band", bool(np.all(need <= track))
+                     and bool(np.all(track <= FER_TAU_MAX)), f"joint {j + 1}: {need[j]:.1f} Nm predicted with the band, "
+                     f"stop at {track[j]:.1f} Nm (limit {FER_TAU_MAX[j]:.0f} Nm); all joints {np.round(need, 1).tolist()} Nm"))
+    w = max(rows, key=lambda r: max(r["pad_a"], r["pad_b"]))
+    out.append(check("grasp: the pads hold the force and the moment perpendicular to n", max(w["pad_a"], w["pad_b"]) <= GRIP_SAFETY,
+                     f"uses {max(w['pad_a'], w['pad_b']):.2f} of the pads' friction in step {w['step']} (closed chain "
+                     f"{w['pad_b']:.2f}, minimum norm {w['pad_a']:.2f}), at most {GRIP_SAFETY}; moment {w['M_b']:.2f} Nm; "
+                     f"f_g {f_g:.0f} N, mu_pad {L.PAD_MU} (assumption, to measure)"))
+    held = [r for r in rows if "mu_b" in r]
+    if held:
+        w = pick("mu_b")
+        out.append(check("table friction at the edge and the vertex", w["mu_b"] <= box.mu,
+                         f"needs mu {w['mu_b']:.2f} at the {w['kind']} in step {w['step']} (closed chain with "
+                         f"+-{L.BAND_N:.0f} N of internal force; minimum norm {max(r['mu_a'] for r in held):.2f}), "
+                         f"mu {box.mu} of the config (assumption, to measure)"))
+    edge = [r for r in rows if r["kind"] == "edge"]
+    if edge:
+        rolls = [r for r in edge if r["rolls"]]
+        w = max(rolls or edge, key=lambda r: max(r["roll"] - r["roll_cap"], r["twist"] - r["twist_cap"]))
+        out.append(check("the edge holds the hand's rotations perpendicular to n (rigid hinge)", not rolls,
+                         (f"box may roll onto a corner of the edge or turn on the table in {len(rolls)} of {len(edge)} "
+                          f"samples: the hinge asks up to {w['roll']:.2f} Nm roll / {w['twist']:.2f} Nm twist, the edge "
+                          f"gives {w['roll_cap']:.2f} / {w['twist_cap']:.2f} Nm; there the closed chain is taken with the "
+                          "edge as a point") if rolls else "", hard=False))
+    w = pick("defl_free")
+    land = [r["land_deg"] for r in edge if r["face"] == 0.0 and r["k"] == len(res["plan"].steps[r["step"]].plan.screws) - 1]
+    tol = cfg["tolerance"]["position"]
+    out.append(check("deflection of the hand under the load (not compensated; measure it in a low run)",
+                     w["defl_free"] <= tol,
+                     f"up to {max(r.get('defl_hinge', r['defl_b']) for r in rows) * 1e3:.1f} mm (rigid hinge) / "
+                     f"{max(r['defl_b'] for r in rows) * 1e3:.1f} mm (closed chain) / {w['defl_free'] * 1e3:.1f} mm "
+                     f"(free moments), step {w['step']} ({w['kind']})"
+                     + (f"; the box lands on its face {land[-1][0]:.1f} to {land[-1][1]:.1f} deg before the end of the "
+                        "pivot, then the table carries it" if land else ""), hard=False))
+    w = pick("dF_ab")
+    peak_b = max(rows, key=lambda r: r["F_b"])
+    out.append(check("wrench stop: the minimum-norm load lies inside the band of the predicted one", w["dF_ab"] <= w["band"],
+                     f"{w['dF_ab']:.1f} N apart, band {w['band']:.1f} N (step {w['step']}); the run stops on a force more "
+                     f"than band + f_max from the prediction: {peak_b['band'] + f_max:.0f} N at its peak of "
+                     f"{peak_b['F_b']:.1f} N, {L.BAND_N + f_max:.0f} N at no load", hard=False))
+    if stop:
+        r = [r for r in rows if r["step"] == stop["step"]][-1]
+        ok = max(r["pad_a"], r["pad_b"]) <= GRIP_SAFETY and r.get("mu_b", 0.0) <= box.mu
+        out.append(check("load held at the expected stop until the user acts", ok,
+                         f"{max(r['F_a'], r['F_b']):.1f} N, {r['M_b']:.2f} Nm perpendicular to n, pads "
+                         f"{max(r['pad_a'], r['pad_b']):.2f} (at most {GRIP_SAFETY}), table mu {r.get('mu_b', 0.0):.2f} "
+                         f"(config {box.mu})"))
+    return out
 
 
 def simulate_tracking(res, cfg, lead=False, dt=0.002):

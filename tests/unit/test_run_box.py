@@ -191,10 +191,14 @@ def test_preflight_go_and_the_checks_that_block(planned):
     cfg, res = planned
     items = rb.preflight(res, cfg)
     assert rb.go(items), [c for c in items if not c["ok"]]
+    # a 6 kg box: the slide needs mu m g = 29.4 N of the hand, over 90 % of the payload weight (26.5 N)
     heavy = copy.deepcopy(cfg)
-    heavy["box"]["mass"] = 4.0
-    res_heavy = dict(res, box=type(res["box"])(res["box"].size, 4.0, res["box"].mu))
-    assert not rb.go(rb.preflight(res_heavy, heavy))                    # over the payload
+    heavy["box"]["mass"] = 6.0
+    res_heavy = dict(res, box=type(res["box"])(res["box"].size, 6.0, res["box"].mu))
+    items = {c["name"]: c for c in rb.preflight(res_heavy, heavy)}
+    assert not rb.go(items.values()) and not items["hand force on the box within the payload"]["ok"]
+    F = max(r["F_b"] for r in rb.load_rows(res_heavy, heavy))           # the slide turns the box too: a bit less
+    assert 0.97 * 0.5 * 6.0 * 9.81 < F <= 0.5 * 6.0 * 9.81
     outside = copy.deepcopy(cfg)
     outside["tasks"]["custom"]["goal"]["xy"] = [0.95, 0.0]
     assert not rb.go(rb.preflight(res, outside))
@@ -518,6 +522,7 @@ def test_a_rigid_pivot_that_is_predicted_to_stop_runs_only_with_expect_stop(tmp_
     fingers still on the box (no release, no further motion)."""
     from panda_py import controllers
 
+    monkeypatch.setattr(rb, "load_checks", lambda res, cfg, stop=None: [])   # the kinematics only (load: elsewhere)
     start, goal = rb.parse_pose("0.50,-0.20,90,lying"), rb.parse_pose("0.50,0.00,90,standing")
     cfg = rp.load_config(rb.REAL_CONFIG, False, True)
     res = rb.plan_and_simulate(cfg, start, goal, 0.3, tracking=True)
@@ -716,3 +721,58 @@ def test_the_protocol_runs_the_gait_with_lag_compensation():
     assert protocol["lead"] is False
     leads = {(exp, task, grasp): spec["lead"] for exp, task, grasp, spec in proto.entries(protocol)}
     assert all(v == (k[0] == "gait") for k, v in leads.items()) and sum(leads.values()) == 2
+
+
+# ---- the quasi-static load of the box in the pre-flight (planning/load.py, design review D8, D14, D17) ----
+
+def load_row(**kw):
+    """One sample of run_box.load_profile with a harmless load; kw overrides it."""
+    row = dict(step=0, k=0, kind="edge", t=0.0, F_a=10.0, F_b=12.0, M_a=0.0, M_b=0.5, tau_a=np.full(7, 1.0),
+               tau_b=np.full(7, 1.2), pad_a=0.1, pad_b=0.2, defl_free=0.010, defl_b=0.006, defl_hinge=0.004,
+               mu_a=0.3, mu_b=0.35, rolls=False, roll=0.1, roll_cap=0.8, twist=0.05, twist_cap=0.2, face=0.0,
+               land_deg=[0.5, 1.5], W_b=np.r_[0, 0, -12.0, 0, 0, 0.5], dF_ab=2.0, band=7.4, tau_band=np.full(7, 1.0))
+    row.update(kw)
+    return row
+
+
+def checks_with(planned, cfg_edit=None, **kw):
+    cfg, res = planned
+    cfg = copy.deepcopy(cfg)
+    if cfg_edit:
+        cfg_edit(cfg)
+    res = dict(res)
+    res["load_rows"] = ((res["box"], cfg["execution"]["grasp"]["force"]), [load_row(), load_row(**kw)])
+    return {c["name"]: c for c in rb.load_checks(res, cfg)}
+
+
+def test_load_checks_block_on_payload_torques_pads_and_friction_and_warn_on_the_edge_and_the_deflection(planned):
+    c = checks_with(planned)
+    assert all(v["ok"] for k, v in c.items() if v["hard"]), [v for v in c.values() if not v["ok"]]
+    pay = "hand force on the box within the payload"
+    assert checks_with(planned, F_b=26.4)[pay]["ok"] and not checks_with(planned, F_b=26.6)[pay]["ok"]   # 0.9 x 3 kg x g
+    assert not checks_with(planned, F_a=27.0)[pay]["ok"]                                                # either bound
+    assert not checks_with(planned, F_b=23.0)["  with the weight of the hand, which the payload includes"]["ok"]   # warning
+    tq = "joint torques of the load within the torque limits"
+    assert checks_with(planned, tau_b=np.r_[np.full(4, 43.0), np.full(3, 1.0)])[tq]["ok"]
+    assert not checks_with(planned, tau_b=np.r_[1.0, 1, 1, 1, 6.1, 1, 1])[tq]["ok"]                   # half of 12 Nm
+    tr = "tracking-torque stop above the predicted load and its band"
+    assert checks_with(planned, tau_b=np.r_[18.9, 1, 1, 1, 1, 1, 1])[tr]["ok"]                        # + 1 Nm band < 20
+    assert not checks_with(planned, tau_b=np.r_[19.1, 1, 1, 1, 1, 1, 1])[tr]["ok"]
+    assert not checks_with(planned, tau_b=np.r_[1, 1, 1, 1, 1, 1, 3.1])[tr]["ok"]                      # wrist: 4 Nm
+    pad = "grasp: the pads hold the force and the moment perpendicular to n"
+    assert checks_with(planned, pad_b=0.5)[pad]["ok"] and not checks_with(planned, pad_b=0.51)[pad]["ok"]
+    fr = "table friction at the edge and the vertex"
+    assert checks_with(planned, mu_b=0.5)[fr]["ok"] and not checks_with(planned, mu_b=0.51)[fr]["ok"]
+    assert not checks_with(planned, kind="vertex", mu_b=0.6)[fr]["ok"]
+    edge = checks_with(planned, rolls=True, roll=3.0, twist=4.0)["the edge holds the hand's rotations perpendicular to n (rigid hinge)"]
+    assert not edge["ok"] and not edge["hard"] and "roll onto a corner of the edge" in edge["detail"]
+    d = checks_with(planned)["deflection of the hand under the load (not compensated; measure it in a low run)"]
+    assert not d["ok"] and not d["hard"] and "4.0 mm (rigid hinge) / 6.0 mm (closed chain) / 10.0 mm (free moments)" in d["detail"]
+    band = checks_with(planned, dF_ab=8.0)["wrench stop: the minimum-norm load lies inside the band of the predicted one"]
+    assert not band["ok"] and not band["hard"] and "37 N at its peak" in band["detail"]     # 7.4 N band + 30 N f_max
+    # a rigid run that stops holds the box until the user acts: its load there must stay within the pads and friction
+    cfg, res = planned
+    res = dict(res, load_rows=((res["box"], cfg["execution"]["grasp"]["force"]), [load_row(), load_row(pad_b=0.6)]))
+    held = {c["name"]: c for c in rb.load_checks(res, cfg, stop=dict(step=0))}["load held at the expected stop until the user acts"]
+    assert not held["ok"] and held["hard"]
+
