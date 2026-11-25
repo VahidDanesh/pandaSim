@@ -136,3 +136,28 @@ def test_where_the_edge_cannot_hold_the_hinge_the_chain_is_taken_with_the_edge_a
     F, M, x = L.closed_chain(K, c, com, np.zeros(3), list(np.eye(3)), Y, m)
     assert w["F_b"] == pytest.approx(F) and w["M_b"] == pytest.approx(M)
     assert L.edge_moment(F, M, c, com, np.zeros(3), m) == pytest.approx(np.zeros(3), abs=1e-9)   # asks nothing of it
+
+
+def test_at_5_kg_the_standing_box_can_be_turned_about_the_grasp_but_not_translated():
+    """Design review D17 (8): tau_grip / (m g) + d_lead - mu h_g along the finger axis, 0.0514 + 0.03 - 0.115 m < 0 at
+    5 kg (+0.172 m at 1 kg); across it 0.075 - 0.115 m at any mass; a turn about the vertical through the grasp
+    does not move the grasp point (no tipping moment)."""
+    size, mu = (0.15, 0.06, 0.25), 0.5
+    T = se3.rp(np.eye(3), np.array([0.5, 0.0, 0.125]))                  # standing on its 0.15 x 0.06 face
+    T_grasp, width = P.box_grasp(T, size, Y)
+    assert width == pytest.approx(0.06) and abs(T_grasp[:3, 1] @ Y) == pytest.approx(1.0)
+    h_g = 0.25 - P.GRASP_DEPTH
+    tau = 2 * P.PAD_MU * P.GRIP_N * 0.03 * P.GRIP_SAFETY                   # 2.52 Nm
+    along, across = np.r_[0, 0, 0, Y], np.r_[0, 0, 0, 1.0, 0, 0]
+    for mass, expect in ((5.0, tau / (5.0 * g) + 0.03 - mu * h_g), (1.0, tau / (1.0 * g) + 0.03 - mu * h_g)):
+        assert P.tip_margin(T, size, T_grasp, along, mu, mass) == pytest.approx(expect)
+    assert P.tip_margin(T, size, T_grasp, along, mu, 5.0) == pytest.approx(-0.0336, abs=1e-4)
+    assert P.tip_margin(T, size, T_grasp, across, mu, 5.0) == pytest.approx(0.075 - mu * h_g)
+    turn = np.r_[0, 0, 1.0, -np.cross([0, 0, 1.0], T_grasp[:3, 3])]
+    assert P.tip_margin(T, size, T_grasp, turn, mu, 5.0) == math.inf
+    # so the planner's slide of the standing 5 kg box: a turn about the grasp passes, a translation does not
+    goal_turn = se3.exp6(turn * 0.5) @ T
+    goal_move = se3.rp(np.eye(3), np.array([0.5, 0.05, 0.125]))
+    assert P.slide_tip_margin(size, P.plan_box_slide(T, size, goal_turn, Y, mu, 5.0), mu, 5.0) > P.SLIDE_MARGIN_MIN
+    assert P.slide_tip_margin(size, P.plan_box_slide(T, size, goal_move, Y, mu, 5.0), mu, 5.0) <= P.SLIDE_MARGIN_MIN
+    assert P.slide_tip_margin(size, P.plan_box_slide(T, size, goal_move, Y, mu, 1.0), mu, 1.0) > P.SLIDE_MARGIN_MIN
