@@ -5,9 +5,8 @@
 
 level: low            # run_box.py --level (low: box on the table, speed <= 0.5)
 speed: 0.3            # speed factor of every run (an experiment may set its own); it scales the joint velocity bound too
-# lag compensation of the joint controller (run_box.py --lead). Set true only after the air run has shown that the
-# measured lag matches the model (docs/HARDWARE_DAY.md); the gait needs it (25 screw motions per task: without it
-# the hand leaves the arcs by about 4 mm at speed 0.3 in the simulation with the lag).
+# lag compensation of the joint controller (run_box.py --lead), for every experiment that does not set its own.
+# Set true only after the air run has shown that the measured lag matches the model (docs/HARDWARE_DAY.md).
 lead: false
 
 experiments:
@@ -20,6 +19,10 @@ experiments:
   gait:               # 7.3 object gaiting with one manipulator (run_box.py --gait)
     repetitions: 5
     gait: true
+    # with lag compensation: without it the lag simulation ends 13 mm (lying) / 6 mm (standing) off the goal after
+    # 25 screw motions, a hard NO-GO for a gait. These commands are valid only after the air run has confirmed the
+    # lag model (docs/HARDWARE_DAY.md, section 3); until then do not run the gait entries.
+    lead: true
     tasks:
       lying: {start: "0.50,0.10,0,lying", goal: "0.55,-0.08,30,lying"}
       standing: {start: "0.55,0.10,0,standing", goal: "0.55,-0.05,0,standing"}

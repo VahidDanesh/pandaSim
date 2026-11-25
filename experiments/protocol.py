@@ -5,7 +5,8 @@ the commands.
     python experiments/protocol.py --only fr          one experiment
     python experiments/protocol.py --host 172.16.0.2  host in the printed commands
 
-Each entry is planned and simulated exactly as run_box.py does it (pre-flight with the joint controller's lag). A rigid
+Each entry is planned and simulated exactly as run_box.py does it (pre-flight with the joint controller's lag, with lag
+compensation if the protocol or its experiment sets `lead`; the command then carries --lead). A rigid
 entry whose simulation stops by an infeasible QP in a pivot is a predicted failure: its command carries --expect-stop
 (the robot runs up to the stop and then holds the tilted box). The verdicts go to experiments/results/protocol.json.
 No robot is used here.
@@ -36,20 +37,20 @@ def entries(protocol, only=None):
         for task, spec in e["tasks"].items():
             for grasp in e.get("grasps", ["free"]):
                 yield exp, task, grasp, dict(spec, gait=bool(e.get("gait")), repetitions=e["repetitions"],
-                                             speed=e.get("speed", protocol["speed"]))
+                                             speed=e.get("speed", protocol["speed"]), lead=bool(e.get("lead", protocol["lead"])))
 
 
 def check_entry(protocol, spec, grasp, config=rb.REAL_CONFIG):
     """Plan and simulate one entry as run_box.py does: dict with the verdict and the run_box.py flags."""
     cfg = rp.load_config(config, grasp == "free", True)          # the plan of free rotation in both grasps
-    cfg["execution"]["robot"] = {**(cfg["execution"].get("robot") or {}), "lead": bool(protocol["lead"])}
+    cfg["execution"]["robot"] = {**(cfg["execution"].get("robot") or {}), "lead": spec["lead"]}
     res = rb.plan_and_simulate(cfg, rb.parse_pose(spec["start"]), rb.parse_pose(spec["goal"]), spec["speed"],
                                tracking=True, gait=spec["gait"])
     found = res["plan"].found
     stop = rb.predicted_stop(res["log"], res["plan"].steps, rb.pivot_method(cfg)) if found and grasp == "rigid" else None
     items = rb.preflight(res, cfg, expect_stop=stop is not None)
     flags = (["--gait"] if spec["gait"] else []) + (["--rigid"] if grasp == "rigid" else []) \
-        + (["--expect-stop"] if stop else []) + (["--lead"] if protocol["lead"] else [])
+        + (["--expect-stop"] if stop else []) + (["--lead"] if spec["lead"] else [])
     return dict(go=rb.go(items), steps=[s.kind for s in res["plan"].steps] if found else [],
                 duration_s=float(res["log"].arrays()["t"][-1]) if found else None, stop=stop, flags=flags,
                 failed=[c["name"] + (f" ({c['detail']})" if c["detail"] else "") for c in items if not c["ok"] and c["hard"]],

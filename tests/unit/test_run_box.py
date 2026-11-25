@@ -644,3 +644,41 @@ def test_speed_factor_keeps_the_joint_path():
     nominal = paths(1.0)
     assert largest_difference(nominal, paths(0.3)) < 1e-3
     assert largest_difference(nominal, paths(0.3, rates=False)) > 0.05
+
+
+def test_a_gait_off_the_goal_with_the_lag_needs_lag_compensation(planned, monkeypatch):
+    """'object at the goal with the lag' is hard for a gait plan without lag compensation (25 screw motions), a warning
+    otherwise; the pivot-arc line reports a deviation of the commanded path (a force on the box), not a squeeze."""
+    import dataclasses
+
+    cfg, res = planned
+    monkeypatch.setattr(rb, "grasp_observability", lambda st: (True, 1.0, ""))     # the slide steps relabelled as gait
+    gait = dict(res, plan=dataclasses.replace(res["plan"], steps=[dataclasses.replace(s, kind="gait") for s in res["plan"].steps]))
+    tr = dict(ok=True, fails=[], err_mm=13.0, err_deg=0.6, pivot_dev_mm=3.0)
+
+    def goal_item(r, lead):
+        items = rb.preflight(dict(r, tracking=dict(tr, lead=lead)), cfg)
+        return rb.go(items), next(c for c in items if "object at the goal with the lag" in c["name"]), items
+
+    go, c, items = goal_item(gait, False)
+    assert not go and not c["ok"] and c["hard"] and "--lead" in c["detail"]
+    go, c, _ = goal_item(gait, True)
+    assert go and not c["ok"] and not c["hard"]
+    go, c, _ = goal_item(res, False)                                    # not a gait: a warning
+    assert go and not c["ok"] and not c["hard"]
+    arc = next(c for c in items if "pivot arc" in c["name"])
+    assert not arc["ok"] and not arc["hard"] and "commanded" in arc["name"] and "internal force" in arc["detail"]
+    assert "squeeze" not in arc["detail"]
+
+
+def test_the_protocol_runs_the_gait_with_lag_compensation():
+    """protocol.yaml: lead stays off globally; the gait experiment sets its own (protocol.check_entry simulates and
+    flags each entry with spec["lead"])."""
+    import yaml
+
+    import protocol as proto
+
+    protocol = yaml.safe_load(proto.PROTOCOL.read_text())
+    assert protocol["lead"] is False
+    leads = {(exp, task, grasp): spec["lead"] for exp, task, grasp, spec in proto.entries(protocol)}
+    assert all(v == (k[0] == "gait") for k, v in leads.items()) and sum(leads.values()) == 2

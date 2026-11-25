@@ -48,7 +48,8 @@ G = 9.81
 PAYLOAD = 3.0                       # kg, Franka Emika Panda (hand included)
 REGION = dict(x=(0.30, 0.75), y=(-0.35, 0.35))
 JOINT_MARGIN = (0.05, 0.15)         # rad: below the first the run is refused, below the second it is a warning
-PIVOT_PATH_WARN = 2.0               # mm: warning if the hand leaves the pivot arc by more with the controller's lag
+PIVOT_PATH_WARN = 2.0               # mm: warning if the commanded hand path leaves the pivot arc by more with the lag
+                                    # (on the robot the box holds the hand on the arc: an internal force, not a squeeze)
 STOP_COAST_MAX = 0.005              # m: an expected stop is refused if the hand would coast further (controller lag)
 
 
@@ -176,10 +177,14 @@ def preflight(res, cfg, expect_stop=False):
                              "" if tr["ok"] else "; ".join(tr["fails"]) + "  (slower speed, larger safety.settle, or --lead)"))
         if tr["ok"] and not stop:
             tol = cfg["tolerance"]
+            # a gait plan (25 screw motions) without lag compensation ends far off the goal: refused (design review D9)
+            gait_no_lead = any(st.kind == "gait" for st in plan.steps) and not tr["lead"]
             out.append(check("  object at the goal with the lag", tr["err_mm"] < tol["position"] * 1e3
-                             and tr["err_deg"] < tol["rotation_deg"], f"{tr['err_mm']:.1f} mm, {tr['err_deg']:.2f} deg", hard=False))
-            out.append(check("  hand stays on the pivot arc with the lag", tr["pivot_dev_mm"] < PIVOT_PATH_WARN,
-                             f"leaves it by {tr['pivot_dev_mm']:.1f} mm (the box is squeezed against the table by that much)", hard=False))
+                             and tr["err_deg"] < tol["rotation_deg"], f"{tr['err_mm']:.1f} mm, {tr['err_deg']:.2f} deg"
+                             + ("; a gait needs --lead" if gait_no_lead else ""), hard=gait_no_lead))
+            out.append(check("  commanded hand path stays on the pivot arc with the lag", tr["pivot_dev_mm"] < PIVOT_PATH_WARN,
+                             f"it leaves the arc by {tr['pivot_dev_mm']:.1f} mm; the box holds the hand on the arc, so the "
+                             "joint impedance presses on the box with the matching internal force", hard=False))
     out.append(check("arm and hand clearance", res["clearance"]["arm_min"] >= 0.005, f"smallest distance {res['clearance']['arm_min'] * 1e3:.1f} mm"))
     m, f_max = box.mass, (cfg["execution"].get("safety") or {}).get("f_max", 30.0)
     out.append(check("box mass within the payload", m <= PAYLOAD, f"{m:.2f} kg, payload {PAYLOAD} kg"))
@@ -233,7 +238,8 @@ def plan_and_simulate(cfg, start, goal, speed=1.0, tracking=False, gait=False):
 
 def pivot_path_error(log, steps, robot):
     """Largest distance [m] of the grasp point from the planned arc over the pivot segments of a log (every screw of
-    a pivot or gait step): change of the radius about the screw axis or of the position along it."""
+    a pivot or gait step): change of the radius about the screw axis or of the position along it. In the simulation
+    nothing holds the hand on the arc; on the robot the box does, so this is how far the commanded path leaves it."""
     a, dev, count = log.arrays(), 0.0, {}
     for j, sg in enumerate(log.segments):
         idx = np.flatnonzero(a["segment"] == j)
