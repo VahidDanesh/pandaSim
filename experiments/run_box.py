@@ -233,7 +233,8 @@ def plan_and_simulate(cfg, start, goal, speed=1.0, tracking=False, gait=False, c
     cfg_plan = rp.scale_speed(json.loads(json.dumps(cfg)), 1.0)   # the rollouts of the planner run at the nominal speed
     rp.scale_speed(cfg, speed)
     robot = rp.make_robot(cfg)
-    res = rp.run_task(cfg, robot, "custom", rp.make_planner(cfg_plan, robot, gait, chain))
+    planner = rp.make_planner(cfg_plan, robot, chain=True) if chain else rp.make_planner(cfg_plan, robot, gait)
+    res = rp.run_task(cfg, robot, "custom", planner)
     res["robot_limits"] = (robot.qlim[0, :7], robot.qlim[1, :7])
     res["robot"] = robot
     if tracking and res["plan"].found:
