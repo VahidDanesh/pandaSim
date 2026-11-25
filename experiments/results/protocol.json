@@ -9,6 +9,7 @@
   "gait": false,
   "repetitions": 5,
   "speed": 0.3,
+  "lead": false,
   "go": true,
   "steps": [
    "slide"
@@ -29,16 +30,17 @@
   "gait": false,
   "repetitions": 5,
   "speed": 0.3,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 87.58400000005415,
+  "duration_s": 87.8890000000556,
   "stop": null,
   "flags": [],
   "failed": [],
   "warnings": [
-   "  hand stays on the pivot arc with the lag (leaves it by 2.8 mm (the box is squeezed against the table by that much))"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
   ]
  },
  {
@@ -51,21 +53,22 @@
   "gait": true,
   "repetitions": 5,
   "speed": 0.3,
+  "lead": true,
   "go": true,
   "steps": [
    "gait",
    "gait",
    "gait"
   ],
-  "duration_s": 233.69800000075182,
+  "duration_s": 233.63700000075153,
   "stop": null,
   "flags": [
-   "--gait"
+   "--gait",
+   "--lead"
   ],
   "failed": [],
   "warnings": [
-   "  object at the goal with the lag (15.4 mm, 0.75 deg)",
-   "  hand stays on the pivot arc with the lag (leaves it by 3.8 mm (the box is squeezed against the table by that much))"
+   "  object at the goal with the lag (3.8 mm, 0.72 deg)"
   ]
  },
  {
@@ -78,6 +81,7 @@
   "gait": true,
   "repetitions": 5,
   "speed": 0.3,
+  "lead": true,
   "go": true,
   "steps": [
    "gait",
@@ -85,14 +89,15 @@
    "gait",
    "gait"
   ],
-  "duration_s": 287.44300000011475,
+  "duration_s": 287.36300000011664,
   "stop": null,
   "flags": [
-   "--gait"
+   "--gait",
+   "--lead"
   ],
   "failed": [],
   "warnings": [
-   "  object at the goal with the lag (6.8 mm, 0.65 deg)"
+   "  object at the goal with the lag (3.8 mm, 0.84 deg)"
   ]
  },
  {
@@ -105,18 +110,17 @@
   "gait": false,
   "repetitions": 5,
   "speed": 0.3,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot",
    "slide"
   ],
-  "duration_s": 143.07000000031908,
+  "duration_s": 142.67100000031718,
   "stop": null,
   "flags": [],
   "failed": [],
-  "warnings": [
-   "  hand stays on the pivot arc with the lag (leaves it by 2.1 mm (the box is squeezed against the table by that much))"
-  ]
+  "warnings": []
  },
  {
   "name": "seq_flip_free",
@@ -128,6 +132,7 @@
   "gait": false,
   "repetitions": 5,
   "speed": 0.3,
+  "lead": false,
   "go": true,
   "steps": [
    "slide",
@@ -135,12 +140,13 @@
    "pivot",
    "slide"
   ],
-  "duration_s": 337.7609999989249,
+  "duration_s": 337.88999999892184,
   "stop": null,
   "flags": [],
   "failed": [],
   "warnings": [
-   "  hand stays on the pivot arc with the lag (leaves it by 2.8 mm (the box is squeezed against the table by that much))"
+   "  object at the goal with the lag (3.5 mm, 0.21 deg)",
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
   ]
  },
  {
@@ -153,6 +159,7 @@
   "gait": false,
   "repetitions": 5,
   "speed": 0.3,
+  "lead": false,
   "go": true,
   "steps": [
    "slide",
@@ -160,12 +167,12 @@
    "pivot",
    "slide"
   ],
-  "duration_s": 324.37399999924145,
+  "duration_s": 324.76699999923216,
   "stop": null,
   "flags": [],
   "failed": [],
   "warnings": [
-   "  hand stays on the pivot arc with the lag (leaves it by 2.1 mm (the box is squeezed against the table by that much))"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
   ]
  },
  {
@@ -178,11 +185,12 @@
   "gait": false,
   "repetitions": 3,
   "speed": 0.15,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 176.2660000004776,
+  "duration_s": 177.33200000048268,
   "stop": null,
   "flags": [],
   "failed": [],
@@ -198,18 +206,19 @@
   "gait": false,
   "repetitions": 3,
   "speed": 0.15,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 185.49500000052166,
+  "duration_s": 185.6720000005225,
   "stop": null,
   "flags": [
    "--rigid"
   ],
   "failed": [],
   "warnings": [
-   "  hand stays on the pivot arc with the lag (leaves it by 2.4 mm (the box is squeezed against the table by that much))"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.2 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
   ]
  },
  {
@@ -222,11 +231,12 @@
   "gait": false,
   "repetitions": 3,
   "speed": 0.15,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 180.43200000049748,
+  "duration_s": 180.9990000005002,
   "stop": null,
   "flags": [],
   "failed": [],
@@ -242,18 +252,19 @@
   "gait": false,
   "repetitions": 3,
   "speed": 0.15,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 187.60600000053174,
+  "duration_s": 187.95800000053342,
   "stop": null,
   "flags": [
    "--rigid"
   ],
   "failed": [],
   "warnings": [
-   "  hand stays on the pivot arc with the lag (leaves it by 2.5 mm (the box is squeezed against the table by that much))"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.3 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
   ]
  },
  {
@@ -266,16 +277,17 @@
   "gait": false,
   "repetitions": 3,
   "speed": 0.15,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 203.4950000006076,
+  "duration_s": 203.48600000060756,
   "stop": null,
   "flags": [],
   "failed": [],
   "warnings": [
-   "  hand stays on the pivot arc with the lag (leaves it by 2.7 mm (the box is squeezed against the table by that much))"
+   "  commanded hand path stays on the pivot arc with the lag (it leaves the arc by 2.6 mm; the box holds the hand on the arc, so the joint impedance presses on the box with the matching internal force)"
   ]
  },
  {
@@ -288,26 +300,24 @@
   "gait": false,
   "repetitions": 3,
   "speed": 0.15,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 116.45200000019199,
+  "duration_s": 113.59500000017835,
   "stop": {
    "step": 0,
-   "angle_deg": 59.33896754372022,
+   "angle_deg": 52.227494079175784,
    "of_deg": 90.0,
-   "time_frac": 0.5866935033422276
+   "time_frac": 0.5430417587903188
   },
   "flags": [
    "--rigid",
    "--expect-stop"
   ],
   "failed": [],
-  "warnings": [
-   "joint-limit margin comfortable (0.15 rad < 0.15 rad)",
-   "joint accelerations within the limits (1.43 of the limit)"
-  ]
+  "warnings": []
  },
  {
   "name": "fr_d_free",
@@ -319,11 +329,12 @@
   "gait": false,
   "repetitions": 3,
   "speed": 0.15,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 193.77000000056117,
+  "duration_s": 193.95100000056203,
   "stop": null,
   "flags": [],
   "failed": [],
@@ -339,26 +350,24 @@
   "gait": false,
   "repetitions": 3,
   "speed": 0.15,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 115.92100000018945,
+  "duration_s": 113.62500000017849,
   "stop": {
    "step": 0,
-   "angle_deg": 58.04371279720024,
+   "angle_deg": 52.30368909481281,
    "of_deg": 90.0,
-   "time_frac": 0.5785804209631363
+   "time_frac": 0.5435001250264256
   },
   "flags": [
    "--rigid",
    "--expect-stop"
   ],
   "failed": [],
-  "warnings": [
-   "joint-limit margin comfortable (0.15 rad < 0.15 rad)",
-   "joint accelerations within the limits (3.70 of the limit)"
-  ]
+  "warnings": []
  },
  {
   "name": "fr_e_free",
@@ -370,11 +379,12 @@
   "gait": false,
   "repetitions": 3,
   "speed": 0.15,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 140.76500000030808,
+  "duration_s": 139.27800000030098,
   "stop": null,
   "flags": [],
   "failed": [],
@@ -390,16 +400,17 @@
   "gait": false,
   "repetitions": 3,
   "speed": 0.15,
+  "lead": false,
   "go": true,
   "steps": [
    "pivot"
   ],
-  "duration_s": 79.02700000001329,
+  "duration_s": 79.01400000001323,
   "stop": {
    "step": 0,
-   "angle_deg": 54.68245078787501,
+   "angle_deg": 54.649822400697694,
    "of_deg": 90.0,
-   "time_frac": 0.557892824837848
+   "time_frac": 0.5576941994688683
   },
   "flags": [
    "--rigid",
@@ -407,7 +418,7 @@
   ],
   "failed": [],
   "warnings": [
-   "joint accelerations within the limits (1.65 of the limit)"
+   "joint accelerations within the limits (13.39 of the limit)"
   ]
  }
 ]
